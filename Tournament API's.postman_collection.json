@@ -1,0 +1,731 @@
+{
+	"info": {
+		"_postman_id": "cb54df87-9f97-4533-a19c-ea5ec00010d0",
+		"name": "Tournament API's",
+		"description": "## 👋 Introduction\n\nWelcome to the Tournament API development workspace. This workspace serves as a single source of truth for the APIs we build for Tournament App.\n\n## 🚀 Getting started with this workspace\n\nAPI Base Url (BASE_URL) for development: [http://localhost:5001/api](http://localhost:4000/api)\n\nAPI Base Url (BASE_URL) for production:",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "34497884"
+	},
+	"item": [
+		{
+			"name": "Authentication",
+			"item": [
+				{
+					"name": "Google Sign In",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{REACT_APP_BACKEND_URL}}/google",
+							"host": [
+								"{{REACT_APP_BACKEND_URL}}"
+							],
+							"path": [
+								"google"
+							]
+						},
+						"description": "The API endpoint to sign up and login via Google"
+					},
+					"response": []
+				},
+				{
+					"name": "Apple Sign In",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{REACT_APP_BACKEND_URL}}/apple",
+							"host": [
+								"{{REACT_APP_BACKEND_URL}}"
+							],
+							"path": [
+								"apple"
+							]
+						},
+						"description": "The API endpoint to sign up and login via Apple"
+					},
+					"response": []
+				},
+				{
+					"name": "Complete Sign Up Process",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"email\": \"string\",\r\n    \"alias\": \"string\",\r\n    \"name\": \"string\",\r\n    \"dateOfBirth\": \"string\",\r\n    \"gender\": \"string\",\r\n    \"club\": \"string\",\r\n    \"appleId\": \"string\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{REACT_APP_BACKEND_URL}}/complete-signup",
+							"host": [
+								"{{REACT_APP_BACKEND_URL}}"
+							],
+							"path": [
+								"complete-signup"
+							]
+						},
+						"description": "The API endpoint to complete the user Sign Up process for the very first time"
+					},
+					"response": []
+				}
+			],
+			"description": "## 🚀 Getting started with the Authentication process\n\n  \nThe following folders will show up the API's used in the system to implement Authtication and Authorization.  \nThe system is using JSON WEB TOKEN and BEREAR token format to validate the HTTP (Local machine) and HTTPS (Live Server) requests."
+		},
+		{
+			"name": "Profile",
+			"item": [
+				{
+					"name": "Get User Profile",
+					"request": {
+						"auth": {
+							"type": "bearer"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{REACT_APP_BACKEND_URL}}/user/profile",
+							"host": [
+								"{{REACT_APP_BACKEND_URL}}"
+							],
+							"path": [
+								"user",
+								"profile"
+							]
+						},
+						"description": "# Expected Respones:\n\n- { tatus: 404, message: \"User not found\"}\n    \n- { user: USER_DETAILS, message: \"SUCCESS\"}"
+					},
+					"response": []
+				},
+				{
+					"name": "Update User Profile",
+					"request": {
+						"auth": {
+							"type": "bearer"
+						},
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"email\": \"string\",\r\n    \"alias\": \"string\",\r\n    \"name\": \"string\",\r\n    \"dateOfBirth\": \"string\",\r\n    \"gender\": \"string\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{REACT_APP_BACKEND_URL}}/user/update-profile",
+							"host": [
+								"{{REACT_APP_BACKEND_URL}}"
+							],
+							"path": [
+								"user",
+								"update-profile"
+							]
+						},
+						"description": "# Expected Respones:\n\n- { status: 400, message: \"Alias is required\", code: \"WARNING, error: true }\n    \n- { status: 400, message: \"Name is required\", code: \"WARNING, error: true }\n    \n- { status: 400, message: \"Date of birth is required\", code: \"WARNING, error: true }\n    \n- { status: 400, message: \"Gender is required\", code: \"WARNING, error: true }\n    \n- { status: 200, message: \"Profile updated\", code: \"SUCCESS, error: false }"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete User Profile",
+					"request": {
+						"auth": {
+							"type": "bearer"
+						},
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{REACT_APP_BACKEND_URL}}/user/delete-profile",
+							"host": [
+								"{{REACT_APP_BACKEND_URL}}"
+							],
+							"path": [
+								"user",
+								"delete-profile"
+							]
+						},
+						"description": "# Expected Respones:\n\n- { status: 200, message: \"Profile deleted\", code: \"PROFIEL_DELETED, error: false }"
+					},
+					"response": []
+				}
+			],
+			"description": "The folder/directory to for all the user's Profile API's."
+		},
+		{
+			"name": "Club",
+			"item": [
+				{
+					"name": "Add Club",
+					"request": {
+						"auth": {
+							"type": "bearer"
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"name\": \"string\",\r\n    \"address\": \"string\",\r\n    \"coordinates\": {\r\n        \"longitude\": 0,\r\n        \"latitude\": 0\r\n    },\r\n    \"website\": \"string\",\r\n    \"courts\": [\r\n        {\r\n            \"name\": \"string\",\r\n            \"courtType\": \"string\", // 'grass' | 'clay' | 'concrete' | 'carpet' | 'asphalt' | 'other'\r\n            \"placement\": \"string\" // 'indoor' | 'outdoor'\r\n        },\r\n        {\r\n            \"name\": \"string\",\r\n            \"courtType\": \"string\", // 'grass' | 'clay' | 'concrete' | 'carpet' | 'asphalt' | 'other'\r\n            \"placement\": \"string\" // 'indoor' | 'outdoor'\r\n        }\r\n    ]\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{REACT_APP_BACKEND_URL}}/user/club",
+							"host": [
+								"{{REACT_APP_BACKEND_URL}}"
+							],
+							"path": [
+								"user",
+								"club"
+							]
+						},
+						"description": "# Expected Respones:\n\n- { status: 400, message: \\[\"Club name is required\"\\], code: \"WARNING, error: true }\n    \n- { status: 400, message: \\[\"Club address is required\"\\], code: \"WARNING, error: true }\n    \n- { status: 400, message: \\[\"Valid Coordinates are required\"\\], code: \"WARNING, error: true }\n    \n- { status: 400, message: \\[\"At-least one court is required\"\\], code: \"WARNING, error: true }\n    \n- { status: 200, message: \\[\"Club added successfully\"\\], code: \"CLUB_ADDED, error: false}"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Club",
+					"request": {
+						"auth": {
+							"type": "jwt",
+							"jwt": [
+								{
+									"key": "algorithm",
+									"value": "HS256",
+									"type": "string"
+								},
+								{
+									"key": "isSecretBase64Encoded",
+									"value": false,
+									"type": "boolean"
+								},
+								{
+									"key": "payload",
+									"value": "{}",
+									"type": "string"
+								},
+								{
+									"key": "addTokenTo",
+									"value": "header",
+									"type": "string"
+								},
+								{
+									"key": "headerPrefix",
+									"value": "Bearer",
+									"type": "string"
+								},
+								{
+									"key": "queryParamKey",
+									"value": "token",
+									"type": "string"
+								},
+								{
+									"key": "header",
+									"value": "{}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"name\": \"string\",\r\n    \"address\": \"string\",\r\n    \"coordinates\": {\r\n        \"longitude\": 0,\r\n        \"latitude\": 0\r\n    },\r\n    \"website\": \"string\",\r\n    \"courts\": [\r\n        {\r\n            \"name\": \"string\",\r\n            \"courtType\": \"string\", // 'grass' | 'clay' | 'concrete' | 'carpet' | 'asphalt' | 'other'\r\n            \"placement\": \"string\" // 'indoor' | 'outdoor'\r\n        },\r\n        {\r\n            \"name\": \"string\",\r\n            \"courtType\": \"string\", // 'grass' | 'clay' | 'concrete' | 'carpet' | 'asphalt' | 'other'\r\n            \"placement\": \"string\" // 'indoor' | 'outdoor'\r\n        }\r\n    ]\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{REACT_APP_BACKEND_URL}}/user/club/:id",
+							"host": [
+								"{{REACT_APP_BACKEND_URL}}"
+							],
+							"path": [
+								"user",
+								"club",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": ""
+								}
+							]
+						},
+						"description": "# Expected Respones:\n\n- { status: 400, message: \\[\"Club Id is required\"\\], code: \"WARNING, error: true }\n    \n- { status: 400, message: \\[\"Club name is required\"\\], code: \"WARNING, error: true }\n    \n- { status: 400, message: \\[\"Club address is required\"\\], code: \"WARNING, error: true }\n    \n- { status: 400, message: \\[\"Valid Coordinates are required\"\\], code: \"WARNING, error: true }\n    \n- { status: 400, message: \\[\"At-least one court is required\"\\], code: \"WARNING, error: true }\n    \n- { status: 200, message: \\[\"Club added successfully\"\\], code: \"CLUB_ADDED, error: false}"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Clubs",
+					"request": {
+						"auth": {
+							"type": "bearer"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{REACT_APP_BACKEND_URL}}/user/clubs?page=1&limit=10",
+							"host": [
+								"{{REACT_APP_BACKEND_URL}}"
+							],
+							"path": [
+								"user",
+								"clubs"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								}
+							]
+						},
+						"description": "# Expected Respones:\n\n- { status: 400, clubs: CLUBS_DATA, pagination: { total, page, limitm totalPages }, code: \"CLUB_FETCHED, error: false }"
+					},
+					"response": []
+				},
+				{
+					"name": "Archive Club (Soft Delete)",
+					"request": {
+						"auth": {
+							"type": "bearer"
+						},
+						"method": "PATCH",
+						"header": [],
+						"url": {
+							"raw": "{{REACT_APP_BACKEND_URL}}/user/archive-club/:id",
+							"host": [
+								"{{REACT_APP_BACKEND_URL}}"
+							],
+							"path": [
+								"user",
+								"archive-club",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": ""
+								}
+							]
+						},
+						"description": "API to Archive the Club"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Clubs For Dropdown",
+					"request": {
+						"auth": {
+							"type": "bearer"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{REACT_APP_BACKEND_URL}}/user/club-dropdown",
+							"host": [
+								"{{REACT_APP_BACKEND_URL}}"
+							],
+							"path": [
+								"user",
+								"club-dropdown"
+							]
+						},
+						"description": "The API endpoint to get the club for dropdown while creating a tournament"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Favorite Club",
+			"item": [
+				{
+					"name": "Add Favorite Club",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"club\":\"MONGODB_ID\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{REACT_APP_BACKEND_URL}}/user/favorite-club",
+							"host": [
+								"{{REACT_APP_BACKEND_URL}}"
+							],
+							"path": [
+								"user",
+								"favorite-club"
+							]
+						},
+						"description": "# Expected Respones:\n\n- { status: 400, message: \\[\"Club is required\"\\], code: \"WARNING, error: true }\n    \n- { status: 400, message: \\[\"Invalid Club ID provided\"\\], code: \"WARNING, error: true }\n    \n- { status: 400, message: \\[\"Club is already in your favroite list\"\\], code: \"WARNING, error: true }\n    \n- { status: 200, message: \\[\"Club added to favorites\"\\], code: \"FAVORITE_CLUB_ADDED, error: true }"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Favorite Clubs",
+					"request": {
+						"auth": {
+							"type": "bearer"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{REACT_APP_BACKEND_URL}}/user/favorite-clubs",
+							"host": [
+								"{{REACT_APP_BACKEND_URL}}"
+							],
+							"path": [
+								"user",
+								"favorite-clubs"
+							]
+						},
+						"description": "The API endpoint to get user's favorite club list for setting's page"
+					},
+					"response": []
+				},
+				{
+					"name": "Active Favorite Club",
+					"request": {
+						"auth": {
+							"type": "bearer"
+						},
+						"method": "PATCH",
+						"header": [],
+						"url": {
+							"raw": "{{REACT_APP_BACKEND_URL}}/user/active-favorite-club/:id",
+							"host": [
+								"{{REACT_APP_BACKEND_URL}}"
+							],
+							"path": [
+								"user",
+								"active-favorite-club",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": ""
+								}
+							]
+						},
+						"description": "The API endpoint to active the club in the favorite list"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Club From Favorite List",
+					"request": {
+						"auth": {
+							"type": "bearer"
+						},
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{REACT_APP_BACKEND_URL}}/user/favorite-club/:id",
+							"host": [
+								"{{REACT_APP_BACKEND_URL}}"
+							],
+							"path": [
+								"user",
+								"favorite-club",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": ""
+								}
+							]
+						},
+						"description": "The API endpoint to delete the club from fav list"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Club Courts",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"auth": {
+							"type": "bearer"
+						},
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"clubId\":\"MONGODB_CLUB_ID\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{REACT_APP_BACKEND_URL}}/user/courts-by-club-id",
+							"host": [
+								"{{REACT_APP_BACKEND_URL}}"
+							],
+							"path": [
+								"user",
+								"courts-by-club-id"
+							]
+						},
+						"description": "The API's endpoint to get the Club's Courts to use while creating the tournament and for participant page"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Tournament",
+			"item": [
+				{
+					"name": "Add Tournament",
+					"request": {
+						"auth": {
+							"type": "bearer"
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"club\": \"string\",\r\n    \"name\": \"string\",\r\n    \"logo\": \"string\",\r\n    \"date\": \"string\",\r\n    \"startTime\": \"string\",\r\n    \"endTime\": \"string\",\r\n    \"playMode\": \"string\", // 'tiebreak' | 'tiebreakallinone' | 'tiebreakdeathmode' // Optional gender\r\n    \"memberFee\": 0,\r\n    \"externalFee\": 0,\r\n    \"minMember\": 0,\r\n    \"maxMember\": 0,\r\n    \"courts\": [\r\n        \"MONGODB_ID\",\r\n        \"MONGODB_ID\",\r\n        \"MONGODB_ID\"\r\n    ],\r\n    \"foodInfo\": \"string\",\r\n    \"descriptionInfo\": \"string\",\r\n    \"status\": \"string\" // 'active' | 'draft';\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{REACT_APP_BACKEND_URL}}/user/tournament",
+							"host": [
+								"{{REACT_APP_BACKEND_URL}}"
+							],
+							"path": [
+								"user",
+								"tournament"
+							]
+						},
+						"description": "# Expected Respones:\n\n- { status: 400, message: \\[\"Please choose a club\"\\], code: \"WARNING, error: true }\n    \n- { status: 400, message: \\[\"Invalid Club ID provided\"\\], code: \"WARNING, error: true }\n    \n- { status: 400, message: \\[\"Tournament name is required\"\\], code: \"WARNING, error: true }\n    \n- { status: 400, message: \\[\"Logo is required\"\\], code: \"WARNING, error: true }\n    \n- { status: 400, message: \\[\"Tournament date is required\"\\], code: \"WARNING, error: true }\n    \n- { status: 400, message: \\[\"Invalid or missing touranment start date\"\\], code: \"WARNING, error: true }\n    \n- { status: 400, message: \\[\"Invalid or missing tournament end date\"\\], code: \"WARNING, error: true }\n    \n- { status: 400, message: \\[\"Start time must be before end time\"\\], code: \"WARNING, error: true }\n    \n- { status: 400, message: \\[\"Play mode is required\"\\], code: \"WARNING, error: true }\n    \n- { status: 400, message: \\[\"Member fee is required\"\\], code: \"WARNING, error: true }\n    \n- { status: 400, message: \\[\"External fee is required\"\\], code: \"WARNING, error: true }\n    \n- { status: 400, message: \\[\"Minimum number of members is required\"\\], code: \"WARNING, error: true }\n    \n- { status: 400, message: \\[\"Maximum number of members is required\"\\], code: \"WARNING, error: true }\n    \n- { status: 400, message: \\[\"At-least one court is required, please select one\"\\], code: \"WARNING, error: true }\n    \n- { status: 400, message: \\[\"Food and drink description is required\"\\], code: \"WARNING, error: true }\n    \n- { status: 400, message: \\[\"Tournament description is required\"\\], code: \"WARNING, error: true }\n    \n- { status: 200, message: \\[\"Tournament added successfully\"\\], code: \"TOURNAMENT_ADDED, error: false}"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Tournament",
+					"request": {
+						"auth": {
+							"type": "bearer"
+						},
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"club\": \"string\",\r\n    \"name\": \"string\",\r\n    \"logo\": \"string\",\r\n    \"date\": \"string\",\r\n    \"startTime\": \"string\",\r\n    \"endTime\": \"string\",\r\n    \"playMode\": \"string\", // 'tiebreak' | 'tiebreakallinone' | 'tiebreakdeathmode' // Optional gender\r\n    \"memberFee\": 0,\r\n    \"externalFee\": 0,\r\n    \"minMember\": 0,\r\n    \"maxMember\": 0,\r\n    \"courts\": [\r\n        \"MONGODB_ID\",\r\n        \"MONGODB_ID\",\r\n        \"MONGODB_ID\"\r\n    ],\r\n    \"foodInfo\": \"string\",\r\n    \"descriptionInfo\": \"string\",\r\n    \"status\": \"string\" // 'active' | 'draft';\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{REACT_APP_BACKEND_URL}}/user/tournament/:id",
+							"host": [
+								"{{REACT_APP_BACKEND_URL}}"
+							],
+							"path": [
+								"user",
+								"tournament",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": ""
+								}
+							]
+						},
+						"description": "# Expected Respones:\n\n- { status: 400, message: \\[\"Please choose a club\"\\], code: \"WARNING, error: true }\n    \n- { status: 400, message: \\[\"Invalid Club ID provided\"\\], code: \"WARNING, error: true }\n    \n- { status: 400, message: \\[\"Tournament name is required\"\\], code: \"WARNING, error: true }\n    \n- { status: 400, message: \\[\"Logo is required\"\\], code: \"WARNING, error: true }\n    \n- { status: 400, message: \\[\"Tournament date is required\"\\], code: \"WARNING, error: true }\n    \n- { status: 400, message: \\[\"Invalid or missing touranment start date\"\\], code: \"WARNING, error: true }\n    \n- { status: 400, message: \\[\"Invalid or missing tournament end date\"\\], code: \"WARNING, error: true }\n    \n- { status: 400, message: \\[\"Start time must be before end time\"\\], code: \"WARNING, error: true }\n    \n- { status: 400, message: \\[\"Play mode is required\"\\], code: \"WARNING, error: true }\n    \n- { status: 400, message: \\[\"Member fee is required\"\\], code: \"WARNING, error: true }\n    \n- { status: 400, message: \\[\"External fee is required\"\\], code: \"WARNING, error: true }\n    \n- { status: 400, message: \\[\"Minimum number of members is required\"\\], code: \"WARNING, error: true }\n    \n- { status: 400, message: \\[\"Maximum number of members is required\"\\], code: \"WARNING, error: true }\n    \n- { status: 400, message: \\[\"At-least one court is required, please select one\"\\], code: \"WARNING, error: true }\n    \n- { status: 400, message: \\[\"Food and drink description is required\"\\], code: \"WARNING, error: true }\n    \n- { status: 400, message: \\[\"Tournament description is required\"\\], code: \"WARNING, error: true }\n    \n- { status: 200, message: \\[\"Tournament added successfully\"\\], code: \"TOURNAMENT_ADDED, error: false}"
+					},
+					"response": []
+				},
+				{
+					"name": "Get User's Tournaments",
+					"request": {
+						"auth": {
+							"type": "bearer"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{REACT_APP_BACKEND_URL}}/user/tournaments?page=1&limit=10&status=&club",
+							"host": [
+								"{{REACT_APP_BACKEND_URL}}"
+							],
+							"path": [
+								"user",
+								"tournaments"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								},
+								{
+									"key": "status",
+									"value": "",
+									"description": "active or draft"
+								},
+								{
+									"key": "club",
+									"value": null,
+									"description": "MONGODB_CLUB_ID"
+								}
+							]
+						},
+						"description": "The API endpoint to get the User's Tournamant list with pagination and filters"
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Tournament List With Filters (Home Page)",
+					"request": {
+						"auth": {
+							"type": "bearer"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{REACT_APP_BACKEND_URL}}/user/participate/tournaments?coordinates=&radius=&clubId&dateFilter",
+							"host": [
+								"{{REACT_APP_BACKEND_URL}}"
+							],
+							"path": [
+								"user",
+								"participate",
+								"tournaments"
+							],
+							"query": [
+								{
+									"key": "coordinates",
+									"value": "",
+									"description": "{longitude: VALUE,latitude: VALUE} (skip-able)"
+								},
+								{
+									"key": "radius",
+									"value": "",
+									"description": "Number 100, 200, 300, 400, 500, etc. (skip-able)"
+								},
+								{
+									"key": "clubId",
+									"value": null,
+									"description": "MONGODB_CLUB_ID (To filter tournament for a specific club)"
+								},
+								{
+									"key": "dateFilter",
+									"value": null,
+									"description": "past or future"
+								}
+							]
+						},
+						"description": "The API endpoint to get the tournament list with filters for the home page"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Participate",
+			"item": [
+				{
+					"name": "Add Participation In Tournament",
+					"request": {
+						"auth": {
+							"type": "bearer"
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"tournament\":\"TOURNAMENT_MONGODB_ID\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{REACT_APP_BACKEND_URL}}/user/participate",
+							"host": [
+								"{{REACT_APP_BACKEND_URL}}"
+							],
+							"path": [
+								"user",
+								"participate"
+							]
+						},
+						"description": "The API endpoint to add user's participation in the tournament"
+					},
+					"response": []
+				},
+				{
+					"name": "Leave Participation In Tournament",
+					"request": {
+						"auth": {
+							"type": "bearer"
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"tournament\":\"TOURNAMENT_MONGODB_ID\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{REACT_APP_BACKEND_URL}}/user/participate/leave",
+							"host": [
+								"{{REACT_APP_BACKEND_URL}}"
+							],
+							"path": [
+								"user",
+								"participate",
+								"leave"
+							]
+						},
+						"description": "The API endpoint to leave user's participation in the tournament"
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}

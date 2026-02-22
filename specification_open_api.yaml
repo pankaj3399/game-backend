@@ -1,0 +1,569 @@
+openapi: '3.0.2'
+info:
+  title: Tournament API
+  version: '0.1'
+servers:
+  - url: https://api.server.test/v1
+
+paths:
+  /tournaments:
+    get:
+      description: 'Fetches tournament t '
+      parameters:
+        - in: query
+          name: distance
+          required: false
+          description: 'radius to filter out tournament locations / clubs'
+        - in: query
+          name: club
+          required: false
+          description: 'filter by club'
+        - in: query
+          name: status
+          required: false
+          description: 'filter by status enum'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArrayOfTournaments'
+    put:
+      description: 'Creates tournament'
+      requestBody:
+        description: 'Tournament object'
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Tournament'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tournament'
+    post:
+      description: 'Updates tournament'
+      requestBody:
+        description: 'Tournament object'
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Tournament'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tournament'           
+  /tournaments/upcoming:
+    get:
+      description: 'Fetches future tournaments'
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArrayOfTournements'
+  /tournaments/past:
+    get:
+      description: 'Fetches past tournaments'
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArrayOfTournaments'
+  /tournament/{id}:
+    get:
+      description: 'Fetches tournament id'
+      parameters:
+        - in: path
+          name: id
+          required: true
+          description: 'tournament id to fetch'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tournament'
+    delete:
+      description: 'Deletes tournament'
+      parameters:
+        - in: path
+          name: tournamentId
+          required: true
+          description: 'tournament id to delete'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tournament'
+  /tournament/{id}/participants:
+    get:
+      description: 'Gets list of paticipants aliases only for user, full info for admin'
+      parameters:
+        - in: path
+          name: id
+          required: true
+          description: 'tournament id to fetch'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArrayOfUsers'
+    put:
+      description: 'Adds user to the tournament, userid fetched from JWT'
+      parameters:
+        - in: path
+          name: id
+          required: true
+          description: 'tournament id to fetch'
+      responses:
+        '200':
+          description: OK
+    delete:
+      description: 'Removes user from the tournament, userid fetched from JWT'
+      parameters:
+        - in: path
+          name: id
+          required: true
+          description: 'tournement id to fetch'
+      responses:
+        '200':
+          description: OK
+  
+  /tournament/{id}/status:
+    post:
+      description: 'Change status of the tournament'
+      parameters:
+        - in: path
+          name: id
+          required: true
+          description: 'tournament id to fetch'
+      responses:
+        '200':
+          description: OK
+
+  /tournament/{id}/games:
+    get:
+      description: 'Gets games of the tournament / schedule'  
+      summary: 'Admin and Everyone. Available to everyone only from 1 hours before the start of tournament Admin can always see returns list of [round(group(game)))]'
+      parameters:
+        - in: path
+          name: id
+          required: true
+          description: 'tournement id to fetch'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArrayOfUsers'
+  
+  /tournament/{id}/timetable:
+    put:
+      description: 'Triggers timetabe / rounds generation'  
+      summary: 'Admin only, server generates a timetable by using the participant list of tournament object and creates round group and games.'
+      parameters:
+        - in: path
+          name: id
+          required: true
+          description: 'tournament id to fetch'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tournament'         
+  
+  /tournament/{id}//rounds/{roundId}/players/switch/{player1Id}/{player2Id}:
+    post:
+      description: 'Switches two players in timetable'  
+      summary: ''
+      parameters:
+        - in: path
+          name: id
+          required: true
+          description: 'tournament id to fetch'
+        - in: path
+          name: roundId
+          required: true
+          description: 'round id to fetch'
+        - in: path
+          name: player1Id
+          required: true
+          description: ''
+        - in: path
+          name: player2Id
+          required: true
+          description: ''
+      responses:
+        '200':
+          description: OK
+
+  /games/{gameId}/score:
+    post:
+      description: 'Updates the score, Admin can update directly, player need to use below hmac signed version'
+      summary: 'Player, player should be checked if they belong to a game.
+          HMAC-SHA256
+          Payload is
+          {
+          gameId:
+          score:
+          random:
+          submitting_player_id:
+          approving_player_id:
+          submitting_player_signature:
+          approving_player_signature:
+          }
+          TODO:Explain algorithms to be used, the signature seeds will be generated signup time and dont change'
+      responses:
+        '200':
+          description: OK
+
+  /users/{id}/profile/{field}:
+    post:
+      description: 'Updates user profile attributes'  
+      summary: 'Updates all attributes, but for favorite club adds to clubs'
+      parameters:
+        - in: path
+          name: id
+          required: true
+          description: 'user id to fetch'
+        - in: path
+          name: field
+          required: true
+          schema:
+            $ref: "#/components/schemas/UserProfileFieldType"
+          description: 'field to update'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArrayOfUsers'
+    delete:
+      description: 'Deletes user profile attributes'  
+      summary: 'All blocked (not possible to delete), only favoriteClub removes from favorites at delete'
+      parameters:
+        - in: path
+          name: id
+          required: true
+          description: 'user id to fetch'
+        - in: path
+          name: field
+          required: true
+          schema:
+            $ref: "#/components/schemas/UserProfileFieldType"
+          description: 'field to update'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArrayOfUsers'
+
+  /clubs:
+    post:
+      description: 'Creates a club'  
+      summary: 'Creates a new club out of payload
+                The user creating the club should become administrator of the 
+                club '
+      requestBody:
+        description: 'Club object'
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Club'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Club'            
+    delete:           
+      description: 'Deletes a club'  
+      summary: 'Deletes a club
+                Only system administrator can deletet a club. It does not delete the object but sets status inactive.'
+
+  /club/{clubid}/admin/{userid}:
+    post:
+      description: 'Makes a user admin of a club is used when creating a new club and then only for system admin'  
+      summary: ' '
+      parameters:
+        - in: path
+          name: clubid
+          required: true
+          description: 'the club for which the user becomes admin'
+        - in: path
+          name: userid
+          required: true
+          description: 'user that is removed as admin of the club'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Club'     
+    delete:
+      description: 'Removes a user admin of a club. Only  system admin can do this'  
+      summary: ' '
+      parameters:
+        - in: path
+          name: clubid
+          required: true
+          description: 'the club for which the user is removed as admin'
+        - in: path
+          name: userid
+          required: true
+          description: 'user that becomes admin of the club'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Club'              
+
+components:
+  schemas:
+    UserProfileFieldType:
+          enum:
+          - email
+          - alias
+          - birthyear
+          - club
+          - name
+          - favoriteClubs
+          type: string
+    Club:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        address:
+          type: object
+        httpaddress:
+          type: object
+        coordinates:
+          type: object
+        courts:
+          type: array
+        admins:
+          type: array
+
+    Tournament:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        start_date:
+          type: object
+        stop_date:
+          type: object
+        description:
+          type: string
+        games:
+          type: array
+        year:
+          type: integer
+        participants_min:
+          type: integer
+        participants_max:
+          type: integer
+        club:
+          type: string
+        play_mode:
+          type: string
+          enum:
+          - tiebreak
+          - tiebreakallinone
+          - tiebreakdeathmode
+        participants:
+          type: array
+        event_type:
+          type: string
+          enum:
+          - open
+          - inviteonly
+        participation_fee:
+          type: object
+        description_info:
+          type: string
+        description_food_drinks:
+          type: string
+        tournament_mode:
+          type: string
+          enum:
+            - standard
+        rounds:
+        number_of_rounds:
+        logo:
+          type: string
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        admin_of:
+          type: array
+        player_id:  
+          type: string
+        signature_key:
+          type: string
+        super_admin:
+          type: boolean
+        auth_type:
+          type: string
+          enum:
+          - google
+          - apple
+          - microsoft
+        auth_data:
+          type: string
+
+    Player:
+      type: object
+      properties:
+        id:
+          type: string
+        alias:
+          type: string
+        name:
+          type: string
+        birth_year:
+          type: integer
+        gender:
+          type: string
+          enum:
+          - male
+          - female
+        games:
+          type: array
+        clubs:
+          type: array
+        player_rating:
+          type: integer
+        tournaments:
+          type: array
+        alias_or_name:
+          type: boolean
+        favorite_clubs:
+          type: array
+          items:
+            $ref: '#/components/schemas/Club'
+    Court:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        number:
+          type: integer 
+        club:
+          type: string 
+        court_type:
+          type: string
+          enum:
+          - grass
+          - clay
+          - concrete
+          - carpet
+          - asphalt
+          - other
+        placement: 
+          type: string
+          enum:
+          - indoor
+          - outdoor
+    Game:
+      type: object
+      properties:
+        id:
+          type: string
+        player1Id:
+          type: string
+        player2Id:
+          type: string
+        challenge:
+          type: string
+          enum:
+          - TB10
+          - other
+        status:
+          type: string
+          enum:
+          - invitation
+          - planned
+          - cancelled
+          - played
+        date:
+          type: object
+        time:
+          type: object
+        score_submitted_player_1:
+          type: integer
+        score_submitted_player_2:
+          type: integer
+        score_final:
+          type: array
+        tournementId:
+          type: string
+        competition_type:
+          type: string
+          enum:
+          -
+        match_type:
+          type: string
+          enum:
+          - tournament
+          - standalone
+        court:
+          type: string
+        is_score_updated_by_admin:
+          type: boolean
+
+    Group:
+      type: object
+      properties:
+        players:
+          type: array
+        games:
+          type: array
+
+    Round:
+      type: object
+      properties:
+        groups:
+          type: array
+        sequence: 
+          type: integer

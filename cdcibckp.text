@@ -1,0 +1,56 @@
+  # coverage: /All files[^|]*\|[^|]*\s+([\d\.]+)/
+  # artifacts:
+  #   paths:
+  #     - coverage/
+  #   when: always
+  #   reports:
+  #     junit:
+  #       - junit.xml
+# .gitlab-ci.yml
+stages:
+  - test
+  - build
+  - push
+  - deploy
+
+variables:
+  IMAGE_TAG: $CI_COMMIT_SHORT_SHA
+  PROJECT: mimetic-retina-450410-q0 #civil-charmer-313017
+  LOCATION: europe-west1
+  SERVICE: tournament-api-app
+  AR_IMAGE: $LOCATION-docker.pkg.dev/$PROJECT/tournament-api/$SERVICE
+
+unit-test:
+  image: node:latest
+  stage: test
+  before_script:
+    - yarn install
+  script:
+    - yarn test
+    
+build-job:
+  stage: build
+  services:
+    - docker:24.0.5-dind
+  image: docker:git
+  before_script:
+    - cp ${PRODUCTION_ENV_FILE} .env
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - docker build -t $CI_REGISTRY_IMAGE:$IMAGE_TAG --build-arg="name=Cloud Run" .
+    - docker push $CI_REGISTRY_IMAGE:$IMAGE_TAG
+
+include:
+  - component: gitlab.com/google-gitlab-components/artifact-registry/upload-artifact-registry@0.1.0
+    inputs:
+      stage: push
+      source: $CI_REGISTRY_IMAGE:$IMAGE_TAG
+      target: $AR_IMAGE:$IMAGE_TAG
+
+  - component: gitlab.com/google-gitlab-components/cloud-run/deploy-cloud-run@0.1.0
+    inputs:
+      stage: deploy
+      image: $AR_IMAGE:$IMAGE_TAG
+      project_id: $PROJECT
+      region: $LOCATION
+      service: $SERVICE
