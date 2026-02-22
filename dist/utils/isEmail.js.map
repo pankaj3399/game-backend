@@ -1,1 +1,0 @@
-{"version":3,"file":"isEmail.js","sourceRoot":"","sources":["../../src/utils/isEmail.ts"],"names":[],"mappings":";;AAAA,SAAS,YAAY,CAAC,KAAa;IAClC,MAAM,UAAU,GAAG,4BAA4B,CAAC;IAChD,OAAO,UAAU,CAAC,IAAI,CAAC,KAAK,CAAC,CAAC;AAC/B,CAAC;AAED,kBAAe,YAAY,CAAC"}
