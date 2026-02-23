@@ -15,8 +15,6 @@ export interface IUser extends Document {
 	dateOfBirth?: Date | null;
 	gender: "male" | "female" | "other" | null;
 	userType: "admin" | "user";
-	/** User's primary club (from signup). */
-	club?: mongoose.Types.ObjectId | null;
 	/** Clubs this user administers. */
 	adminOf: mongoose.Types.ObjectId[];
 	/** Tournaments this user organizes. */
@@ -67,11 +65,6 @@ const userSchema = new mongoose.Schema<IUser>(
 			},
 			required: true,
 			default: "user"
-		},
-		club: {
-			type: mongoose.Schema.Types.ObjectId,
-			ref: "Club",
-			default: null
 		},
 		adminOf: {
 			type: [{ type: mongoose.Schema.Types.ObjectId, ref: "Club" }],

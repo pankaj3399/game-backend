@@ -1,5 +1,4 @@
 import type { Request, Response } from 'express';
-import mongoose from 'mongoose';
 import { LogError } from '../../lib/logger';
 import User from '../../models/User';
 import UserAuth from '../../models/UserAuth';
@@ -17,16 +16,11 @@ export async function completeSignUp(req: Request, res: Response) {
 	if (!data?.alias) return res.status(400).json({ message: 'Alias is required', error: true, code: 'WARNING' });
 	if (!data?.name) return res.status(400).json({ message: 'Name is required', error: true, code: 'WARNING' });
 
-	const clubId = data.club && data.club.trim() !== '' && mongoose.Types.ObjectId.isValid(data.club)
-		? new mongoose.Types.ObjectId(data.club)
-		: null;
-
 	const updatePayload = {
 		alias: data.alias,
 		name: data.name,
 		dateOfBirth: data.dateOfBirth ?? null,
 		gender: data.gender && data.gender !== '' ? data.gender : null,
-		club: clubId,
 		elo: DEFAULT_ELO
 	};
 
