@@ -1,33 +1,14 @@
-import path from 'path';
-import fs from 'fs';
 import winston from 'winston';
-import { isProd } from './config';
-
-const logDir = process.env.LOG_DIR ?? path.resolve(process.cwd(), 'logs');
-fs.mkdirSync(logDir, { recursive: true });
 
 export const logger = winston.createLogger({
   level: 'info',
   format: winston.format.combine(
     winston.format.timestamp(),
-    winston.format.json()
+    winston.format.colorize(),
+    winston.format.simple()
   ),
-  transports: [
-    new winston.transports.File({ filename: path.join(logDir, 'error.log'), level: 'error' }),
-    new winston.transports.File({ filename: path.join(logDir, 'combined.log') }),
-  ],
+  transports: [new winston.transports.Console()],
 });
-
-if (!isProd) {
-  logger.add(
-    new winston.transports.Console({
-      format: winston.format.combine(
-        winston.format.colorize(),
-        winston.format.simple()
-      ),
-    })
-  );
-}
 
 const pathMeta = (path: string) => ({ path });
 
