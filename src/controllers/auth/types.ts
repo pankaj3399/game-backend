@@ -3,7 +3,7 @@ export interface ICompleteSignup {
 	email?: string;
 	alias?: string;
 	name?: string;
-	dateOfBirth?: Date | null;
+	dateOfBirth?: string | null;
 	gender?: string | null;
 	appleId?: string;
 }

@@ -3,3 +3,5 @@ node_modules
 AGENTS.md
 .cursor
 dist/
+tsconfig.tsbuildinfo
+*.log

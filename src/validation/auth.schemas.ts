@@ -1,10 +1,8 @@
 import { z } from 'zod';
 
-const emailSchema = z.string().email('Invalid email format').min(1, 'Email is required');
-
-/** Schema for POST /api/auth/complete-signup */
+/** Schema for POST /api/auth/complete-signup. Requires pendingToken from OAuth redirect. */
 export const completeSignupSchema = z.object({
-	email: emailSchema,
+	pendingToken: z.string().min(1, 'Pending token is required'),
 	alias: z.string().min(1, 'Alias is required').trim(),
 	name: z.string().min(1, 'Name is required').trim(),
 	dateOfBirth: z
@@ -13,13 +11,17 @@ export const completeSignupSchema = z.object({
 		.nullable()
 		.transform((val) => {
 			if (val == null || val === '') return null;
-			return typeof val === 'string' ? new Date(val) : val;
+			if (typeof val === 'string') {
+				const d = new Date(val);
+				if (Number.isNaN(d.getTime())) throw new Error('Invalid date value');
+				return d;
+			}
+			return val;
 		}),
 	gender: z
 		.union([z.enum(['male', 'female', 'other']), z.literal(''), z.null()])
 		.optional()
 		.transform((val) => (val === '' || val == null ? null : val)),
-	appleId: z.string().optional().default('')
 });
 
 export type CompleteSignupInput = z.infer<typeof completeSignupSchema>;

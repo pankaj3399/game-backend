@@ -4,7 +4,7 @@ import winston from 'winston';
 
 const isProd = process.env.NODE_ENV === 'production';
 
-const log = winston.createLogger({
+export const logger = winston.createLogger({
   level: 'info',
   format: winston.format.combine(
     winston.format.timestamp(),
@@ -15,6 +15,8 @@ const log = winston.createLogger({
     new winston.transports.File({ filename: 'combined.log' }),
   ],
 });
+
+const log = logger;
 
 if (!isProd) {
   log.add(
@@ -39,7 +41,8 @@ export function LogError(
     ...pathMeta(path),
     method,
     endpoint,
-    error: error instanceof Error ? error.message : String(error),
+    errorMessage: error instanceof Error ? error.message : String(error),
+    errorStack: error instanceof Error ? error.stack : undefined,
   });
 }
 

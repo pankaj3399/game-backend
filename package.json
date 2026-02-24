@@ -1,10 +1,11 @@
 {
   "name": "game-backend",
   "version": "1.0.0",
-  "description": "https://docs.gitlab.com/integration/google_cloud_iam/\r https://cloud.google.com/blog/products/devops-sre/software-delivery-pipelines-with-gitlab-cicd-and-cloud-deploy/\r https://medium.com/@bigface00/dive-into-gitlab-integration-with-google-cloud-6cfc93589c1d",
-  "main": "index.js",
+  "description": "Game backend API with Passport OAuth, Mongoose models, and Express sessions",
+  "main": "dist/server.js",
   "scripts": {
-    "start": "tsx src/server.ts",
+    "prestart": "npm run build",
+    "start": "node dist/server.js",
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -43,8 +44,7 @@
     "@types/express": "^5.0.6",
     "@types/express-session": "^1.18.2",
     "@types/jsonwebtoken": "^9.0.10",
-    "@types/mongodb": "^4.0.6",
-    "@types/mongoose": "^5.11.96",
+    "@types/node": "^20.0.0",
     "@types/passport": "^1.0.17",
     "tsx": "^4.19.2",
     "typescript": "^5.9.3"

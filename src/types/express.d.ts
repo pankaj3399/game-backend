@@ -6,8 +6,8 @@ declare global {
 			name?: string | null;
 			alias?: string | null;
 			dateOfBirth?: Date | null;
-			gender?: string | null;
-			userType?: string;
+			gender?: 'male' | 'female' | 'other' | null;
+			userType?: 'admin' | 'user';
 		}
 	}
 }

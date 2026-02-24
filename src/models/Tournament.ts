@@ -9,7 +9,7 @@ export interface ITournament extends Document {
 	date: Date;
 	startTime: string;
 	endTime: string;
-	playMode: 'TieBreak10' | '1set' | '3setTieBreak10' | '3set' | '5set'; // Optional gender
+	playMode: 'TieBreak10' | '1set' | '3setTieBreak10' | '3set' | '5set';
 	tournamentMode: 'singleDay' | 'period';
 	memberFee: number;
 	externalFee: number;
@@ -22,7 +22,7 @@ export interface ITournament extends Document {
 	descriptionInfo: string;
 	numberOfRounds: number;
 	roundTimings: { startDate: Date; endDate: Date }[];
-	status: 'active' | 'draft';
+	status: 'active' | 'draft' | 'inactive';
 	createdAt?: Date;
 	updatedAt?: Date;
 	participants: Schema.Types.ObjectId[]; // contains list of participants
@@ -163,9 +163,7 @@ const tournamentSchema = new mongoose.Schema<ITournament>(
 	}
 );
 
-tournamentSchema.index({ coordinates: '2dsphere' });
-
-// Create schedule document if it doesn't already exists
+// Create schedule document if it doesn't already exist
 tournamentSchema.pre('save', async function () {
 	if (!this.schedule) {
 		// console.log('Trying to save before insert')
@@ -174,12 +172,11 @@ tournamentSchema.pre('save', async function () {
 			// console.log('Created schedule', _schedule._id)
 			this.schedule = _schedule._id;
 		} catch (e) {
-			console.log(e);
+			throw e;
 		}
 	}
 });
 
-// Export the Court model
-const Tournament = mongoose.models.Tournament || mongoose.model<ITournament>('Tournament', tournamentSchema);
+const Tournament = mongoose.models.Tournament ?? mongoose.model<ITournament>('Tournament', tournamentSchema);
 
 export default Tournament;

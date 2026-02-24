@@ -1,4 +1,4 @@
-import mongoose, { Document, model } from "mongoose";
+import mongoose, { Document } from 'mongoose';
 
 export interface IElo {
 	rating: number;
@@ -40,7 +40,7 @@ const userSchema = new mongoose.Schema<IUser>(
 			required: true,
 			validate: {
 				validator: function (value: string) {
-					return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+					return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(value);
 				},
 				message: 'Invalid email format'
 			}
@@ -75,6 +75,7 @@ const userSchema = new mongoose.Schema<IUser>(
 			default: []
 		},
 		elo: {
+			_id: false,
 			rating: {
 				type: Number,
 				default: 1500,
@@ -107,6 +108,6 @@ const userSchema = new mongoose.Schema<IUser>(
 
 
 
-const User = mongoose.models.User || mongoose.model<IUser>('User', userSchema);
+const User = mongoose.model<IUser>('User', userSchema);
 
 export default User;

@@ -1,74 +1,102 @@
-/* eslint-disable @typescript-eslint/no-unsafe-function-type */
 import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
-import { Strategy as AppleStrategy, type VerifyCallback } from 'passport-apple';
+import { Strategy as AppleStrategy } from 'passport-apple';
 import jwt from 'jsonwebtoken';
+import mongoose from 'mongoose';
 import User from '../models/User';
 import UserAuth from '../models/UserAuth';
+import { logger } from '../lib/logger';
 
-// Google OAuth Strategy - uses UserAuth for provider IDs (only register if configured)
-if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.GOOGLE_CALLBACK_URL) {
-	passport.use(
-		new GoogleStrategy(
-		{
-			clientID: process.env.GOOGLE_CLIENT_ID as string,
-			clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
-			callbackURL: process.env.GOOGLE_CALLBACK_URL as string,
-			scope: ['profile', 'email']
-		},
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		async (accessToken: string, refreshToken: string, profile: any, done: Function) => {
-			try {
-				const { id, emails } = profile;
-				const email = emails?.[0]?.value;
+// ---------------------------------------------------------------------------
+// Shared upsert helper — atomically finds or creates a User by email.
+// Returns { user, created } where created=true means this is a new signup.
+// ---------------------------------------------------------------------------
+async function findOrCreateUserByEmail(
+	email: string,
+	session: mongoose.ClientSession
+){
+	const existing = await User.findOne({ email }).session(session);
+	if (existing) return { user: existing, created: false };
 
-				if (!email) {
-					return done(new Error('No email found in Google profile'), undefined);
-				}
-
-				// Sign-in: existing user by googleId
-				let userAuth = await UserAuth.findOne({ googleId: id }).populate('user');
-				if (userAuth?.user) {
-					return done(null, userAuth.user);
-				}
-
-				// Sign-in: existing user by email (e.g. signed up with Apple first)
-				const existingUser = await User.findOne({ email });
-				if (existingUser) {
-					userAuth = await UserAuth.findOne({ user: existingUser._id });
-					if (userAuth) {
-						userAuth.googleId = id;
-						await userAuth.save();
-					} else {
-						userAuth = new UserAuth({
-							user: existingUser._id,
-							googleId: id
-						});
-						await userAuth.save();
-					}
-					return done(null, existingUser);
-				}
-
-				// Sign-up: first-time user — create User and UserAuth (callback will redirect to UserInformation)
-				const newUser = new User({ email });
-				await newUser.save();
-
-				userAuth = new UserAuth({
-					user: newUser._id,
-					googleId: id
-				});
-				await userAuth.save();
-
-				done(null, newUser);
-			} catch (error) {
-				done(error as Error, undefined);
-			}
-		}
-	)
-	);
+	const [newUser] = await User.create([{ email }], { session });
+	if (!newUser) throw new Error('User creation failed');
+	return { user: newUser, created: true };
 }
 
-// Apple OAuth Strategy (only register if configured)
+// ---------------------------------------------------------------------------
+// Google OAuth Strategy
+// ---------------------------------------------------------------------------
+if (
+	process.env.GOOGLE_CLIENT_ID &&
+	process.env.GOOGLE_CLIENT_SECRET &&
+	process.env.GOOGLE_CALLBACK_URL
+) {
+	passport.use(
+		new GoogleStrategy(
+			{
+				clientID: process.env.GOOGLE_CLIENT_ID,
+				clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+				callbackURL: process.env.GOOGLE_CALLBACK_URL,
+				scope: ['profile', 'email'],
+			},
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			async (_accessToken: string, _refreshToken: string, profile: any, done: (err: Error | null, user?: any) => void) => {
+				const session = await mongoose.startSession();
+				session.startTransaction();
+
+				try {
+					const googleId = profile.id;
+					const email = profile.emails?.[0]?.value;
+
+					if (!email) {
+						await session.abortTransaction();
+						return done(new Error('No email returned from Google — ensure email scope is granted'));
+					}
+
+					// 1. Existing user by googleId
+					const byGoogleId = await UserAuth.findOne({ googleId }).populate('user').session(session);
+					if (byGoogleId?.user) {
+						await session.commitTransaction();
+						logger.info('Google sign-in by googleId', { googleId });
+						return done(null, byGoogleId.user as Express.User);
+					}
+
+					// 2. Existing user by email (e.g. previously signed up with Apple)
+					const { user, created } = await findOrCreateUserByEmail(email, session);
+
+					const existingAuth = await UserAuth.findOne({ user: user._id }).session(session);
+					if (existingAuth) {
+						if (!existingAuth.googleId) {
+							existingAuth.googleId = googleId;
+							await existingAuth.save({ session });
+							logger.info('Linked googleId to existing user', { userId: user._id });
+						}
+					} else {
+						await UserAuth.create([{ user: user._id, googleId }], { session });
+					}
+
+					await session.commitTransaction();
+					logger.info(created ? 'Google sign-up: new user created' : 'Google sign-in by email', {
+						userId: user._id,
+					});
+					return done(null, user as Express.User);
+				} catch (error) {
+					await session.abortTransaction();
+					logger.error('Google strategy error', { error });
+					return done(error as Error);
+				} finally {
+					await session.endSession();
+				}
+			}
+		)
+	);
+} else {
+	logger.warn('Google OAuth strategy not registered — missing environment variables');
+}
+
+// ---------------------------------------------------------------------------
+// Apple OAuth Strategy
+// ---------------------------------------------------------------------------
 if (
 	process.env.APPLE_CLIENT_ID &&
 	process.env.APPLE_TEAM_ID &&
@@ -78,89 +106,98 @@ if (
 ) {
 	passport.use(
 		new AppleStrategy(
-		{
-			clientID: process.env.APPLE_CLIENT_ID as string,
-			teamID: process.env.APPLE_TEAM_ID as string,
-			keyID: process.env.APPLE_KEY_ID as string,
-			privateKeyString: `-----BEGIN PRIVATE KEY-----\n${process.env.APPLE_PRIVATE_KEY as string}\n-----END PRIVATE KEY-----`,
-			callbackURL: process.env.APPLE_CALLBACK_URL as string,
-			responseType: 'code id_token',
-			scope: ['name', 'email'],
-			passReqToCallback: false
+			{
+				clientID: process.env.APPLE_CLIENT_ID,
+				teamID: process.env.APPLE_TEAM_ID,
+				keyID: process.env.APPLE_KEY_ID,
+				privateKeyString: process.env.APPLE_PRIVATE_KEY!.trim(),
+				callbackURL: process.env.APPLE_CALLBACK_URL,
+				responseType: 'code id_token',
+				scope: ['name', 'email'],
+				passReqToCallback: false,
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		} as any,
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		async (accessToken: string, refreshToken: string, idToken: string, profile: any, done: VerifyCallback) => {
-			try {
-				const decoded = jwt.decode(idToken) as {
-					sub: string;
-					email?: string;
-					email_verified?: boolean;
-					name?: { firstName?: string; lastName?: string };
-				} | null;
-				if (!decoded) {
-					return done(new Error('Unable to decode Apple ID token'), undefined);
-				}
-				const { sub, email } = decoded;
-				const appleEmail = profile?.email ?? email;
+			} as any,
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			async (_accessToken: string, _refreshToken: string, idToken: string, _profile: any, done: (err: Error | null, user?: any) => void) => {
+				const session = await mongoose.startSession();
+				session.startTransaction();
 
-				// Sign-in: existing user by appleId
-				let userAuth = await UserAuth.findOne({ appleId: sub }).populate('user');
-				if (userAuth?.user) {
-					return done(null, userAuth.user);
-				}
-
-				// Sign-in: existing user by email (e.g. signed up with Google first)
-				const effectiveEmail = appleEmail || `apple_${sub}@placeholder.local`;
-				const existingUser = effectiveEmail && !effectiveEmail.includes('@placeholder.local')
-					? await User.findOne({ email: effectiveEmail })
-					: null;
-				if (existingUser) {
-					userAuth = await UserAuth.findOne({ user: existingUser._id });
-					if (userAuth) {
-						userAuth.appleId = sub;
-						await userAuth.save();
-					} else {
-						userAuth = new UserAuth({
-							user: existingUser._id,
-							appleId: sub
-						});
-						await userAuth.save();
+				try {
+					const decoded = jwt.decode(idToken) as { sub?: string; email?: string } | null;
+					if (!decoded?.sub) {
+						await session.abortTransaction();
+						return done(new Error('Apple id_token could not be decoded'));
 					}
-					return done(null, existingUser);
+					const appleId = decoded.sub;
+					const email = decoded.email;
+
+					// 1. Existing user by appleId
+					const byAppleId = await UserAuth.findOne({ appleId }).populate('user').session(session);
+					if (byAppleId?.user) {
+						await session.commitTransaction();
+						logger.info('Apple sign-in by appleId', { appleId });
+						return done(null, byAppleId.user as Express.User);
+					}
+
+					// 2. Apple only provides email on the FIRST login
+					if (email) {
+						const { user, created } = await findOrCreateUserByEmail(email, session);
+						const existingAuth = await UserAuth.findOne({ user: user._id }).session(session);
+						if (existingAuth) {
+							if (!existingAuth.appleId) {
+								existingAuth.appleId = appleId;
+								await existingAuth.save({ session });
+								logger.info('Linked appleId to existing user', { userId: user._id });
+							}
+						} else {
+							await UserAuth.create([{ user: user._id, appleId }], { session });
+						}
+
+						await session.commitTransaction();
+						logger.info(created ? 'Apple sign-up: new user created' : 'Apple sign-in by email', {
+							userId: user._id,
+						});
+						return done(null, user as Express.User);
+					}
+
+					// 3. No email available
+					logger.warn('Apple sign-in: no email and no matching appleId', { appleId });
+					await session.abortTransaction();
+					return done(new Error('Unable to identify Apple user: no email provided and no existing account found'));
+				} catch (error) {
+					await session.abortTransaction();
+					logger.error('Apple strategy error', { error });
+					return done(error as Error);
+				} finally {
+					await session.endSession();
 				}
-
-				// Sign-up: first-time user — create User and UserAuth (callback will redirect to UserInformation)
-				const newUser = new User({
-					email: effectiveEmail
-				});
-				await newUser.save();
-
-				userAuth = new UserAuth({
-					user: newUser._id,
-					appleId: sub
-				});
-				await userAuth.save();
-
-				done(null, newUser);
-			} catch (error) {
-				done(error as Error, undefined);
 			}
-		}
-	)
+		)
 	);
+} else {
+	logger.warn('Apple OAuth strategy not registered — missing environment variables');
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-passport.serializeUser((user: any, done: Function) => {
-	done(null, user._id);
+// ---------------------------------------------------------------------------
+// Serialize / Deserialize
+// ---------------------------------------------------------------------------
+passport.serializeUser((user: Express.User, done) => {
+	const typedUser = user as InstanceType<typeof User>;
+	done(null, typedUser._id.toString());
 });
 
-passport.deserializeUser(async (id: string, done: Function) => {
+passport.deserializeUser(async (id: string, done) => {
 	try {
-		const user = await User.findById(id);
-		done(null, user);
+		const user = await User.findById(id)
+			.select('_id email name alias userType')
+			.lean();
+		if (!user) {
+			// User deleted after session was created
+			return done(null, false);
+		}
+		done(null, user as Express.User);
 	} catch (error) {
-		done(error as Error, undefined);
+		logger.error('deserializeUser error', { error, id });
+		done(error as Error);
 	}
 });

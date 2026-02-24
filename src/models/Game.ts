@@ -26,7 +26,7 @@ const gameSchema = new mongoose.Schema<IGame>(
 		playerOne: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
 		playerTwo: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
 		club: { type: mongoose.Schema.Types.ObjectId, ref: 'Club' },
-		court: { type: mongoose.Schema.Types.ObjectId, ref: 'Court' },
+		court: { type: mongoose.Schema.Types.ObjectId },
 		tournament: { type: mongoose.Schema.Types.ObjectId, ref: 'Tournament' },
 		score: {
 			playerOneScores: { type: [mongoose.Schema.Types.Mixed], default: [] }, // Allows numbers or "wo"
@@ -54,11 +54,16 @@ const gameSchema = new mongoose.Schema<IGame>(
 		}
 	},
 	{
-		timestamps: true // Automatically adds createdAt and updatedAt fields
+		timestamps: true
 	}
 );
 
-// Export the Game model
-const Game = mongoose.models.Game || mongoose.model<IGame>('Game', gameSchema);
+gameSchema.pre('validate', function () {
+	if (this.playerOne && this.playerTwo && this.playerOne.equals(this.playerTwo)) {
+		this.invalidate('playerTwo', 'playerOne and playerTwo must be different');
+	}
+});
+
+const Game = mongoose.models.Game ?? mongoose.model<IGame>('Game', gameSchema);
 
 export default Game;

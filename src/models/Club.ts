@@ -1,4 +1,4 @@
-import mongoose, { Document, Schema, model } from 'mongoose';
+import mongoose, { Document, Schema } from 'mongoose';
 
 export interface IClub extends Document {
 	name: string;
@@ -67,9 +67,11 @@ const clubSchema = new Schema<IClub>(
 		}
 	},
 	{
-		timestamps: true, 
+		timestamps: true,
 	}
 );
+
+clubSchema.index({ coordinates: '2dsphere' });
 
 const Club = mongoose.models.Club ?? mongoose.model<IClub>('Club', clubSchema);
 

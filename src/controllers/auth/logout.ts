@@ -1,15 +1,16 @@
 import type { Request, Response } from 'express';
+import { cookieSameSite, isProd } from '../../lib/config';
+import { logger } from '../../lib/logger';
 
-const cookieSameSite = (process.env.COOKIE_SAME_SITE as 'lax' | 'strict' | 'none') || 'lax';
-const isProd = process.env.NODE_ENV === 'production';
-
-export async function logout(req: Request, res: Response) {
+export function logout(req: Request, res: Response) {
 	req.logout((err) => {
 		if (err) {
+			logger.error("Error in logout", { err });
 			return res.status(500).json({ message: 'Logout failed' });
 		}
 		req.session.destroy((destroyErr) => {
 			if (destroyErr) {
+				logger.error("Error in logout session destroy", { destroyErr });
 				return res.status(500).json({ message: 'Session destroy failed' });
 			}
 			res.clearCookie('connect.sid', {

@@ -14,17 +14,14 @@ export function validateBody<T extends z.ZodType>(schema: T) {
 			next();
 			return;
 		}
-		const errors = result.error.flatten();
-		const fieldErrMap = (errors.fieldErrors ?? {}) as Record<string, string[] | undefined>;
-		const messages =
-			Object.entries(fieldErrMap)
-				.flatMap(([field, msgs]) => (msgs ?? []).map((m: string) => `${field}: ${m}`))
-				.join('; ') || result.error.message;
+		const messages = result.error.issues
+			.map((issue) => `${issue.path.join('.')}: ${issue.message}`)
+			.join('; ');
 		res.status(400).json({
 			message: messages || 'Validation failed',
 			error: true,
 			code: 'VALIDATION_ERROR',
-			details: errors.fieldErrors
+			details: result.error.issues
 		});
 	};
 }

@@ -10,7 +10,8 @@ const SessionSchema = new mongoose.Schema<ISession>(
 	{
 		token: {
 			type: String,
-			required: true
+			required: true,
+			unique: true
 		},
 		user: {
 			type: mongoose.Types.ObjectId,

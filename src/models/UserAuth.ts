@@ -1,4 +1,4 @@
-import mongoose, { Document, Schema, model } from "mongoose";
+import mongoose, { Document, Schema } from "mongoose";
 import crypto from "crypto";
 
 /**
@@ -47,9 +47,9 @@ const userAuthSchema = new Schema<IUserAuth>(
 	{ timestamps: true, collection: 'userauths' }
 );
 
-// Lookup by provider id when authenticating
-userAuthSchema.index({ googleId: 1 }, { sparse: true });
-userAuthSchema.index({ appleId: 1 }, { sparse: true });
+// Lookup by provider id when authenticating (unique + sparse: one provider ID per user)
+userAuthSchema.index({ googleId: 1 }, { unique: true, sparse: true });
+userAuthSchema.index({ appleId: 1 }, { unique: true, sparse: true });
 
 const UserAuth = mongoose.models.UserAuth ?? mongoose.model<IUserAuth>("UserAuth", userAuthSchema);
 
