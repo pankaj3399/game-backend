@@ -1,6 +1,4 @@
 import mongoose, { Schema } from 'mongoose';
-import type { HydratedDocument } from 'mongoose';
-
 export interface IClub {
 	name: string;
 	address: string;

@@ -1,12 +1,8 @@
-import mongoose from "mongoose";
+import mongoose from 'mongoose';
 
-export interface ISession extends mongoose.Document {
-	token: string;
-	user: mongoose.Types.ObjectId;
-	expireAt: Date;
-}
+const SESSION_TTL_SECONDS = 604800; // 7 days
 
-const SessionSchema = new mongoose.Schema<ISession>(
+const sessionSchema = new mongoose.Schema(
 	{
 		token: {
 			type: String,
@@ -14,17 +10,18 @@ const SessionSchema = new mongoose.Schema<ISession>(
 			unique: true
 		},
 		user: {
-			type: mongoose.Types.ObjectId,
-			ref: "User",
+			type: mongoose.Schema.Types.ObjectId,
+			ref: 'User',
 			required: true
 		},
-		expireAt: { type: Date, default: Date.now, expires: 604800 } // 7 days
+		expireAt: {
+			type: Date,
+			default: Date.now,
+			expires: SESSION_TTL_SECONDS
+		}
 	},
-	{ timestamps: false }
+	{ collection: 'sessions' }
 );
 
-const Session =
-	(mongoose.models.Session as mongoose.Model<ISession>) ||
-	mongoose.model<ISession>("Session", SessionSchema);
-
+const Session = mongoose.model('Session', sessionSchema);
 export default Session;

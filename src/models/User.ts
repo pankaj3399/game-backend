@@ -1,4 +1,4 @@
-import mongoose, { Document } from 'mongoose';
+import mongoose, { type HydratedDocument } from 'mongoose';
 
 export interface IElo {
 	rating: number;
@@ -8,7 +8,7 @@ export interface IElo {
 }
 
 /** Identity & access: clubs this user admins, tournaments they organize. */
-export interface IUser extends Document {
+export interface IUser {
 	email: string;
 	name?: string | null;
 	alias?: string | null;
@@ -23,6 +23,8 @@ export interface IUser extends Document {
 	createdAt: Date;
 	updatedAt: Date;
 }
+
+export type UserDocument = HydratedDocument<IUser>;
 
 const userSchema = new mongoose.Schema<IUser>(
 	{

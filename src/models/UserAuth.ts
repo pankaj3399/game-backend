@@ -29,12 +29,10 @@ const userAuthSchema = new Schema<IUserAuth>(
 			unique: true
 		},
 		googleId: {
-			type: String,
-			default: null
+			type: String
 		},
 		appleId: {
-			type: String,
-			default: null
+			type: String
 		},
 		hmacKey: {
 			type: String,

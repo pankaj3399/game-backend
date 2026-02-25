@@ -23,7 +23,6 @@
   },
   "homepage": "https://github.com/Absterrg0/game-backend#readme",
   "dependencies": {
-    "connect-mongo": "^6.0.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",

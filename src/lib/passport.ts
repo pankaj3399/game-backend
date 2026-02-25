@@ -3,7 +3,7 @@ import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import { Strategy as AppleStrategy } from 'passport-apple';
 import jwt from 'jsonwebtoken';
 import mongoose from 'mongoose';
-import User from '../models/User';
+import User, { type UserDocument } from '../models/User';
 import UserAuth from '../models/UserAuth';
 import { logger } from '../lib/logger';
 
@@ -66,6 +66,10 @@ if (
 
 					const existingAuth = await UserAuth.findOne({ user: user._id }).session(session);
 					if (existingAuth) {
+						if (existingAuth.googleId && existingAuth.googleId !== googleId) {
+							await session.abortTransaction();
+							return done(new Error('Google account conflict: this email is already linked to a different Google account'));
+						}
 						if (!existingAuth.googleId) {
 							existingAuth.googleId = googleId;
 							await existingAuth.save({ session });
@@ -145,6 +149,10 @@ if (
 						const { user, created } = await findOrCreateUserByEmail(email, session);
 						const existingAuth = await UserAuth.findOne({ user: user._id }).session(session);
 						if (existingAuth) {
+							if (existingAuth.appleId && existingAuth.appleId !== appleId) {
+								await session.abortTransaction();
+								return done(new Error('Apple account conflict: this email is already linked to a different Apple account'));
+							}
 							if (!existingAuth.appleId) {
 								existingAuth.appleId = appleId;
 								await existingAuth.save({ session });
@@ -183,7 +191,7 @@ if (
 // Serialize / Deserialize
 // ---------------------------------------------------------------------------
 passport.serializeUser((user: Express.User, done) => {
-	const typedUser = user as InstanceType<typeof User>;
+	const typedUser = user as UserDocument;
 	done(null, typedUser._id.toString());
 });
 

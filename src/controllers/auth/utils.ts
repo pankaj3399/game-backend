@@ -1,7 +1,9 @@
 import type { Request, Response } from 'express';
 import { logger } from '../../lib/logger';
+import { createAuthToken, setAuthCookie } from '../../lib/jwtAuth';
+import type { UserDocument } from '../../models/User';
 
-const AUTH_CALLBACK_PATH = '/auth/callback';
+export const AUTH_CALLBACK_PATH = '/auth/callback';
 
 /** True if user has completed signup (alias and name are required). */
 export function isSignupComplete(user: Express.User): boolean {
@@ -27,25 +29,14 @@ export function getSignupRedirect(pendingToken: string): string {
 	return `${process.env.REQUEST_ORIGIN}${AUTH_CALLBACK_PATH}#signup=true&pendingToken=${encodeURIComponent(pendingToken)}`;
 }
 
-/** Regenerates session, logs in user, saves session, and redirects to success URL. */
-export function loginAndRedirect(req: Request, res: Response, user: Express.User): void {
-	req.session.regenerate((regenErr) => {
-		if (regenErr) {
-			logger.error('Error in session regenerate', { regenErr });
-			return res.redirect(getErrorRedirect());
-		}
-		req.login(user, (loginErr) => {
-			if (loginErr) {
-				logger.error('Error in login', { loginErr });
-				return res.redirect(getErrorRedirect());
-			}
-			req.session.save((saveErr) => {
-				if (saveErr) {
-					logger.error('Error in session save', { saveErr });
-					return res.redirect(getErrorRedirect());
-				}
-				res.redirect(getSuccessRedirect());
-			});
-		});
-	});
+/** Creates JWT + Session, sets auth cookie, and redirects to success URL. */
+export async function loginAndRedirect(req: Request, res: Response, user: Express.User): Promise<void> {
+	try {
+		const token = await createAuthToken(user as UserDocument);
+		setAuthCookie(res, token);
+		res.redirect(getSuccessRedirect());
+	} catch (err) {
+		logger.error('Error in loginAndRedirect', { err });
+		res.redirect(getErrorRedirect());
+	}
 }

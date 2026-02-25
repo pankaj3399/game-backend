@@ -1,8 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import session from 'express-session';
-import MongoStore from 'connect-mongo';
-import mongoose from 'mongoose';
+import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import { connectToDatabase } from './lib/db';
 import { logger } from './lib/logger';
@@ -38,6 +37,7 @@ app.use(
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 
 app.get('/', (req, res) => {
 	res.send('Hello World');
@@ -48,22 +48,12 @@ async function start() {
 		await connectToDatabase();
 		logger.info('Database connected');
 
-		const mongoUri = process.env.MONGODB_URI;
-		if (!mongoUri) throw new Error('MONGODB_URI environment variable is required');
-		const store = MongoStore.create({
-			mongoUrl: mongoUri,
-			dbName: process.env.MONGODB_DB_NAME || 'game',
-			collectionName: 'sessions',
-			ttl: 60 * 60 * 24 * 7, // 7 days
-			autoRemove: 'native'
-		});
-
+		// Session for OAuth flow state only (MemoryStore). Auth is JWT-based via cookie.
 		app.use(
 			session({
 				secret: SESSION_SECRET,
 				resave: false,
-				saveUninitialized: true, // Required for OAuth state; session store has TTL/cleanup configured
-				store,
+				saveUninitialized: true,
 				name: 'connect.sid',
 				cookie: {
 					httpOnly: true,

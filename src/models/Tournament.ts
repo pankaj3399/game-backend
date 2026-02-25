@@ -174,12 +174,12 @@ tournamentSchema.pre('validate', function () {
 	}
 });
 
-tournamentSchema.pre('save', async function () {
-	if (!this.schedule) {
-		const _schedule = await mongoose.model('Schedule').create({ tournament: this._id, currentRound: 0 });
-		this.schedule = _schedule._id;
-	}
-});
+// tournamentSchema.pre('save', async function () {
+// 	if (!this.schedule) {
+// 		const _schedule = await mongoose.model('Schedule').create({ tournament: this._id, currentRound: 0 });
+// 		this.schedule = _schedule._id;
+// 	}
+// });
 
 const Tournament = mongoose.model<ITournament>('Tournament', tournamentSchema);
 

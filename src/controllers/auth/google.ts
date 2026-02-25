@@ -38,7 +38,7 @@ export const googleAuthCallback = (req: Request, res: Response, next: NextFuncti
 				return res.redirect(getSignupRedirect(pendingToken));
 			}
 
-			loginAndRedirect(req, res, user);
+			await loginAndRedirect(req, res, user);
 		} catch (err) {
 			logger.error('Error in googleAuthCallback', { err });
 			return res.redirect(getErrorRedirect('unknown'));

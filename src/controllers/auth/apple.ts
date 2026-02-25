@@ -40,7 +40,7 @@ export const appleAuthCallback = (req: Request, res: Response, next: NextFunctio
 				return res.redirect(getSignupRedirect(pendingToken));
 			}
 
-			loginAndRedirect(req, res, user);
+			await loginAndRedirect(req, res, user);
 		} catch (err) {
 			logger.error('Error in appleAuthCallback', { err });
 			return res.redirect(getErrorRedirect('unknown'));

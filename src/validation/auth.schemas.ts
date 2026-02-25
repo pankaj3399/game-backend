@@ -7,14 +7,14 @@ export const completeSignupSchema = z.object({
 	name: z.string().min(1, { error: 'Name is required' }).trim(),
 	dateOfBirth: z
 		.union([
-			z.string().refine((s) => !Number.isNaN(new Date(s).getTime()) && s.length >= 10, { error: 'Invalid date format' }),
+			z.string().refine((s) => !Number.isNaN(new Date(s).getTime()) && s.length >= 10, { message: 'Invalid date format' }),
 			z.date(),
 			z.null()
 		])
 		.optional()
 		.nullable()
 		.transform((val) => {
-			if (val == null || val === '') return null;
+			if (val == null) return null;
 			if (typeof val === 'string') {
 				const d = new Date(val);
 				if (Number.isNaN(d.getTime())) throw new Error('Invalid date value');

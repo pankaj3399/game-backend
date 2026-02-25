@@ -1,16 +1,18 @@
 import type { Request, Response } from 'express';
 import { LogError } from '../../lib/logger';
-import User from '../../models/User';
+import User, { type UserDocument } from '../../models/User';
 import UserAuth from '../../models/UserAuth';
 import { verifyPendingSignupToken } from './pendingToken';
 import { DEFAULT_ELO } from '../../constants/elo';
 import { isSignupComplete } from './utils';
 import { completeSignupSchema } from '../../validation/auth.schemas';
+import { createAuthToken, setAuthCookie } from '../../lib/jwtAuth';
 
 /**
  * Completes first-time signup. Requires a valid pendingToken from the OAuth redirect.
- * Updates the User with profile info and establishes a session.
- * Idempotent: safe to call multiple times — if user is already complete, returns success without creating a new session.
+ * Updates the User with profile info and creates JWT + Session (auth cookie).
+ * Idempotent: safe to call multiple times. If the user is already complete, creates a new
+ * JWT session and logs them in before returning success.
  */
 export async function completeSignUp(req: Request, res: Response) {
 	const parseResult = completeSignupSchema.safeParse(req.body);
@@ -35,7 +37,7 @@ export async function completeSignUp(req: Request, res: Response) {
 	try {
 		const payload = verifyPendingSignupToken(data.pendingToken);
 
-		let user: InstanceType<typeof User> | null = null;
+		let user: UserDocument | null = null;
 		if (payload.appleId) {
 			const userAuth = await UserAuth.findOne({ appleId: payload.appleId }).exec();
 			if (!userAuth)
@@ -60,36 +62,19 @@ export async function completeSignUp(req: Request, res: Response) {
 			return res.status(404).json({ message: 'No user found. Please login again.', error: true, code: 'NO_USER_FOUND' });
 		}
 
-		// Idempotent: if user was already complete (e.g. double submit), regenerate session, login, and return success
+		// Idempotent: if user was already complete (e.g. double submit), create JWT session and return
 		if (isSignupComplete(user)) {
-			const alreadyLoggedIn = req.isAuthenticated?.() && req.user && String(req.user._id) === String(user._id);
-			if (alreadyLoggedIn) {
+			try {
+				const token = await createAuthToken(user);
+				setAuthCookie(res, token);
 				return res.status(200).json({ message: 'Sign up completed', code: 'SIGNUP_SUCCESSFUL', error: false });
+			} catch (err) {
+				LogError(__dirname, 'POST', req.originalUrl, err);
+				return res.status(500).json({ message: 'Session creation failed', error: true, code: 'SIGN_UP_FAILED' });
 			}
-			const userToLogin = user;
-			req.session.regenerate((regenErr) => {
-				if (regenErr) {
-					LogError(__dirname, 'POST', req.originalUrl, regenErr);
-					return res.status(500).json({ message: 'Session regeneration failed', error: true, code: 'SIGN_UP_FAILED' });
-				}
-				req.login(userToLogin, (loginErr) => {
-					if (loginErr) {
-						LogError(__dirname, 'POST', req.originalUrl, loginErr);
-						return res.status(500).json({ message: 'Login failed after signup', error: true, code: 'SIGN_UP_FAILED' });
-					}
-					req.session.save((saveErr) => {
-						if (saveErr) {
-							LogError(__dirname, 'POST', req.originalUrl, saveErr);
-							return res.status(500).json({ message: 'Session save failed', error: true, code: 'SIGN_UP_FAILED' });
-						}
-						res.status(200).json({ message: 'Sign up completed', code: 'SIGNUP_SUCCESSFUL', error: false });
-					});
-				});
-			});
-			return;
 		}
 
-		// First-time complete: update user, regenerate session, login
+		// First-time complete: update user, create JWT session
 		user = (await User.findByIdAndUpdate(user._id, {
 			...updatePayload,
 			...(payload.appleId || payload.googleId ? { email: payload.pendingEmail } : {})
@@ -99,25 +84,14 @@ export async function completeSignUp(req: Request, res: Response) {
 			return res.status(404).json({ message: 'No user found. Please login again.', error: true, code: 'NO_USER_FOUND' });
 		}
 
-		req.session.regenerate((regenErr) => {
-			if (regenErr) {
-				LogError(__dirname, 'POST', req.originalUrl, regenErr);
-				return res.status(500).json({ message: 'Session regeneration failed', error: true, code: 'SIGN_UP_FAILED' });
-			}
-			req.login(user, (loginErr) => {
-				if (loginErr) {
-					LogError(__dirname, 'POST', req.originalUrl, loginErr);
-					return res.status(500).json({ message: 'Login failed after signup', error: true, code: 'SIGN_UP_FAILED' });
-				}
-				req.session.save((saveErr) => {
-					if (saveErr) {
-						LogError(__dirname, 'POST', req.originalUrl, saveErr);
-						return res.status(500).json({ message: 'Session save failed', error: true, code: 'SIGN_UP_FAILED' });
-					}
-					res.status(200).json({ message: 'Sign up completed', code: 'SIGNUP_SUCCESSFUL', error: false });
-				});
-			});
-		});
+		try {
+			const token = await createAuthToken(user);
+			setAuthCookie(res, token);
+			return res.status(200).json({ message: 'Sign up completed', code: 'SIGNUP_SUCCESSFUL', error: false });
+		} catch (err) {
+			LogError(__dirname, 'POST', req.originalUrl, err);
+			return res.status(500).json({ message: 'Session creation failed', error: true, code: 'SIGN_UP_FAILED' });
+		}
 	} catch (error: unknown) {
 		LogError(__dirname, 'POST', req.originalUrl, error);
 		const isTokenError = error instanceof Error && (
