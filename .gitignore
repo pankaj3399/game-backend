@@ -1,0 +1,11 @@
+.env
+node_modules
+AGENTS.md
+.agents
+.dockerignore
+.cursor
+dist/
+tsconfig.tsbuildinfo
+*.log
+logs/
+.yarn
