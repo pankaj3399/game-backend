@@ -6,7 +6,7 @@ import {
 	getMe,
 	googleAuth,
 	googleAuthCallback,
-	logout
+	logout,
 } from '../controllers/auth/controller';
 import authenticate from '../middlewares/auth';
 import { validateBody } from '../lib/validation';
@@ -24,5 +24,4 @@ router.post('/logout', logout);
 
 // Protected routes (require authenticated session)
 router.get('/me', authenticate, getMe);
-
 export default router;
