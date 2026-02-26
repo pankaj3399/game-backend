@@ -9,6 +9,7 @@ import { cookieSameSite, isProd } from './lib/config';
 import './lib/passport';
 import passport from 'passport';
 import authRoutes from './routes/auth.routes';
+import userRoutes from './routes/user.routes';
 
 const PORT = process.env.PORT || 4000;
 const _sessionSecret = process.env.SESSION_SECRET;
@@ -68,6 +69,7 @@ async function start() {
 		app.use(passport.initialize());
 		app.use(passport.session());
 		app.use('/api/auth', authRoutes);
+		app.use('/api/user', userRoutes);
 
 		app.listen(PORT, () => {
 			logger.info(`Server is running on port ${PORT}`);
