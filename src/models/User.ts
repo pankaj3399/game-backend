@@ -15,6 +15,7 @@ export interface IUser {
 	dateOfBirth?: Date | null;
 	gender: "male" | "female" | "other" | null;
 	userType: "admin" | "user";
+	status: "active" | "inactive" | "banned";
 	/** Clubs this user administers. */
 	adminOf: mongoose.Types.ObjectId[];
 	/** Tournaments this user organizes. */
@@ -58,6 +59,15 @@ const userSchema = new mongoose.Schema<IUser>(
 				message: "{VALUE} is not supported"
 			},
 			default: null
+		},
+		status: {
+			type: String,
+			enum: {
+				values: ["active", "inactive", "banned"],
+				message: "{VALUE} is not supported"
+			},
+			default: "active",
+			required: true,
 		},
 		userType: {
 			type: String,
