@@ -10,6 +10,10 @@ export interface IClub {
 	website?: string | null;
 	bookingSystemUrl?: string | null;
 	status: 'active' | 'archive';
+	/** Users who can organise at this club (club-level organisers). */
+	organiserIds: mongoose.Types.ObjectId[];
+	/** The default admin for this club (first in admin list). */
+	defaultAdminId: mongoose.Types.ObjectId | null;
 	createdAt: Date;
 	updatedAt: Date;
 }
@@ -70,6 +74,15 @@ const clubSchema = new Schema<IClub>(
 			},
 			required: true,
 			default: 'active'
+		},
+		organiserIds: {
+			type: [{ type: Schema.Types.ObjectId, ref: 'User' }],
+			default: []
+		},
+		defaultAdminId: {
+			type: Schema.Types.ObjectId,
+			ref: 'User',
+			default: null
 		}
 	},
 	{

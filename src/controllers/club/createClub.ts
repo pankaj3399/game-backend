@@ -51,7 +51,8 @@ export async function createClub(req: Request, res: Response) {
 		address: address.trim(),
 		website: website?.trim() || null,
 		bookingSystemUrl: bookingSystemUrl?.trim() || null,
-		coordinates: { type: 'Point', coordinates: [0, 0] }
+		coordinates: { type: 'Point', coordinates: [0, 0] },
+		defaultAdminId: sessionUser._id
 	});
 
 	const courtDocs = courts

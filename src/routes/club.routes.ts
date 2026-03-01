@@ -3,12 +3,14 @@ import {
 	searchClubs,
 	createClub,
 	getClubById,
+	getClubStaff,
+	addClubStaff,
 	updateClub
 } from '../controllers/club/controller';
 import authenticate from '../middlewares/auth';
 import { requireClubAdminOrAbove } from '../middlewares/rbac';
 import { validateBody } from '../lib/validation';
-import { createClubSchema, updateClubSchema } from '../validation/club.schemas';
+import { createClubSchema, updateClubSchema, addClubStaffSchema } from '../validation/club.schemas';
 
 const router = express.Router();
 
@@ -26,6 +28,17 @@ router.post(
 
 // Get club by ID (for editing) - user must be admin of club
 router.get('/:clubId', authenticate, getClubById);
+
+// Get club staff (admins and organisers) - user must be admin of club
+router.get('/:clubId/staff', authenticate, getClubStaff);
+
+// Add admin or organiser - user must be admin of club
+router.post(
+	'/:clubId/staff',
+	authenticate,
+	validateBody(addClubStaffSchema),
+	addClubStaff
+);
 
 // Update club - user must be admin of club
 router.patch(

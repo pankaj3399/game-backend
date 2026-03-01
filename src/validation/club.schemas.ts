@@ -38,5 +38,11 @@ export const updateClubSchema = z.object({
 		.optional()
 });
 
+export const addClubStaffSchema = z.object({
+	userId: z.string().min(1, 'userId is required'),
+	role: z.enum(['admin', 'organiser'])
+});
+
 export type CreateClubInput = z.infer<typeof createClubSchema>;
 export type UpdateClubInput = z.infer<typeof updateClubSchema>;
+export type AddClubStaffInput = z.infer<typeof addClubStaffSchema>;

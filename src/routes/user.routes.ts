@@ -7,6 +7,7 @@ import {
 	removeFavoriteClub,
 	setHomeClub,
 	getAdminClubs,
+	searchUsers,
 } from '../controllers/user/controller';
 import authenticate from '../middlewares/auth';
 import { requireClubAdminOrAbove } from '../middlewares/rbac';
@@ -26,6 +27,7 @@ router.patch('/update-profile', authenticate, validateBody(updateProfileSchema),
 router.delete('/delete-account', authenticate, deleteAccount);
 router.get('/favorite-clubs', authenticate, getFavoriteClubs);
 router.get('/admin-clubs', authenticate, requireClubAdminOrAbove, getAdminClubs);
+router.get('/search', authenticate, requireClubAdminOrAbove, searchUsers);
 router.post('/favorite-clubs', authenticate, validateBody(addFavoriteClubSchema), addFavoriteClub);
 router.delete('/favorite-clubs/:clubId', authenticate, removeFavoriteClub);
 router.patch('/home-club', authenticate, validateBody(setHomeClubSchema), setHomeClub);
