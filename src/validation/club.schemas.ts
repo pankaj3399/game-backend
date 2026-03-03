@@ -16,11 +16,20 @@ const courtSchema = z.object({
 	placement: courtPlacementEnum.default('outdoor')
 });
 
+const coordinatesSchema = z
+	.tuple([z.number(), z.number()])
+	.refine(
+		([lon, lat]) =>
+			lon >= -180 && lon <= 180 && lat >= -90 && lat <= 90,
+		{ message: 'Coordinates must be [longitude, latitude] within valid ranges' }
+	);
+
 export const createClubSchema = z.object({
 	name: z.string().trim().min(1, 'Club name is required'),
 	website: z.string().trim().optional().nullable(),
 	bookingSystemUrl: z.string().trim().optional().nullable(),
 	address: z.string().trim().min(1, 'Address is required'),
+	coordinates: coordinatesSchema,
 	courts: z.array(courtSchema).optional().default([])
 });
 
@@ -29,6 +38,7 @@ export const updateClubSchema = z.object({
 	website: z.string().trim().optional().nullable(),
 	bookingSystemUrl: z.string().trim().optional().nullable(),
 	address: z.string().trim().min(1).optional(),
+	coordinates: coordinatesSchema.optional(),
 	courts: z
 		.array(
 			courtSchema.extend({

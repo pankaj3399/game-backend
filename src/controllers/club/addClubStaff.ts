@@ -59,22 +59,27 @@ export async function addClubStaff(req: Request, res: Response) {
 		return;
 	}
 
+	const clubObjId = club._id;
+	const userObjId = new mongoose.Types.ObjectId(userId);
+
 	if (role === 'admin') {
-		if (targetUser.adminOf.some((id) => id.toString() === clubId)) {
+		const result = await User.updateOne(
+			{ _id: userId, adminOf: { $ne: clubObjId } },
+			{ $addToSet: { adminOf: clubObjId } }
+		).exec();
+		if (result.modifiedCount === 0) {
 			res.status(409).json({ message: 'User is already an admin of this club' });
 			return;
 		}
-		targetUser.adminOf.push(club._id);
-		await targetUser.save();
 	} else {
-		const organiserIds = club.organiserIds ?? [];
-		if (organiserIds.some((id) => id.toString() === userId)) {
+		const result = await Club.updateOne(
+			{ _id: clubId, organiserIds: { $ne: userObjId } },
+			{ $addToSet: { organiserIds: userObjId } }
+		).exec();
+		if (result.modifiedCount === 0) {
 			res.status(409).json({ message: 'User is already an organiser of this club' });
 			return;
 		}
-		organiserIds.push(new mongoose.Types.ObjectId(userId));
-		club.organiserIds = organiserIds;
-		await club.save();
 	}
 
 	res.status(201).json({

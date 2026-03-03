@@ -8,6 +8,7 @@ export interface UpdateClubBody {
 	website?: string | null;
 	bookingSystemUrl?: string | null;
 	address?: string;
+	coordinates?: [number, number];
 	courts?: Array<{
 		id?: string;
 		name: string;
@@ -53,6 +54,18 @@ export async function updateClub(req: Request, res: Response) {
 	if (body.website !== undefined) club.website = body.website?.trim() || null;
 	if (body.bookingSystemUrl !== undefined)
 		club.bookingSystemUrl = body.bookingSystemUrl?.trim() || null;
+
+	if (body.coordinates !== undefined && Array.isArray(body.coordinates) && body.coordinates.length === 2) {
+		const [lon, lat] = body.coordinates;
+		if (
+			typeof lon === 'number' &&
+			typeof lat === 'number' &&
+			lon >= -180 && lon <= 180 &&
+			lat >= -90 && lat <= 90
+		) {
+			club.coordinates = { type: 'Point', coordinates: [lon, lat] };
+		}
+	}
 
 	await club.save();
 

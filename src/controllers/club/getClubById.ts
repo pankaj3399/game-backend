@@ -39,6 +39,7 @@ export async function getClubById(req: Request, res: Response) {
 		.lean()
 		.exec();
 
+	const coords = club.coordinates?.coordinates;
 	res.json({
 		club: {
 			id: club._id,
@@ -46,6 +47,7 @@ export async function getClubById(req: Request, res: Response) {
 			address: club.address,
 			website: club.website ?? null,
 			bookingSystemUrl: club.bookingSystemUrl ?? null,
+			coordinates: coords ? [coords[0], coords[1]] : null,
 			plan: club.plan ?? 'free',
 			expiresAt: club.expiresAt ?? null,
 			subscriptionStatus: club.subscriptionStatus ?? 'subscribed'

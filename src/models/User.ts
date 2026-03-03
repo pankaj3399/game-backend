@@ -139,7 +139,7 @@ const userSchema = new mongoose.Schema<IUser>(
 );
 
 /** Excludes soft-deleted users from find queries. Use query.setOptions({ includeDeleted: true }) to bypass. */
-userSchema.pre(/^find/, function (this: mongoose.Query<unknown, HydratedDocument<IUser>>, next) {
+userSchema.pre(/^find/, function (this: mongoose.Query<unknown, HydratedDocument<IUser>>) {
 	const opts = this.getOptions() as { includeDeleted?: boolean };
 	if (!opts?.includeDeleted) {
 		this.where({ $or: [{ deletedAt: null }, { deletedAt: { $exists: false } }] });

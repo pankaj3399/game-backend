@@ -21,7 +21,7 @@ export interface IClub {
 	plan: ClubPlan;
 	/** When the subscription expires. Null for free plans with no expiry. */
 	expiresAt: Date | null;
-	/** Subscription status: renewal_needed, subscribed, or atc (awaiting confirmation). */
+	/** Subscription status: renewal_needed or subscribed. */
 	subscriptionStatus: ClubSubscriptionStatus;
 	createdAt: Date;
 	updatedAt: Date;
@@ -50,7 +50,6 @@ const clubSchema = new Schema<IClub>(
 			coordinates: {
 				type: [Number],
 				required: true,
-				default: [0, 0],
 				validate: {
 					validator: function (value: number[]) {
 						if (!Array.isArray(value) || value.length !== 2) return false;

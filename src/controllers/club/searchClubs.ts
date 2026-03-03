@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express';
 import Club from '../../models/Club';
+import { escapeRegex } from '../../lib/validation';
 
 /**
  * GET /api/clubs?q=searchTerm
@@ -15,7 +16,7 @@ export async function searchClubs(req: Request, res: Response) {
 
 	const clubs = await Club.find({
 		status: 'active',
-		name: { $regex: q, $options: 'i' }
+		name: { $regex: escapeRegex(q), $options: 'i' }
 	})
 		.select('_id name')
 		.limit(20)

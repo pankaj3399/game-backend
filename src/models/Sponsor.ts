@@ -59,6 +59,12 @@ const sponsorSchema = new Schema<ISponsor>(
 	}
 );
 
+sponsorSchema.pre('save', function () {
+	if (this.scope === 'club' && !this.clubId) {
+		throw new Error('clubId is required when scope is "club"');
+	}
+});
+
 sponsorSchema.index({ clubId: 1 });
 sponsorSchema.index({ scope: 1, clubId: 1 });
 
