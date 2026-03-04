@@ -101,6 +101,24 @@ if (
 // ---------------------------------------------------------------------------
 // Apple OAuth Strategy
 // ---------------------------------------------------------------------------
+/** Placeholder email when Apple doesn't send email (returning users, Hide My Email). */
+const APPLE_PLACEHOLDER_EMAIL_PREFIX = 'apple-';
+const APPLE_PLACEHOLDER_EMAIL_SUFFIX = '@users.noreply.local';
+
+function getApplePlaceholderEmail(appleId: string): string {
+	return `${APPLE_PLACEHOLDER_EMAIL_PREFIX}${appleId}${APPLE_PLACEHOLDER_EMAIL_SUFFIX}`;
+}
+
+export function isApplePlaceholderEmail(email: string): boolean {
+	return email.startsWith(APPLE_PLACEHOLDER_EMAIL_PREFIX) && email.endsWith(APPLE_PLACEHOLDER_EMAIL_SUFFIX);
+}
+
+function normalizeApplePrivateKey(raw: string): string {
+	const trimmed = raw.trim();
+	if (trimmed.includes('-----BEGIN')) return trimmed;
+	return `-----BEGIN PRIVATE KEY-----\n${trimmed}\n-----END PRIVATE KEY-----`;
+}
+
 if (
 	process.env.APPLE_CLIENT_ID &&
 	process.env.APPLE_TEAM_ID &&
@@ -114,16 +132,23 @@ if (
 				clientID: process.env.APPLE_CLIENT_ID,
 				teamID: process.env.APPLE_TEAM_ID,
 				keyID: process.env.APPLE_KEY_ID,
-				privateKeyString: process.env.APPLE_PRIVATE_KEY!.trim(),
+				privateKeyString: normalizeApplePrivateKey(process.env.APPLE_PRIVATE_KEY),
 				callbackURL: process.env.APPLE_CALLBACK_URL,
 				responseType: 'code id_token',
 				scope: ['name', 'email'],
-				passReqToCallback: false,
+				passReqToCallback: true,
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			} as any,
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			(async (...args: unknown[]) => {
-				const [_accessToken, _refreshToken, idToken, _profile, done] = args as [string, string, string, any, (err: Error | null, user?: any) => void];
+			async (...args: unknown[]) => {
+				const [req, _accessToken, _refreshToken, idToken, _profile, done] = args as [
+					{ appleProfile?: { email?: string } },
+					string,
+					string,
+					string,
+					unknown,
+					(err: Error | null, user?: unknown) => void
+				];
 				const session = await mongoose.startSession();
 				session.startTransaction();
 
@@ -134,7 +159,11 @@ if (
 						return done(new Error('Apple id_token could not be decoded'));
 					}
 					const appleId = decoded.sub;
-					const email = decoded.email;
+					// Apple sends email only on first login. Use req.appleProfile from form_post when available.
+					const appleProfile = req?.appleProfile as { email?: string } | undefined;
+					const emailFromToken = decoded.email;
+					const emailFromProfile = appleProfile?.email;
+					const email = emailFromToken ?? emailFromProfile ?? '';
 
 					// 1. Existing user by appleId
 					const byAppleId = await UserAuth.findOne({ appleId }).populate('user').session(session);
@@ -144,35 +173,30 @@ if (
 						return done(null, byAppleId.user as unknown as Express.User);
 					}
 
-					// 2. Apple only provides email on the FIRST login
-					if (email) {
-						const { user, created } = await findOrCreateUserByEmail(email, session);
-						const existingAuth = await UserAuth.findOne({ user: user._id }).session(session);
-						if (existingAuth) {
-							if (existingAuth.appleId && existingAuth.appleId !== appleId) {
-								await session.abortTransaction();
-								return done(new Error('Apple account conflict: this email is already linked to a different Apple account'));
-							}
-							if (!existingAuth.appleId) {
-								existingAuth.appleId = appleId;
-								await existingAuth.save({ session });
-								logger.info('Linked appleId to existing user', { userId: user._id });
-							}
-						} else {
-							await UserAuth.create([{ user: user._id, appleId }], { session });
+					// 2. Create or find user (Apple only sends email on first login; use placeholder for returning users)
+					const effectiveEmail = email || getApplePlaceholderEmail(appleId);
+					const { user, created } = await findOrCreateUserByEmail(effectiveEmail, session);
+					const existingAuth = await UserAuth.findOne({ user: user._id }).session(session);
+					if (existingAuth) {
+						if (existingAuth.appleId && existingAuth.appleId !== appleId) {
+							await session.abortTransaction();
+							return done(new Error('Apple account conflict: this email is already linked to a different Apple account'));
 						}
-
-						await session.commitTransaction();
-						logger.info(created ? 'Apple sign-up: new user created' : 'Apple sign-in by email', {
-							userId: user._id,
-						});
-						return done(null, user as Express.User);
+						if (!existingAuth.appleId) {
+							existingAuth.appleId = appleId;
+							await existingAuth.save({ session });
+							logger.info('Linked appleId to existing user', { userId: user._id });
+						}
+					} else {
+						await UserAuth.create([{ user: user._id, appleId }], { session });
 					}
 
-					// 3. No email available
-					logger.warn('Apple sign-in: no email and no matching appleId', { appleId });
-					await session.abortTransaction();
-					return done(new Error('Unable to identify Apple user: no email provided and no existing account found'));
+					await session.commitTransaction();
+					logger.info(created ? 'Apple sign-up: new user created' : 'Apple sign-in by email', {
+						userId: user._id,
+						usedPlaceholder: !email,
+					});
+					return done(null, user as Express.User);
 				} catch (error) {
 					await session.abortTransaction();
 					logger.error('Apple strategy error', { error });
@@ -180,7 +204,7 @@ if (
 				} finally {
 					await session.endSession();
 				}
-			})
+			}
 		)
 	);
 } else {
@@ -198,7 +222,7 @@ passport.serializeUser((user: Express.User, done) => {
 passport.deserializeUser(async (id: string, done) => {
 	try {
 		const user = await User.findById(id)
-			.select('_id email name alias userType')
+			.select('_id email name alias role adminOf organizerOf')
 			.lean();
 		if (!user) {
 			// User deleted after session was created

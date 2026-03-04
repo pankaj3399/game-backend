@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express';
 import User from '../../models/User';
 
-/** Requires authenticate middleware - req.user is guaranteed. */
+/** Requires authenticate middleware - req.user is guaranteed. Returns basic user info only. */
 export async function getMe(req: Request, res: Response) {
 	const sessionUser = req.user;
 	if (!sessionUser?._id) {
@@ -9,7 +9,11 @@ export async function getMe(req: Request, res: Response) {
 		return;
 	}
 
-	const user = await User.findById(sessionUser._id);
+	const user = await User.findById(sessionUser._id)
+		.select('_id email name alias dateOfBirth gender role')
+		.lean()
+		.exec();
+
 	if (!user) {
 		res.status(404).json({ message: 'User not found' });
 		return;
@@ -23,9 +27,7 @@ export async function getMe(req: Request, res: Response) {
 			alias: user.alias,
 			dateOfBirth: user.dateOfBirth,
 			gender: user.gender,
-			userType: user.userType,
-			adminOf: user.adminOf,
-			organizerOf: user.organizerOf
+			role: user.role
 		}
 	});
 }

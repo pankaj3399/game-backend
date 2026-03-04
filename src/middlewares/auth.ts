@@ -30,7 +30,7 @@ const authenticate = async (req: Request, res: Response, next: NextFunction): Pr
 			return;
 		}
 
-		const user = await User.findById(session.user).select('_id email name alias userType').exec();
+		const user = await User.findById(session.user).select('_id email name alias role adminOf organizerOf').exec();
 		if (!user) {
 			res.status(401).json({ message: 'User not found, login again' });
 			return;

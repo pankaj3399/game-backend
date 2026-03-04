@@ -7,7 +7,9 @@ declare global {
 			alias?: string | null;
 			dateOfBirth?: Date | null;
 			gender?: 'male' | 'female' | 'other' | null;
-			userType?: 'admin' | 'user';
+			role?: 'player' | 'organiser' | 'club_admin' | 'super_admin';
+			adminOf?: import('mongoose').Types.ObjectId[];
+			organizerOf?: import('mongoose').Types.ObjectId[];
 		}
 	}
 }

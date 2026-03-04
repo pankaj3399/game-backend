@@ -14,6 +14,8 @@ export interface PendingSignupPayload {
 	pendingSignup: true;
 	appleId?: string;
 	googleId?: string;
+	/** When true, frontend should show editable email field (Apple user with placeholder). */
+	requiresEmailInput?: boolean;
 }
 
 /** Creates a short-lived JWT for the complete-signup flow. */
@@ -32,7 +34,12 @@ function isPendingSignupPayload(decoded: unknown): decoded is PendingSignupPaylo
 	if (ps !== true || typeof pe !== 'string') return false;
 	const ai = (decoded as Record<string, unknown>).appleId;
 	const gi = (decoded as Record<string, unknown>).googleId;
-	return (ai === undefined || typeof ai === 'string') && (gi === undefined || typeof gi === 'string');
+	const rei = (decoded as Record<string, unknown>).requiresEmailInput;
+	return (
+		(ai === undefined || typeof ai === 'string') &&
+		(gi === undefined || typeof gi === 'string') &&
+		(rei === undefined || typeof rei === 'boolean')
+	);
 }
 
 /** Verifies and decodes the pending signup token. */

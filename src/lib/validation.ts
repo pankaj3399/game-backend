@@ -25,3 +25,12 @@ export function validateBody<T extends z.ZodType>(schema: T) {
 		});
 	};
 }
+
+
+
+export function escapeRegex(str: string): string {
+		return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+	}
+
+
+

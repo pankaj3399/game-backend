@@ -7,6 +7,7 @@ import { DEFAULT_ELO } from '../../constants/elo';
 import { isSignupComplete } from './utils';
 import { completeSignupSchema } from '../../validation/auth.schemas';
 import { createAuthToken, setAuthCookie } from '../../lib/jwtAuth';
+import { isApplePlaceholderEmail } from '../../lib/passport';
 
 /**
  * Completes first-time signup. Requires a valid pendingToken from the OAuth redirect.
@@ -75,9 +76,39 @@ export async function completeSignUp(req: Request, res: Response) {
 		}
 
 		// First-time complete: update user, create JWT session
+		// For Apple users with placeholder email, require email from body
+		let emailToSet: string | undefined;
+		if (payload.appleId || payload.googleId) {
+			if (payload.appleId && isApplePlaceholderEmail(payload.pendingEmail)) {
+				const providedEmail = data.email?.trim();
+				if (!providedEmail) {
+					return res.status(400).json({
+						message: 'Please enter your email address. Apple did not share it with us.',
+						error: true,
+						code: 'EMAIL_REQUIRED'
+					});
+				}
+				emailToSet = providedEmail;
+			} else {
+				emailToSet = payload.pendingEmail || undefined;
+			}
+		}
+
+		// Check if email is already taken by another user (exclude current user)
+		if (emailToSet) {
+			const existingByEmail = await User.findOne({ email: emailToSet, _id: { $ne: user._id } }).exec();
+			if (existingByEmail) {
+				return res.status(409).json({
+					message: 'An account with this email address already exists.',
+					error: true,
+					code: 'EMAIL_ALREADY_EXISTS'
+				});
+			}
+		}
+
 		user = (await User.findByIdAndUpdate(user._id, {
 			...updatePayload,
-			...(payload.appleId || payload.googleId ? { email: payload.pendingEmail } : {})
+			...(emailToSet !== undefined ? { email: emailToSet } : {})
 		}, { returnDocument: 'after' }).exec()) ?? null;
 
 		if (!user) {

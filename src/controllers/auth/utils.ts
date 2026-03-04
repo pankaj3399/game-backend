@@ -23,10 +23,13 @@ export function getSuccessRedirect(): string {
 
 /**
  * Builds redirect URL to frontend auth callback with signup pending token.
- * Token is in the URL fragment (#) so it is never sent to the server (no referrer, logs, or analytics).
+ * Uses query params (not fragment) because fragments are often stripped during OAuth redirect chains
+ * (Apple -> backend -> frontend), causing users to land on /login without the token.
+ * Token is short-lived (15min) and we navigate away immediately after storing it.
  */
 export function getSignupRedirect(pendingToken: string): string {
-	return `${process.env.REQUEST_ORIGIN}${AUTH_CALLBACK_PATH}#signup=true&pendingToken=${encodeURIComponent(pendingToken)}`;
+	const params = new URLSearchParams({ signup: 'true', pendingToken });
+	return `${process.env.REQUEST_ORIGIN}${AUTH_CALLBACK_PATH}?${params.toString()}`;
 }
 
 /** Creates JWT + Session, sets auth cookie, and redirects to success URL. */

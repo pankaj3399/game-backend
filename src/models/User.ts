@@ -7,6 +7,8 @@ export interface IElo {
 	vol: number;
 }
 
+import type { Role } from '../constants/roles';
+
 /** Identity & access: clubs this user admins, tournaments they organize. */
 export interface IUser {
 	email: string;
@@ -14,14 +16,22 @@ export interface IUser {
 	alias?: string | null;
 	dateOfBirth?: Date | null;
 	gender: "male" | "female" | "other" | null;
-	userType: "admin" | "user";
+	/** RBAC role: Player, Organiser, Club Admin, Super Admin */
+	role: Role;
+	status: "active" | "inactive" | "banned";
 	/** Clubs this user administers. */
 	adminOf: mongoose.Types.ObjectId[];
 	/** Tournaments this user organizes. */
 	organizerOf: mongoose.Types.ObjectId[];
+/** Clubs this user has favorited. */
+	favoriteClubs: mongoose.Types.ObjectId[];
+	/** User's designated home club (must be in favoriteClubs). */
+	homeClub: mongoose.Types.ObjectId | null;
 	elo: IElo;
 	createdAt: Date;
 	updatedAt: Date;
+	/** Soft delete: when set, user is considered deleted and excluded from queries. */
+	deletedAt?: Date | null;
 }
 
 export type UserDocument = HydratedDocument<IUser>;
@@ -59,14 +69,23 @@ const userSchema = new mongoose.Schema<IUser>(
 			},
 			default: null
 		},
-		userType: {
+		status: {
 			type: String,
 			enum: {
-				values: ["user", "admin"],
+				values: ["active", "inactive", "banned"],
+				message: "{VALUE} is not supported"
+			},
+			default: "active",
+			required: true,
+		},
+		role: {
+			type: String,
+			enum: {
+				values: ["player", "organiser", "club_admin", "super_admin"],
 				message: "{VALUE} is not supported"
 			},
 			required: true,
-			default: "user"
+			default: "player"
 		},
 		adminOf: {
 			type: [{ type: mongoose.Schema.Types.ObjectId, ref: "Club" }],
@@ -75,6 +94,15 @@ const userSchema = new mongoose.Schema<IUser>(
 		organizerOf: {
 			type: [{ type: mongoose.Schema.Types.ObjectId, ref: "Tournament" }],
 			default: []
+		},
+		favoriteClubs: {
+			type: [{ type: mongoose.Schema.Types.ObjectId, ref: "Club" }],
+			default: []
+		},
+		homeClub: {
+			type: mongoose.Schema.Types.ObjectId,
+			ref: "Club",
+			default: null
 		},
 		elo: {
 			_id: false,
@@ -98,6 +126,10 @@ const userSchema = new mongoose.Schema<IUser>(
 				default: 0.06,
 				required: true
 			}
+		},
+		deletedAt: {
+			type: Date,
+			default: null
 		}
 	},
 	{
@@ -105,6 +137,14 @@ const userSchema = new mongoose.Schema<IUser>(
 		collection: 'users'
 	}
 );
+
+/** Excludes soft-deleted users from find queries. Use query.setOptions({ includeDeleted: true }) to bypass. */
+userSchema.pre(/^find/, function (this: mongoose.Query<unknown, HydratedDocument<IUser>>) {
+	const opts = this.getOptions() as { includeDeleted?: boolean };
+	if (!opts?.includeDeleted) {
+		this.where({ $or: [{ deletedAt: null }, { deletedAt: { $exists: false } }] });
+	}
+});
 
 const User = mongoose.model<IUser>('User', userSchema);
 

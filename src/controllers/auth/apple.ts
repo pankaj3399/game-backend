@@ -6,6 +6,7 @@ import { isSignupComplete } from './utils';
 import { createPendingSignupToken } from './pendingToken';
 import { getErrorRedirect, getSignupRedirect, loginAndRedirect } from './utils';
 import { logger } from '../../lib/logger';
+import { isApplePlaceholderEmail } from '../../lib/passport';
 
 export const appleAuth = passport.authenticate('apple', {
 	scope: ['name', 'email']
@@ -36,6 +37,7 @@ export const appleAuthCallback = (req: Request, res: Response, next: NextFunctio
 				const pendingToken = createPendingSignupToken({
 					pendingEmail: email,
 					...(appleId && { appleId }),
+					...(appleId && isApplePlaceholderEmail(email) && { requiresEmailInput: true }),
 				});
 				return res.redirect(getSignupRedirect(pendingToken));
 			}
