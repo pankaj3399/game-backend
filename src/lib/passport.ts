@@ -2,6 +2,7 @@ import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import { Strategy as AppleStrategy } from 'passport-apple';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import mongoose from 'mongoose';
 import User, { type UserDocument } from '../models/User';
 import UserAuth from '../models/UserAuth';
@@ -53,7 +54,6 @@ if (
 						return done(new Error('No email returned from Google — ensure email scope is granted'));
 					}
 
-					// 1. Existing user by googleId
 					const byGoogleId = await UserAuth.findOne({ googleId }).populate('user').session(session);
 					if (byGoogleId?.user) {
 						await session.abortTransaction();
@@ -61,7 +61,6 @@ if (
 						return done(null, byGoogleId.user as unknown as Express.User);
 					}
 
-					// 2. Existing user by email (e.g. previously signed up with Apple)
 					const { user, created } = await findOrCreateUserByEmail(email, session);
 
 					const existingAuth = await UserAuth.findOne({ user: user._id }).session(session);
@@ -101,6 +100,7 @@ if (
 // ---------------------------------------------------------------------------
 // Apple OAuth Strategy
 // ---------------------------------------------------------------------------
+
 /** Placeholder email when Apple doesn't send email (returning users, Hide My Email). */
 const APPLE_PLACEHOLDER_EMAIL_PREFIX = 'apple-';
 const APPLE_PLACEHOLDER_EMAIL_SUFFIX = '@users.noreply.local';
@@ -117,6 +117,61 @@ function normalizeApplePrivateKey(raw: string): string {
 	const trimmed = raw.trim();
 	if (trimmed.includes('-----BEGIN')) return trimmed;
 	return `-----BEGIN PRIVATE KEY-----\n${trimmed}\n-----END PRIVATE KEY-----`;
+}
+
+// ---------------------------------------------------------------------------
+// Cookie-based OAuth state store
+//
+// passport-oauth2 normally stores the state parameter in the Express session.
+// Apple's form_post is a cross-site POST from appleid.apple.com, so the
+// session cookie (SameSite=Lax) is NOT sent by the browser. This store uses
+// a dedicated SameSite=None cookie instead, which survives the cross-site POST.
+// ---------------------------------------------------------------------------
+
+export const APPLE_STATE_COOKIE = '__apple_oauth_state';
+
+const APPLE_STATE_COOKIE_OPTIONS = {
+	httpOnly: true,
+	secure: true,
+	sameSite: 'none' as const,
+	maxAge: 600_000,
+	path: '/',
+};
+
+class AppleCookieStateStore {
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	store(req: any, ...args: unknown[]): void {
+		const callback = args[args.length - 1] as (err: Error | null, state?: string) => void;
+		try {
+			const state = crypto.randomBytes(32).toString('hex');
+			const res = req.res;
+			if (res?.cookie) {
+				res.cookie(APPLE_STATE_COOKIE, state, APPLE_STATE_COOKIE_OPTIONS);
+			}
+			callback(null, state);
+		} catch (err) {
+			callback(err as Error);
+		}
+	}
+
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	verify(req: any, providedState: string, ...args: unknown[]): void {
+		const callback = args[args.length - 1] as (err: Error | null, ok?: boolean, state?: string) => void;
+		try {
+			const storedState = req.cookies?.[APPLE_STATE_COOKIE];
+			const res = req.res;
+			if (res?.clearCookie) {
+				res.clearCookie(APPLE_STATE_COOKIE, { path: '/', httpOnly: true, secure: true, sameSite: 'none' });
+			}
+			if (!storedState || !providedState || storedState !== providedState) {
+				callback(null, false);
+			} else {
+				callback(null, true, storedState);
+			}
+		} catch (err) {
+			callback(err as Error);
+		}
+	}
 }
 
 if (
@@ -137,6 +192,7 @@ if (
 				responseType: 'code id_token',
 				scope: ['name', 'email'],
 				passReqToCallback: true,
+				store: new AppleCookieStateStore(),
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			} as any,
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -159,13 +215,11 @@ if (
 						return done(new Error('Apple id_token could not be decoded'));
 					}
 					const appleId = decoded.sub;
-					// Apple sends email only on first login. Use req.appleProfile from form_post when available.
 					const appleProfile = req?.appleProfile as { email?: string } | undefined;
 					const emailFromToken = decoded.email;
 					const emailFromProfile = appleProfile?.email;
 					const email = emailFromToken ?? emailFromProfile ?? '';
 
-					// 1. Existing user by appleId
 					const byAppleId = await UserAuth.findOne({ appleId }).populate('user').session(session);
 					if (byAppleId?.user) {
 						await session.abortTransaction();
@@ -173,7 +227,6 @@ if (
 						return done(null, byAppleId.user as unknown as Express.User);
 					}
 
-					// 2. Create or find user (Apple only sends email on first login; use placeholder for returning users)
 					const effectiveEmail = email || getApplePlaceholderEmail(appleId);
 					const { user, created } = await findOrCreateUserByEmail(effectiveEmail, session);
 					const existingAuth = await UserAuth.findOne({ user: user._id }).session(session);
@@ -225,7 +278,6 @@ passport.deserializeUser(async (id: string, done) => {
 			.select('_id email name alias role adminOf organizerOf')
 			.lean();
 		if (!user) {
-			// User deleted after session was created
 			return done(null, false);
 		}
 		done(null, user as Express.User);
