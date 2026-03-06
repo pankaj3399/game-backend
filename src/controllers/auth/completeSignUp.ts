@@ -7,8 +7,6 @@ import { DEFAULT_ELO } from '../../constants/elo';
 import { isSignupComplete } from './utils';
 import { completeSignupSchema } from '../../validation/auth.schemas';
 import { createAuthToken, setAuthCookie } from '../../lib/jwtAuth';
-import { isApplePlaceholderEmail } from '../../lib/passport';
-
 /**
  * Completes first-time signup. Requires a valid pendingToken from the OAuth redirect.
  * Updates the User with profile info and creates JWT + Session (auth cookie).
@@ -76,22 +74,10 @@ export async function completeSignUp(req: Request, res: Response) {
 		}
 
 		// First-time complete: update user, create JWT session
-		// For Apple users with placeholder email, require email from body
+		// For Apple/Google: use pendingEmail from OAuth (Apple sends relay email when using Hide My Email)
 		let emailToSet: string | undefined;
 		if (payload.appleId || payload.googleId) {
-			if (payload.appleId && isApplePlaceholderEmail(payload.pendingEmail)) {
-				const providedEmail = data.email?.trim();
-				if (!providedEmail) {
-					return res.status(400).json({
-						message: 'Please enter your email address. Apple did not share it with us.',
-						error: true,
-						code: 'EMAIL_REQUIRED'
-					});
-				}
-				emailToSet = providedEmail;
-			} else {
-				emailToSet = payload.pendingEmail || undefined;
-			}
+			emailToSet = payload.pendingEmail || undefined;
 		}
 
 		// Check if email is already taken by another user (exclude current user)

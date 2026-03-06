@@ -5,8 +5,7 @@ export const completeSignupSchema = z.object({
 	pendingToken: z.string().min(1, { error: 'Pending token is required' }),
 	alias: z.string().min(1, { error: 'Alias is required' }).trim(),
 	name: z.string().min(1, { error: 'Name is required' }).trim(),
-	/** Required when Apple user has placeholder email (no email from Apple). */
-	email: z.email({ message: 'Valid email is required' }).trim().optional(),
+	email: z.string().email({ message: 'Valid email is required' }).trim().optional(),
 	dateOfBirth: z
 		.union([
 			z.string().refine((s) => !Number.isNaN(new Date(s).getTime()) && s.length >= 10, { message: 'Invalid date format' }),

@@ -5,7 +5,7 @@ import Court from '../../models/Court';
 /**
  * GET /api/user/admin-clubs
  * Returns clubs the authenticated user administers (user.adminOf) with court count.
- * RBAC: Requires club_admin or super_admin role.
+ * Any authenticated user can fetch (returns empty list if they have no clubs).
  */
 export async function getAdminClubs(req: Request, res: Response) {
 	const sessionUser = req.user;

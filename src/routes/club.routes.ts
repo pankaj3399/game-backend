@@ -14,7 +14,6 @@ import {
 	deleteSponsor
 } from '../controllers/sponsor/controller';
 import authenticate from '../middlewares/auth';
-import { requireClubAdminOrAbove } from '../middlewares/rbac';
 import { validateBody } from '../lib/validation';
 import { createClubSchema, updateClubSchema, addClubStaffSchema } from '../validation/club.schemas';
 import { createSponsorSchema, updateSponsorSchema } from '../validation/sponsor.schemas';
@@ -24,11 +23,10 @@ const router = express.Router();
 // Search clubs - requires auth so users can add to favorites
 router.get('/', authenticate, searchClubs);
 
-// Create club - requires club_admin or super_admin
+// Create club - any authenticated user can create a club
 router.post(
 	'/',
 	authenticate,
-	requireClubAdminOrAbove,
 	validateBody(createClubSchema),
 	createClub
 );

@@ -20,7 +20,7 @@ export interface CreateClubBody {
 /**
  * POST /api/clubs
  * Create a new club. Creator is added to user.adminOf.
- * RBAC: Requires club_admin or super_admin role.
+ * Any authenticated user (free or premium) can create a club.
  */
 export async function createClub(req: Request, res: Response) {
 	const sessionUser = req.user;

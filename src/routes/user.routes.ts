@@ -26,7 +26,7 @@ const router = express.Router();
 router.patch('/update-profile', authenticate, validateBody(updateProfileSchema), updateProfile);
 router.delete('/delete-account', authenticate, deleteAccount);
 router.get('/favorite-clubs', authenticate, getFavoriteClubs);
-router.get('/admin-clubs', authenticate, requireClubAdminOrAbove, getAdminClubs);
+router.get('/admin-clubs', authenticate, getAdminClubs);
 router.get('/search', authenticate, requireClubAdminOrAbove, searchUsers);
 router.post('/favorite-clubs', authenticate, validateBody(addFavoriteClubSchema), addFavoriteClub);
 router.delete('/favorite-clubs/:clubId', authenticate, removeFavoriteClub);
