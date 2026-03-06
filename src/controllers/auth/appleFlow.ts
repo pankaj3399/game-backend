@@ -30,6 +30,7 @@ interface AppleTraceRequest extends Request {
 }
 
 export const APPLE_TRACE_COOKIE = '__apple_oauth_trace';
+export const APPLE_NONCE_COOKIE = '__apple_oauth_nonce';
 
 const MAX_STRING_LENGTH = 180;
 const MAX_COLLECTION_ITEMS = 12;
@@ -193,6 +194,20 @@ function getTraceCookieOptions(req: Request) {
 
 export function getAppleCookieTransportOptions(req: Request) {
 	return getTraceCookieOptions(req);
+}
+
+export function persistAppleNonce(req: Request, nonce: string): void {
+	const res = req.res;
+	if (!res?.cookie) return;
+
+	res.cookie(APPLE_NONCE_COOKIE, nonce, getTraceCookieOptions(req));
+}
+
+export function clearAppleNonce(req: Request): void {
+	const res = req.res;
+	if (!res?.clearCookie) return;
+
+	res.clearCookie(APPLE_NONCE_COOKIE, getTraceCookieOptions(req));
 }
 
 export function getAppleFlowTrace(req: Request): AppleFlowTrace {

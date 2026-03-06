@@ -1,11 +1,14 @@
+import { randomBytes } from 'crypto';
 import passport from 'passport';
 import type { Request, Response, NextFunction } from 'express';
 import UserAuth from '../../models/UserAuth';
 import { createPendingSignupToken } from './pendingToken';
 import {
+	clearAppleNonce,
 	encodeAppleFlowTrace,
 	finalizeAppleFlow,
 	persistAppleFlowTrace,
+	persistAppleNonce,
 	recordAppleFlowEvent,
 	sanitizeApplePayload,
 	clearAppleFlowTrace,
@@ -92,15 +95,24 @@ export const appleAuth = (req: Request, res: Response, next: NextFunction) => {
 		);
 	}
 
-	// state: {} forces passport-oauth2 to use our AppleCookieStateStore instead of
-	// passport-apple's built-in 10-char state. Our store uses a SameSite=None cookie
-	// so state survives Apple's cross-site form POST callback.
+	// state: {} keeps passport-oauth2 on the state-store code path. passport-apple
+	// mutates the options object and will generate its own random string when state
+	// is falsy; using an object prevents that so our SameSite=None cookie store is
+	// used for Apple's cross-site form_post callback.
 	recordAppleFlowEvent(req, 'info', 'redirecting_to_apple', 'Redirecting the browser to Apple', {
 		callbackUrl: process.env.APPLE_CALLBACK_URL ?? null,
 	});
 	persistAppleFlowTrace(req);
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	passport.authenticate('apple', { scope: ['name', 'email', 'profile'], state: {} } as any)(req, res, next);
+	const nonce = randomBytes(32).toString('hex');
+	persistAppleNonce(req, nonce);
+	const appleAuthOptions = {
+		scope: ['name', 'email'],
+		nonce,
+		state: "",
+		session: false,
+	};
+	// passport-apple supports auto-managed state stores, but its typings still expect state:string.
+	passport.authenticate('apple', appleAuthOptions)(req, res, next);
 };
 
 /**
@@ -130,6 +142,7 @@ export const appleAuthCallback = (req: Request, res: Response, next: NextFunctio
 		});
 		logger.warn('Apple auth error', { kind, err, applePayload });
 		const flowTrace = encodeAppleFlowTrace(req);
+		clearAppleNonce(req);
 		clearAppleFlowTrace(req);
 		res.redirect(getErrorRedirect(kind, { errorMessage, applePayload, flowTrace }));
 	};
@@ -185,7 +198,7 @@ export const appleAuthCallback = (req: Request, res: Response, next: NextFunctio
 		});
 
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		passport.authenticate('apple', async (err: Error | string | null, user: Express.User | false) => {
+		passport.authenticate('apple', { session: false }, async (err: Error | string | null, user: Express.User | false) => {
 		try {
 			if (err) {
 				const kind = getAppleErrorKind(err);
@@ -235,6 +248,7 @@ export const appleAuthCallback = (req: Request, res: Response, next: NextFunctio
 					email,
 				});
 				const flowTrace = encodeAppleFlowTrace(req);
+				clearAppleNonce(req);
 				clearAppleFlowTrace(req);
 				return res.redirect(getSignupRedirect(pendingToken, flowTrace));
 			}
@@ -243,6 +257,7 @@ export const appleAuthCallback = (req: Request, res: Response, next: NextFunctio
 			recordAppleFlowEvent(req, 'info', 'login_redirect', 'Apple sign-in completed successfully; creating session and redirecting', {
 				userId: user._id,
 			});
+			clearAppleNonce(req);
 			clearAppleFlowTrace(req);
 			await loginAndRedirect(req, res, user);
 		} catch (caught) {

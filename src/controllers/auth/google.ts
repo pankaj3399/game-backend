@@ -8,7 +8,7 @@ import { getErrorRedirect, getSignupRedirect, loginAndRedirect } from './utils';
 import { logger } from '../../lib/logger';
 
 export const googleAuth = (req: Request, res: Response, next: NextFunction) => {
-	passport.authenticate('google', { scope: ['profile', 'email'] })(req, res, next);
+	passport.authenticate('google', { scope: ['profile', 'email'], session: false })(req, res, next);
 };
 
 /**
@@ -17,7 +17,7 @@ export const googleAuth = (req: Request, res: Response, next: NextFunction) => {
  * - Sign-up (first-time user): Redirect with signed pendingToken for complete-signup.
  */
 export const googleAuthCallback = (req: Request, res: Response, next: NextFunction) => {
-	passport.authenticate('google', async (err: { message?: string }, user: Express.User | false) => {
+	passport.authenticate('google', { session: false }, async (err: { message?: string }, user: Express.User | false) => {
 		try {
 			if (err || !user) {
 				return res.redirect(getErrorRedirect());
