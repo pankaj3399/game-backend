@@ -19,8 +19,8 @@ const router = express.Router();
 router.get('/google', googleAuth);
 router.get('/google/callback', googleAuthCallback);
 router.get('/apple', appleAuth);
-router.get('/callback/apple', appleAuthCallback);
-router.post('/callback/apple', appleFormPostFix, appleAuthCallback);
+router.get('/apple/callback', appleAuthCallback);
+router.post('/apple/callback', appleFormPostFix, appleAuthCallback);
 router.post('/complete-signup', validateBody(completeSignupSchema), completeSignUp);
 router.post('/logout', logout);
 

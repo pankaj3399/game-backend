@@ -1,11 +1,23 @@
 import passport from 'passport';
 import type { Request, Response, NextFunction } from 'express';
 import UserAuth from '../../models/UserAuth';
-import { isSignupComplete } from './utils';
 import { createPendingSignupToken } from './pendingToken';
-import { getErrorRedirect, getSignupRedirect, loginAndRedirect } from './utils';
+import {
+	isSignupComplete,
+	getSignupRedirect,
+	loginAndRedirect,
+	renderAppleErrorPage,
+	sanitizeApplePayload,
+} from './utils';
 import { logger } from '../../lib/logger';
 import { isApplePlaceholderEmail } from '../../lib/passport';
+
+/** Safely extracts error message from unknown error. */
+function getErrorMessage(err: unknown): string {
+	if (err instanceof Error) return err.message;
+	if (typeof err === 'string') return err;
+	return String(err);
+}
 
 /**
  * Express 5 defines req.query as a computed getter that returns a new object
@@ -34,21 +46,39 @@ export const appleAuth = (req: Request, res: Response, next: NextFunction) => {
  * Apple OAuth callback. Two paths:
  * - Sign-in (existing user, signup complete): Create session only, redirect home.
  * - Sign-up (first-time user): Redirect with signed pendingToken for complete-signup.
+ *
+ * On error: renders HTML debug page with error + Apple payload (no redirect).
  */
 export const appleAuthCallback = (req: Request, res: Response, next: NextFunction) => {
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	passport.authenticate('apple', async (err: Error | string | null, user: Express.User | false) => {
+	let applePayload: Record<string, unknown> = {};
+
+	try {
+		applePayload = sanitizeApplePayload(
+			(req.body as Record<string, unknown>) ?? (req.query as Record<string, unknown>)
+		);
+	} catch (e) {
+		applePayload = { _captureError: String(e), body: req.body, query: req.query };
+	}
+
+	const showError = (kind: string, err?: unknown) => {
+		logger.warn('Apple auth error', { kind, err, applePayload });
+		const errorMessage = err ? getErrorMessage(err) : kind;
+		renderAppleErrorPage(res, errorMessage, applePayload, kind);
+	};
+
+	try {
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		passport.authenticate('apple', async (err: Error | string | null, user: Express.User | false) => {
 		try {
 			if (err) {
-				logger.warn('Apple passport.authenticate error', { err });
-				if (err === 'AuthorizationError') return res.redirect(getErrorRedirect('denied'));
-				if (err === 'TokenError') return res.redirect(getErrorRedirect('token'));
-				return res.redirect(getErrorRedirect());
+				if (err === 'AuthorizationError') return showError('denied', err);
+				if (err === 'TokenError') return showError('token', err);
+				return showError('auth', err);
 			}
 
-			if (!user) return res.redirect(getErrorRedirect());
+			if (!user) return showError('no_user');
 			const userAuth = await UserAuth.findOne({ user: user._id }).exec();
-			if (!userAuth) return res.redirect(getErrorRedirect());
+			if (!userAuth) return showError('no_user_auth');
 
 			if (!isSignupComplete(user)) {
 				const email = user.email ?? '';
@@ -62,9 +92,18 @@ export const appleAuthCallback = (req: Request, res: Response, next: NextFunctio
 			}
 
 			await loginAndRedirect(req, res, user);
-		} catch (err) {
-			logger.error('Error in appleAuthCallback', { err });
-			return res.redirect(getErrorRedirect('unknown'));
+		} catch (caught) {
+			logger.error('Error in appleAuthCallback', { err: caught, applePayload });
+			showError('unknown', caught);
 		}
-	})(req, res, next);
+		})(req, res, (passportErr: unknown) => {
+			if (passportErr) {
+				showError('passport', passportErr);
+			} else {
+				next();
+			}
+		});
+	} catch (e) {
+		showError('crash', e);
+	}
 };
