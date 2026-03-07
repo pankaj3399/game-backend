@@ -1,12 +1,22 @@
 import passport from 'passport';
+import type { Request } from 'express';
+import https from 'https';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import { Strategy as AppleStrategy } from 'passport-apple';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import mongoose from 'mongoose';
-import User, { type UserDocument } from '../models/User';
+import User from '../models/User';
 import UserAuth from '../models/UserAuth';
 import { logger } from '../lib/logger';
+import {
+	getAppleFlowTrace,
+	getAppleCookieTransportOptions,
+	APPLE_NONCE_COOKIE,
+	recordAppleFlowEvent,
+	sanitizeFlowDetails,
+	setAppleFlowTrace,
+} from '../controllers/auth/appleFlow';
 
 // ---------------------------------------------------------------------------
 // Shared upsert helper — atomically finds or creates a User by email.
@@ -113,6 +123,124 @@ export function isApplePlaceholderEmail(email: string): boolean {
 	return email.startsWith(APPLE_PLACEHOLDER_EMAIL_PREFIX) && email.endsWith(APPLE_PLACEHOLDER_EMAIL_SUFFIX);
 }
 
+interface AppleStrategyRequest extends Request {
+	appleProfile?: {
+		email?: string;
+	};
+}
+
+interface DecodedAppleIdToken {
+	sub?: string;
+	email?: string;
+	iss?: string;
+	aud?: string | string[];
+	nonce?: string;
+}
+
+interface AppleJwk extends crypto.JsonWebKey {
+	kid?: string;
+	alg?: string;
+	use?: string;
+}
+
+const APPLE_JWKS_URL = 'https://appleid.apple.com/auth/keys';
+const APPLE_JWKS_CACHE_MS = 60 * 60 * 1000;
+
+let appleJwksCache: { fetchedAt: number; keys: AppleJwk[] } | null = null;
+
+function fetchAppleJwks(): Promise<AppleJwk[]> {
+	if (appleJwksCache && Date.now() - appleJwksCache.fetchedAt < APPLE_JWKS_CACHE_MS) {
+		return Promise.resolve(appleJwksCache.keys);
+	}
+
+	return new Promise((resolve, reject) => {
+		const req = https.get(APPLE_JWKS_URL, (res) => {
+			const chunks: Buffer[] = [];
+			res.on('data', (chunk: Buffer | string) => {
+				chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+			});
+			res.on('end', () => {
+				const body = Buffer.concat(chunks).toString('utf8');
+				if (res.statusCode !== 200) {
+					reject(new Error(`Failed to load Apple JWKS (status ${res.statusCode ?? 'unknown'})`));
+					return;
+				}
+
+				try {
+					const parsed = JSON.parse(body) as { keys?: AppleJwk[] };
+					if (!Array.isArray(parsed.keys) || parsed.keys.length === 0) {
+						reject(new Error('Apple JWKS response did not include any keys'));
+						return;
+					}
+
+					appleJwksCache = {
+						fetchedAt: Date.now(),
+						keys: parsed.keys,
+					};
+					resolve(parsed.keys);
+				} catch (error) {
+					reject(new Error(`Failed to parse Apple JWKS: ${error instanceof Error ? error.message : String(error)}`));
+				}
+			});
+		});
+
+		req.on('error', (error) => {
+			reject(error);
+		});
+	});
+}
+
+async function getApplePublicKey(kid: string): Promise<crypto.KeyObject> {
+	const resolveKey = async (forceRefresh = false): Promise<AppleJwk | undefined> => {
+		if (forceRefresh) {
+			appleJwksCache = null;
+		}
+		const keys = await fetchAppleJwks();
+		return keys.find((key) => key.kid === kid);
+	};
+
+	const jwk = (await resolveKey()) ?? (await resolveKey(true));
+	if (!jwk) {
+		throw new Error(`Apple signing key not found for kid ${kid}`);
+	}
+
+	return crypto.createPublicKey({
+		key: jwk,
+		format: 'jwk',
+	});
+}
+
+async function verifyAppleIdToken(idToken: string, expectedAudience: string): Promise<DecodedAppleIdToken> {
+	const decoded = jwt.decode(idToken, { complete: true }) as
+		| {
+				header?: {
+					kid?: string;
+					alg?: string;
+				};
+		  }
+		| null;
+
+	if (!decoded?.header?.kid) {
+		throw new Error('Apple id_token is missing a key identifier');
+	}
+	if (decoded.header.alg !== 'RS256') {
+		throw new Error(`Unsupported Apple id_token algorithm: ${decoded.header.alg ?? 'unknown'}`);
+	}
+
+	const publicKey = await getApplePublicKey(decoded.header.kid);
+	const verifiedPayload = jwt.verify(idToken, publicKey, {
+		algorithms: ['RS256'],
+		issuer: 'https://appleid.apple.com',
+		audience: expectedAudience,
+	});
+
+	if (!verifiedPayload || typeof verifiedPayload === 'string') {
+		throw new Error('Apple id_token payload is invalid');
+	}
+
+	return verifiedPayload as DecodedAppleIdToken;
+}
+
 function normalizeApplePrivateKey(raw: string): string {
 	const trimmed = raw.trim();
 	if (trimmed.includes('-----BEGIN')) return trimmed;
@@ -130,26 +258,90 @@ function normalizeApplePrivateKey(raw: string): string {
 
 export const APPLE_STATE_COOKIE = '__apple_oauth_state';
 
-const APPLE_STATE_COOKIE_OPTIONS = {
-	httpOnly: true,
-	secure: true,
-	sameSite: 'none' as const,
-	maxAge: 600_000,
-	path: '/',
-};
+interface AppleStatePayload {
+	nonce: string;
+	trace: {
+		traceId: string;
+		provider: 'apple';
+		startedAt: string;
+		updatedAt: string;
+		status: 'processing' | 'success' | 'signup_required' | 'error';
+		outcomeCode?: string;
+		summary?: string;
+		events: {
+			at: string;
+			level: 'info' | 'warn' | 'error';
+			code: string;
+			message: string;
+			details?: Record<string, unknown>;
+		}[];
+	};
+}
+
+function encodeAppleStatePayload(payload: AppleStatePayload): string {
+	return Buffer.from(JSON.stringify(payload)).toString('base64url');
+}
+
+function decodeAppleStatePayload(rawState: string | undefined): AppleStatePayload | null {
+	if (!rawState) return null;
+
+	try {
+		const parsed = JSON.parse(Buffer.from(rawState, 'base64url').toString('utf8')) as AppleStatePayload;
+		if (
+			typeof parsed?.nonce === 'string' &&
+			parsed.trace?.provider === 'apple' &&
+			typeof parsed.trace.traceId === 'string' &&
+			Array.isArray(parsed.trace.events)
+		) {
+			return parsed;
+		}
+	} catch {
+		return null;
+	}
+
+	return null;
+}
 
 class AppleCookieStateStore {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	store(req: any, ...args: unknown[]): void {
 		const callback = args[args.length - 1] as (err: Error | null, state?: string) => void;
 		try {
-			const state = crypto.randomBytes(32).toString('hex');
+			const nonce = crypto.randomBytes(32).toString('hex');
 			const res = req.res;
 			if (res?.cookie) {
-				res.cookie(APPLE_STATE_COOKIE, state, APPLE_STATE_COOKIE_OPTIONS);
+				const cookieOptions = {
+					...getAppleCookieTransportOptions(req),
+					maxAge: 600_000,
+				};
+				res.cookie(APPLE_STATE_COOKIE, nonce, cookieOptions);
+				recordAppleFlowEvent(req, 'info', 'state_cookie_set', 'Stored Apple OAuth state cookie', {
+					cookieName: APPLE_STATE_COOKIE,
+					sameSite: cookieOptions.sameSite,
+					secure: cookieOptions.secure,
+					stateEncoding: 'base64url-json',
+				});
+				if (!cookieOptions.secure) {
+					recordAppleFlowEvent(
+						req,
+						'warn',
+						'state_cookie_not_secure',
+						'Apple OAuth state cookie is not marked Secure; browsers may reject SameSite=None cookies on non-HTTPS origins.',
+						{
+							host: req.headers?.host ?? null,
+						}
+					);
+				}
 			}
+			recordAppleFlowEvent(req, 'info', 'state_payload_created', 'Embedded the current Apple flow trace into the OAuth state payload', {
+				eventCount: getAppleFlowTrace(req).events.length,
+			});
+			const state = encodeAppleStatePayload({ nonce, trace: getAppleFlowTrace(req) });
 			callback(null, state);
 		} catch (err) {
+			recordAppleFlowEvent(req, 'error', 'state_cookie_store_failed', 'Failed to store Apple OAuth state cookie', {
+				error: err instanceof Error ? { name: err.name, message: err.message } : String(err),
+			});
 			callback(err as Error);
 		}
 	}
@@ -159,16 +351,45 @@ class AppleCookieStateStore {
 		const callback = args[args.length - 1] as (err: Error | null, ok?: boolean, state?: string) => void;
 		try {
 			const storedState = req.cookies?.[APPLE_STATE_COOKIE];
+			const parsedState = decodeAppleStatePayload(providedState);
+			if (parsedState?.trace) {
+				setAppleFlowTrace(req, parsedState.trace);
+				recordAppleFlowEvent(req, 'info', 'trace_restored_from_state', 'Restored the pre-callback Apple flow trace from the OAuth state payload', {
+					restoredEvents: parsedState.trace.events.length,
+					traceId: parsedState.trace.traceId,
+				});
+			}
 			const res = req.res;
 			if (res?.clearCookie) {
-				res.clearCookie(APPLE_STATE_COOKIE, { path: '/', httpOnly: true, secure: true, sameSite: 'none' });
+				res.clearCookie(APPLE_STATE_COOKIE, {
+					...getAppleCookieTransportOptions(req),
+					path: '/',
+				});
 			}
-			if (!storedState || !providedState || storedState !== providedState) {
+			const providedNonce = parsedState?.nonce;
+			if (!storedState || !providedNonce || storedState !== providedNonce) {
+				recordAppleFlowEvent(req, 'warn', 'state_mismatch', 'Apple OAuth state validation failed', {
+					hasStoredState: !!storedState,
+					hasProvidedState: !!providedState,
+					hasProvidedNonce: !!providedNonce,
+					storedState:
+						typeof storedState === 'string'
+							? { length: storedState.length, previewStart: storedState.slice(0, 6), previewEnd: storedState.slice(-4) }
+							: null,
+					providedNonce:
+						typeof providedNonce === 'string'
+							? { length: providedNonce.length, previewStart: providedNonce.slice(0, 6), previewEnd: providedNonce.slice(-4) }
+							: null,
+				});
 				callback(null, false);
 			} else {
+				recordAppleFlowEvent(req, 'info', 'state_verified', 'Apple OAuth state validation succeeded');
 				callback(null, true, storedState);
 			}
 		} catch (err) {
+			recordAppleFlowEvent(req, 'error', 'state_verify_failed', 'Apple OAuth state verification threw an exception', {
+				error: err instanceof Error ? { name: err.name, message: err.message } : String(err),
+			});
 			callback(err as Error);
 		}
 	}
@@ -181,108 +402,158 @@ if (
 	process.env.APPLE_PRIVATE_KEY &&
 	process.env.APPLE_CALLBACK_URL
 ) {
+	const appleClientId = process.env.APPLE_CLIENT_ID;
+	const appleStrategyOptions = {
+		clientID: appleClientId,
+		teamID: process.env.APPLE_TEAM_ID,
+		keyID: process.env.APPLE_KEY_ID,
+		privateKeyString: normalizeApplePrivateKey(process.env.APPLE_PRIVATE_KEY),
+		callbackURL: process.env.APPLE_CALLBACK_URL,
+		responseType: 'code id_token',
+		scope: ['name', 'email'],
+		passReqToCallback: true,
+		store: new AppleCookieStateStore(),
+	};
+
+	const verifyAppleStrategy = async function (
+		req: AppleStrategyRequest,
+		_accessToken: string,
+		_refreshToken: string,
+		idToken: string,
+		profile: { id?: string } | undefined,
+		done: (err: Error | null, user?: unknown) => void
+	) {
+		const session = await mongoose.startSession();
+		session.startTransaction();
+
+		try {
+			if (typeof idToken !== 'string' || !idToken) {
+				await session.abortTransaction();
+				recordAppleFlowEvent(req, 'error', 'missing_id_token', 'Apple token exchange completed without an id_token', {
+					idTokenType: typeof idToken,
+				});
+				return done(new Error('Apple token exchange did not return an id_token'));
+			}
+
+			const decoded = await verifyAppleIdToken(idToken, appleClientId);
+			if (!decoded?.sub) {
+				await session.abortTransaction();
+				recordAppleFlowEvent(req, 'error', 'id_token_decode_failed', 'Apple id_token could not be decoded', {
+					idTokenPresent: !!idToken,
+				});
+				return done(new Error('Apple id_token could not be decoded'));
+			}
+			recordAppleFlowEvent(req, 'info', 'id_token_verified', 'Verified Apple id_token signature and claims against Apple JWKS', {
+				issuer: decoded.iss ?? null,
+				audience: decoded.aud ?? null,
+			});
+
+			const expectedNonce =
+				typeof req.cookies?.[APPLE_NONCE_COOKIE] === 'string' ? (req.cookies[APPLE_NONCE_COOKIE] as string) : null;
+			if (!expectedNonce) {
+				await session.abortTransaction();
+				recordAppleFlowEvent(req, 'error', 'missing_nonce_cookie', 'Apple OAuth nonce cookie was missing during callback verification');
+				return done(new Error('Apple OAuth nonce cookie is missing'));
+			}
+			if (decoded.nonce && decoded.nonce !== expectedNonce) {
+				await session.abortTransaction();
+				recordAppleFlowEvent(req, 'error', 'nonce_mismatch', 'Apple id_token nonce claim did not match the original authorization request', {
+					expectedNoncePreview: { previewStart: expectedNonce.slice(0, 6), previewEnd: expectedNonce.slice(-4) },
+					receivedNoncePreview: { previewStart: decoded.nonce.slice(0, 6), previewEnd: decoded.nonce.slice(-4) },
+				});
+				return done(new Error('Apple id_token nonce is invalid'));
+			}
+			if (!decoded.nonce) {
+				recordAppleFlowEvent(req, 'warn', 'nonce_missing_in_id_token', 'Apple id_token did not include a nonce claim to verify');
+			}
+
+			// Use profile.id (first login) or decoded.sub (subsequent logins).
+			const appleId = (profile?.id ?? decoded.sub) as string;
+			const appleProfile = req.appleProfile;
+			const emailFromToken = decoded.email;
+			const emailFromProfile = appleProfile?.email;
+			const email = emailFromToken ?? emailFromProfile ?? '';
+			recordAppleFlowEvent(req, 'info', 'id_token_decoded', 'Decoded Apple id_token and derived Apple identity', {
+				appleId,
+				emailFromToken,
+				emailFromProfile,
+				effectiveEmail: email || null,
+				profile: sanitizeFlowDetails(profile as Record<string, unknown> | undefined),
+			});
+
+			const byAppleId = await UserAuth.findOne({ appleId }).populate('user').session(session);
+			if (byAppleId?.user) {
+				await session.abortTransaction();
+				logger.info('Apple sign-in by appleId', { appleId });
+				recordAppleFlowEvent(req, 'info', 'user_found_by_apple_id', 'Matched Apple account to an existing linked user', {
+					appleId,
+					userId: byAppleId.user._id,
+				});
+				return done(null, byAppleId.user as unknown as Express.User);
+			}
+
+			const effectiveEmail = email || getApplePlaceholderEmail(appleId);
+			recordAppleFlowEvent(req, 'info', 'effective_email_selected', 'Selected the email that will be used for Apple sign-in', {
+				effectiveEmail,
+				usedPlaceholder: !email,
+			});
+			const { user, created } = await findOrCreateUserByEmail(effectiveEmail, session);
+			const existingAuth = await UserAuth.findOne({ user: user._id }).session(session);
+			if (existingAuth) {
+				if (existingAuth.appleId && existingAuth.appleId !== appleId) {
+					await session.abortTransaction();
+					recordAppleFlowEvent(req, 'error', 'apple_account_conflict', 'This email is already linked to a different Apple account', {
+						userId: user._id,
+						existingAppleId: existingAuth.appleId,
+						incomingAppleId: appleId,
+					});
+					return done(new Error('Apple account conflict: this email is already linked to a different Apple account'));
+				}
+				if (!existingAuth.appleId) {
+					existingAuth.appleId = appleId;
+					await existingAuth.save({ session });
+					logger.info('Linked appleId to existing user', { userId: user._id });
+					recordAppleFlowEvent(req, 'info', 'apple_id_linked', 'Linked Apple identity to an existing user account', {
+						userId: user._id,
+						appleId,
+					});
+				}
+			} else {
+				await UserAuth.create([{ user: user._id, appleId }], { session });
+				recordAppleFlowEvent(req, 'info', 'user_auth_created', 'Created a new auth link for the Apple identity', {
+					userId: user._id,
+					appleId,
+				});
+			}
+
+			await session.commitTransaction();
+			logger.info(created ? 'Apple sign-up: new user created' : 'Apple sign-in by email', {
+				userId: user._id,
+				usedPlaceholder: !email,
+			});
+			recordAppleFlowEvent(req, 'info', created ? 'user_created' : 'user_found_by_email', created ? 'Created a new user from Apple sign-in' : 'Matched Apple sign-in to an existing user by email', {
+				userId: user._id,
+				usedPlaceholder: !email,
+			});
+			return done(null, user as Express.User);
+		} catch (error) {
+			await session.abortTransaction();
+			logger.error('Apple strategy error', { error });
+			recordAppleFlowEvent(req, 'error', 'strategy_error', 'Apple strategy failed while linking or creating the user', {
+				error: error instanceof Error ? { name: error.name, message: error.message } : String(error),
+			});
+			return done(error as Error);
+		} finally {
+			await session.endSession();
+		}
+	};
+
 	passport.use(
 		new AppleStrategy(
-			{
-				clientID: process.env.APPLE_CLIENT_ID,
-				teamID: process.env.APPLE_TEAM_ID,
-				keyID: process.env.APPLE_KEY_ID,
-				privateKeyString: normalizeApplePrivateKey(process.env.APPLE_PRIVATE_KEY),
-				callbackURL: process.env.APPLE_CALLBACK_URL,
-				responseType: 'code id_token',
-				scope: ['name', 'email'],
-				passReqToCallback: true,
-				store: new AppleCookieStateStore(),
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			} as any,
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			async (...args: unknown[]) => {
-				const [req, _accessToken, _refreshToken, idToken, _profile, done] = args as [
-					{ appleProfile?: { email?: string } },
-					string,
-					string,
-					string,
-					unknown,
-					(err: Error | null, user?: unknown) => void
-				];
-				const session = await mongoose.startSession();
-				session.startTransaction();
-
-				try {
-					const decoded = jwt.decode(idToken) as { sub?: string; email?: string } | null;
-					if (!decoded?.sub) {
-						await session.abortTransaction();
-						return done(new Error('Apple id_token could not be decoded'));
-					}
-					const appleId = decoded.sub;
-					const appleProfile = req?.appleProfile as { email?: string } | undefined;
-					const emailFromToken = decoded.email;
-					const emailFromProfile = appleProfile?.email;
-					const email = emailFromToken ?? emailFromProfile ?? '';
-
-					const byAppleId = await UserAuth.findOne({ appleId }).populate('user').session(session);
-					if (byAppleId?.user) {
-						await session.abortTransaction();
-						logger.info('Apple sign-in by appleId', { appleId });
-						return done(null, byAppleId.user as unknown as Express.User);
-					}
-
-					const effectiveEmail = email || getApplePlaceholderEmail(appleId);
-					const { user, created } = await findOrCreateUserByEmail(effectiveEmail, session);
-					const existingAuth = await UserAuth.findOne({ user: user._id }).session(session);
-					if (existingAuth) {
-						if (existingAuth.appleId && existingAuth.appleId !== appleId) {
-							await session.abortTransaction();
-							return done(new Error('Apple account conflict: this email is already linked to a different Apple account'));
-						}
-						if (!existingAuth.appleId) {
-							existingAuth.appleId = appleId;
-							await existingAuth.save({ session });
-							logger.info('Linked appleId to existing user', { userId: user._id });
-						}
-					} else {
-						await UserAuth.create([{ user: user._id, appleId }], { session });
-					}
-
-					await session.commitTransaction();
-					logger.info(created ? 'Apple sign-up: new user created' : 'Apple sign-in by email', {
-						userId: user._id,
-						usedPlaceholder: !email,
-					});
-					return done(null, user as Express.User);
-				} catch (error) {
-					await session.abortTransaction();
-					logger.error('Apple strategy error', { error });
-					return done(error as Error);
-				} finally {
-					await session.endSession();
-				}
-			}
+			appleStrategyOptions as never,
+			verifyAppleStrategy as unknown as (...args: unknown[]) => void
 		)
 	);
 } else {
 	logger.warn('Apple OAuth strategy not registered — missing environment variables');
 }
-
-// ---------------------------------------------------------------------------
-// Serialize / Deserialize
-// ---------------------------------------------------------------------------
-passport.serializeUser((user: Express.User, done) => {
-	const typedUser = user as UserDocument;
-	done(null, typedUser._id.toString());
-});
-
-passport.deserializeUser(async (id: string, done) => {
-	try {
-		const user = await User.findById(id)
-			.select('_id email name alias role adminOf organizerOf')
-			.lean();
-		if (!user) {
-			return done(null, false);
-		}
-		done(null, user as Express.User);
-	} catch (error) {
-		logger.error('deserializeUser error', { error, id });
-		done(error as Error);
-	}
-});
