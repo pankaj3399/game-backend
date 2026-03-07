@@ -108,7 +108,7 @@ export const appleAuth = (req: Request, res: Response, next: NextFunction) => {
 	const appleAuthOptions = {
 		scope: ['name', 'email'],
 		nonce,
-		state: "",
+		state: {} as unknown as string,
 		session: false,
 	};
 	// passport-apple supports auto-managed state stores, but its typings still expect state:string.
