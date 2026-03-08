@@ -8,6 +8,7 @@ import {
 	isSignupComplete,
 	loginAndRedirect,
 } from './utils';
+import { clearExistingSession } from './logout';
 import { logger } from '../../lib/logger';
 import { isApplePlaceholderEmail } from '../../lib/passport';
 
@@ -47,6 +48,7 @@ export const appleFormPostFix = (req: Request, _res: Response, next: NextFunctio
 };
 
 export const appleAuth = (req: Request, res: Response, next: NextFunction) => {
+	clearExistingSession(req, res);
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	const strategy = (passport as any)._strategy?.('apple');
 	if (!strategy) {

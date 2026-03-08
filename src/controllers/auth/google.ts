@@ -4,9 +4,11 @@ import UserAuth from '../../models/UserAuth';
 import { isSignupComplete } from './utils';
 import { createPendingSignupToken } from './pendingToken';
 import { getErrorRedirect, getSignupRedirect, loginAndRedirect } from './utils';
+import { clearExistingSession } from './logout';
 import { logger } from '../../lib/logger';
 
 export const googleAuth = (req: Request, res: Response, next: NextFunction) => {
+	clearExistingSession(req, res);
 	passport.authenticate('google', {
 		scope: ['profile', 'email'],
 		session: false,
