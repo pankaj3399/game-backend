@@ -71,7 +71,7 @@ export async function completeSignUp(req: Request, res: Response) {
 			try {
 				const token = await createAuthToken(user);
 				setAuthCookie(res, token);
-				return res.status(200).json({ message: 'Sign up completed', code: 'SIGNUP_SUCCESSFUL', error: false });
+				return res.status(200).json({ message: 'Sign up completed', code: 'SIGNUP_SUCCESSFUL', error: false, token });
 			} catch (err) {
 				LogError(__dirname, 'POST', req.originalUrl, err);
 				return res.status(500).json({ message: 'Session creation failed', error: true, code: 'SIGN_UP_FAILED' });
@@ -121,7 +121,7 @@ export async function completeSignUp(req: Request, res: Response) {
 		try {
 			const token = await createAuthToken(user);
 			setAuthCookie(res, token);
-			return res.status(200).json({ message: 'Sign up completed', code: 'SIGNUP_SUCCESSFUL', error: false });
+			return res.status(200).json({ message: 'Sign up completed', code: 'SIGNUP_SUCCESSFUL', error: false, token });
 		} catch (err) {
 			LogError(__dirname, 'POST', req.originalUrl, err);
 			return res.status(500).json({ message: 'Session creation failed', error: true, code: 'SIGN_UP_FAILED' });

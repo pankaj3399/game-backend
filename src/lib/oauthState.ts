@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import type { Request } from 'express';
 import jwt from 'jsonwebtoken';
+import { cookieSameSite } from './config';
 
 type OAuthProvider = 'google' | 'apple';
 
@@ -43,8 +44,8 @@ function getOAuthStateCookieOptions(req: Request) {
 
 	return {
 		httpOnly: true,
-		secure,
-		sameSite: 'none' as const,
+		secure: cookieSameSite === 'none' || secure,
+		sameSite: cookieSameSite,
 		maxAge: OAUTH_STATE_TTL_MS,
 		path: '/',
 	};
