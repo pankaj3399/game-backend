@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import { Strategy as AppleStrategy } from 'passport-apple';
@@ -37,19 +38,61 @@ export function isApplePlaceholderEmail(email: string): boolean {
 	return email.startsWith(APPLE_PLACEHOLDER_EMAIL_PREFIX) && email.endsWith(APPLE_PLACEHOLDER_EMAIL_SUFFIX);
 }
 
-interface DecodedAppleIdToken {
+interface VerifiedAppleIdToken {
 	sub?: string;
 	email?: string;
 }
 
+const APPLE_JWKS_URL = 'https://appleid.apple.com/auth/keys';
+const APPLE_ISSUER = 'https://appleid.apple.com';
+const JWKS_CACHE_TTL_MS = 3600_000; // 1 hour
+
+interface JwksCache {
+	keys: Array<{ kid: string; jwk: crypto.JsonWebKey }>;
+	fetchedAt: number;
+}
+
+let jwksCache: JwksCache | null = null;
+
+async function fetchAppleJwks(): Promise<JwksCache> {
+	if (jwksCache && Date.now() - jwksCache.fetchedAt < JWKS_CACHE_TTL_MS) {
+		return jwksCache;
+	}
+	const res = await fetch(APPLE_JWKS_URL);
+	if (!res.ok) throw new Error(`Failed to fetch Apple JWKS: ${res.status}`);
+	const body = (await res.json()) as { keys?: Array<{ kid?: string } & crypto.JsonWebKey> };
+	const keys = (body.keys ?? []).map((k) => ({ kid: k.kid ?? '', jwk: k }));
+	jwksCache = { keys, fetchedAt: Date.now() };
+	return jwksCache;
+}
+
+/**
+ * Verifies Apple id_token by fetching JWKS, selecting key by kid, and validating
+ * signature and claims (iss, aud, exp). Returns the verified payload or null on failure.
+ */
+async function verifyAppleIdToken(idToken: string, clientId: string): Promise<VerifiedAppleIdToken | null> {
+	try {
+		const decoded = jwt.decode(idToken, { complete: true });
+		if (!decoded || typeof decoded === 'string' || !decoded.header?.kid) return null;
+
+		const jwks = await fetchAppleJwks();
+		const matchingKey = jwks.keys.find((k) => k.kid === decoded.header.kid);
+		if (!matchingKey) return null;
+
+		const publicKey = crypto.createPublicKey({ key: matchingKey.jwk, format: 'jwk' });
+		const payload = jwt.verify(idToken, publicKey, {
+			algorithms: ['RS256'],
+			issuer: APPLE_ISSUER,
+			audience: clientId,
+		}) as VerifiedAppleIdToken & { iss?: string; aud?: string; exp?: number };
+		return { sub: payload.sub, email: payload.email };
+	} catch {
+		return null;
+	}
+}
+
 const APPLE_PRIVATE_KEY_BEGIN_MARKER = '-----BEGIN PRIVATE KEY-----';
 const APPLE_PRIVATE_KEY_END_MARKER = '-----END PRIVATE KEY-----';
-
-function decodeAppleIdToken(idToken: string): DecodedAppleIdToken {
-	const decoded = jwt.decode(idToken);
-	if (!decoded || typeof decoded === 'string') return {};
-	return decoded as DecodedAppleIdToken;
-}
 
 function normalizeApplePrivateKey(raw: string): string {
 	const trimmed = raw.trim().replace(/^"|"$/g, '');
@@ -242,7 +285,7 @@ function registerAppleStrategy(): void {
 				store: createOAuthStateStore('apple'),
 				passReqToCallback: false,
 			},
-			((
+			(async (
 				_accessToken: string,
 				_refreshToken: string,
 				idToken: string,
@@ -253,14 +296,13 @@ function registerAppleStrategy(): void {
 					return done(new Error('Apple token exchange did not return an id_token'));
 				}
 
-				const decoded = decodeAppleIdToken(idToken);
-				const appleId = profile?.id ?? decoded.sub;
-
-				if (!appleId) {
-					return done(new Error('Apple sign-in did not include a stable user identifier'));
+				const verified = await verifyAppleIdToken(idToken, clientId);
+				if (!verified?.sub) {
+					return done(new Error('Invalid or expired Apple id_token'));
 				}
 
-				const email = profile?.email ?? decoded.email ?? '';
+				const appleId = verified.sub;
+				const email = verified.email ?? profile?.email ?? '';
 				const effectiveEmail = email ? normalizeEmail(email) : getApplePlaceholderEmail(appleId);
 
 				void handleOAuthCallback(
