@@ -17,6 +17,7 @@ declare module 'passport-apple' {
 		passReqToCallback?: boolean;
 		responseType?: string;
 		scope?: string[];
+		store?: object;
 	}
 
 	export type VerifyCallback = (err: Error | null, user?: unknown) => void;

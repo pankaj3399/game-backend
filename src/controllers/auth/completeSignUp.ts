@@ -7,6 +7,11 @@ import { DEFAULT_ELO } from '../../constants/elo';
 import { isSignupComplete } from './utils';
 import { completeSignupSchema } from '../../validation/auth.schemas';
 import { createAuthToken, setAuthCookie } from '../../lib/jwtAuth';
+import { isApplePlaceholderEmail } from '../../lib/passport';
+
+function normalizeEmail(email: string): string {
+	return email.trim().toLowerCase();
+}
 /**
  * Completes first-time signup. Requires a valid pendingToken from the OAuth redirect.
  * Updates the User with profile info and creates JWT + Session (auth cookie).
@@ -54,7 +59,7 @@ export async function completeSignUp(req: Request, res: Response) {
 
 			user = (await User.findById(userAuth.user).exec()) ?? null;
 		} else {
-			user = (await User.findOne({ email: payload.pendingEmail }).exec()) ?? null;
+			user = (await User.findOne({ email: normalizeEmail(payload.pendingEmail) }).exec()) ?? null;
 		}
 
 		if (!user) {
@@ -73,11 +78,23 @@ export async function completeSignUp(req: Request, res: Response) {
 			}
 		}
 
-		// First-time complete: update user, create JWT session
-		// For Apple/Google: use pendingEmail from OAuth (Apple sends relay email when using Hide My Email)
+		// First-time complete: update user, create JWT session.
 		let emailToSet: string | undefined;
+		const requiresEmailInput = payload.requiresEmailInput || isApplePlaceholderEmail(payload.pendingEmail);
 		if (payload.appleId || payload.googleId) {
-			emailToSet = payload.pendingEmail || undefined;
+			if (requiresEmailInput) {
+				if (!data.email) {
+					return res.status(400).json({
+						message: 'A valid email address is required to finish signup.',
+						error: true,
+						code: 'EMAIL_REQUIRED'
+					});
+				}
+
+				emailToSet = normalizeEmail(data.email);
+			} else {
+				emailToSet = payload.pendingEmail ? normalizeEmail(payload.pendingEmail) : undefined;
+			}
 		}
 
 		// Check if email is already taken by another user (exclude current user)

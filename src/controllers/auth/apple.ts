@@ -1,18 +1,7 @@
-import { randomBytes } from 'crypto';
 import passport from 'passport';
 import type { Request, Response, NextFunction } from 'express';
 import UserAuth from '../../models/UserAuth';
 import { createPendingSignupToken } from './pendingToken';
-import {
-	clearAppleNonce,
-	encodeAppleFlowTrace,
-	finalizeAppleFlow,
-	persistAppleFlowTrace,
-	persistAppleNonce,
-	recordAppleFlowEvent,
-	sanitizeApplePayload,
-	clearAppleFlowTrace,
-} from './appleFlow';
 import {
 	getErrorRedirect,
 	getSignupRedirect,
@@ -20,8 +9,8 @@ import {
 	loginAndRedirect,
 } from './utils';
 import { logger } from '../../lib/logger';
+import { isApplePlaceholderEmail } from '../../lib/passport';
 
-/** Safely extracts error message from unknown error. */
 function getErrorMessage(err: unknown): string {
 	if (err instanceof Error) return err.message;
 	if (typeof err === 'string') return err;
@@ -38,17 +27,6 @@ function getAppleErrorKind(err: unknown): string {
 	return 'auth';
 }
 
-function getCallbackSource(req: Request): Record<string, unknown> {
-	const body = req.body && typeof req.body === 'object' ? (req.body as Record<string, unknown>) : {};
-	if (Object.keys(body).length > 0) return body;
-	return req.query as Record<string, unknown>;
-}
-
-function getStringField(source: Record<string, unknown>, key: string): string | null {
-	const value = source[key];
-	return typeof value === 'string' && value.trim() ? value : null;
-}
-
 /**
  * Express 5 defines req.query as a computed getter that returns a new object
  * each time. passport-apple merges form_post body fields into req.query, but
@@ -58,10 +36,6 @@ function getStringField(source: Record<string, unknown>, key: string): string | 
  * Only needed on POST (Apple's form_post callback).
  */
 export const appleFormPostFix = (req: Request, _res: Response, next: NextFunction) => {
-	recordAppleFlowEvent(req, 'info', 'form_post_fix_entered', 'Normalizing Apple form_post callback payload', {
-		bodyKeys: req.body && typeof req.body === 'object' ? Object.keys(req.body as Record<string, unknown>) : [],
-		queryKeys: Object.keys(req.query ?? {}),
-	});
 	if (req.body) {
 		Object.defineProperty(req, 'query', {
 			value: { ...req.query },
@@ -73,46 +47,18 @@ export const appleFormPostFix = (req: Request, _res: Response, next: NextFunctio
 };
 
 export const appleAuth = (req: Request, res: Response, next: NextFunction) => {
-	recordAppleFlowEvent(req, 'info', 'auth_start', 'Starting Apple sign-in redirect', {
-		method: req.method,
-		originalUrl: req.originalUrl,
-	});
-	persistAppleFlowTrace(req);
-
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	const strategy = (passport as any)._strategy?.('apple');
 	if (!strategy) {
-		finalizeAppleFlow(req, 'error', 'strategy_missing', 'Apple sign-in is not configured on the server.');
-		recordAppleFlowEvent(req, 'error', 'strategy_missing', 'Apple strategy is not registered', {
-			callbackUrl: process.env.APPLE_CALLBACK_URL ?? null,
-		});
-		clearAppleFlowTrace(req);
-		return res.redirect(
-			getErrorRedirect('strategy_missing', {
-				errorMessage: 'Apple sign-in is not configured on the server.',
-				flowTrace: encodeAppleFlowTrace(req),
-			})
-		);
+		return res.redirect(getErrorRedirect('strategy_missing', { errorMessage: 'Apple sign-in is not configured on the server.' }));
 	}
 
-	// state: {} keeps passport-oauth2 on the state-store code path. passport-apple
-	// mutates the options object and will generate its own random string when state
-	// is falsy; using an object prevents that so our SameSite=None cookie store is
-	// used for Apple's cross-site form_post callback.
-	recordAppleFlowEvent(req, 'info', 'redirecting_to_apple', 'Redirecting the browser to Apple', {
-		callbackUrl: process.env.APPLE_CALLBACK_URL ?? null,
-	});
-	persistAppleFlowTrace(req);
-	const nonce = randomBytes(32).toString('hex');
-	persistAppleNonce(req, nonce);
-	const appleAuthOptions = {
+	passport.authenticate('apple', {
 		scope: ['name', 'email'],
-		nonce,
-		state: "",
+		// passport-apple injects its own string state unless a truthy non-string value is provided.
+		state: { provider: 'apple' } as unknown as string,
 		session: false,
-	};
-	// passport-apple supports auto-managed state stores, but its typings still expect state:string.
-	passport.authenticate('apple', appleAuthOptions)(req, res, next);
+	})(req, res, next);
 };
 
 /**
@@ -120,161 +66,63 @@ export const appleAuth = (req: Request, res: Response, next: NextFunction) => {
  * - Sign-in (existing user, signup complete): Create session only, redirect home.
  * - Sign-up (first-time user): Redirect with signed pendingToken for complete-signup.
  *
- * On error: redirects to frontend with error details and Apple payload for display.
+ * On error: redirects to frontend with an auth error.
  */
 export const appleAuthCallback = (req: Request, res: Response, next: NextFunction) => {
-	const callbackSource = getCallbackSource(req);
-	let applePayload: Record<string, unknown> = {};
+	const callbackSource =
+		req.body && typeof req.body === 'object' && Object.keys(req.body as Record<string, unknown>).length > 0
+			? (req.body as Record<string, unknown>)
+			: (req.query as Record<string, unknown>);
+	const appleError = typeof callbackSource.error === 'string' ? callbackSource.error : null;
+	const appleErrorDescription =
+		typeof callbackSource.error_description === 'string' ? callbackSource.error_description : null;
 
-	try {
-		applePayload = sanitizeApplePayload(callbackSource);
-	} catch (e) {
-		applePayload = { _captureError: String(e), body: req.body, query: req.query };
+	if (appleError || appleErrorDescription) {
+		return res.redirect(
+			getErrorRedirect('apple_error', {
+				errorMessage: appleErrorDescription ?? appleError ?? 'Apple returned an error',
+			})
+		);
 	}
 
-	const redirectOnError = (kind: string, err?: unknown) => {
-		const errorMessage = err ? getErrorMessage(err) : kind;
-		finalizeAppleFlow(req, 'error', kind, errorMessage);
-		recordAppleFlowEvent(req, 'error', kind, 'Apple callback failed', {
-			errorMessage,
-			applePayload,
-			error: err instanceof Error ? { name: err.name, message: err.message } : err ?? null,
-		});
-		logger.warn('Apple auth error', { kind, err, applePayload });
-		const flowTrace = encodeAppleFlowTrace(req);
-		clearAppleNonce(req);
-		clearAppleFlowTrace(req);
-		res.redirect(getErrorRedirect(kind, { errorMessage, applePayload, flowTrace }));
-	};
+	passport.authenticate(
+		'apple',
+		{ session: false },
+		async (err: Error | string | null, user: Express.User | false, info?: { message?: string }) => {
+			try {
+				if (err) {
+					const kind = getAppleErrorKind(err);
+					logger.warn('Apple auth error', { kind, errorMessage: getErrorMessage(err) });
+					return res.redirect(getErrorRedirect(kind, { errorMessage: getErrorMessage(err) }));
+				}
 
-	try {
-		recordAppleFlowEvent(req, 'info', 'callback_received', 'Received Apple callback request', {
-			method: req.method,
-			originalUrl: req.originalUrl,
-			bodyKeys: req.body && typeof req.body === 'object' ? Object.keys(req.body as Record<string, unknown>) : [],
-			queryKeys: Object.keys(req.query ?? {}),
-		});
-		recordAppleFlowEvent(req, 'info', 'callback_payload_captured', 'Captured Apple callback payload summary', {
-			applePayload,
-		});
+				if (!user) {
+					const message = info?.message;
+					const kind = message?.toLowerCase().includes('state') ? 'state_mismatch' : 'no_user';
+					return res.redirect(getErrorRedirect(kind, { errorMessage: message }));
+				}
 
-		const appleError = getStringField(callbackSource, 'error');
-		const appleErrorDescription = getStringField(callbackSource, 'error_description');
-		const state = getStringField(callbackSource, 'state');
-		const code = getStringField(callbackSource, 'code');
-		const idToken = getStringField(callbackSource, 'id_token');
-		const user = getStringField(callbackSource, 'user');
+				const userAuth = await UserAuth.findOne({ user: user._id }).exec();
+				if (!userAuth) {
+					return res.redirect(getErrorRedirect('no_user_auth'));
+				}
 
-		if (appleError || appleErrorDescription) {
-			recordAppleFlowEvent(req, 'warn', 'apple_returned_error', 'Apple returned an OAuth error before Passport completed', {
-				error: appleError,
-				errorDescription: appleErrorDescription,
-				applePayload,
-			});
-			return redirectOnError('apple_error', appleErrorDescription ?? appleError ?? 'Apple returned an error');
+				if (!isSignupComplete(user)) {
+					const email = user.email ?? '';
+					const appleId = userAuth.appleId ?? '';
+					const pendingToken = createPendingSignupToken({
+						pendingEmail: email,
+						...(appleId && { appleId }),
+						...(isApplePlaceholderEmail(email) ? { requiresEmailInput: true } : {}),
+					});
+					return res.redirect(getSignupRedirect(pendingToken));
+				}
+
+				await loginAndRedirect(req, res, user);
+			} catch (caught) {
+				logger.error('Error in appleAuthCallback', { err: caught });
+				return res.redirect(getErrorRedirect('unknown'));
+			}
 		}
-
-		if (!state) {
-			recordAppleFlowEvent(req, 'warn', 'missing_state', 'Apple callback is missing the OAuth state parameter', {
-				applePayload,
-			});
-		}
-
-		if (!code && !idToken) {
-			recordAppleFlowEvent(req, 'warn', 'invalid_callback', 'Apple callback is missing both code and id_token', {
-				applePayload,
-			});
-			return redirectOnError(
-				'invalid_callback',
-				'Apple callback did not include an authorization code or id_token.'
-			);
-		}
-
-		recordAppleFlowEvent(req, 'info', 'callback_shape_valid', 'Apple callback includes the expected OAuth fields', {
-			hasState: !!state,
-			hasCode: !!code,
-			hasIdToken: !!idToken,
-			hasUser: !!user,
-		});
-
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		passport.authenticate('apple', { session: false }, async (err: Error | string | null, user: Express.User | false) => {
-		try {
-			if (err) {
-				const kind = getAppleErrorKind(err);
-				recordAppleFlowEvent(req, kind === 'state_mismatch' ? 'warn' : 'error', kind, 'Passport reported an Apple authentication error', {
-					errorMessage: getErrorMessage(err),
-				});
-				return redirectOnError(kind, err);
-			}
-
-			if (!user) {
-				recordAppleFlowEvent(req, 'warn', 'no_user', 'Passport completed without returning a user', {
-					applePayload,
-				});
-				return redirectOnError('no_user');
-			}
-			recordAppleFlowEvent(req, 'info', 'passport_user_resolved', 'Passport resolved an application user from Apple identity', {
-				userId: user._id,
-			});
-
-			const userAuth = await UserAuth.findOne({ user: user._id }).exec();
-			if (!userAuth) {
-				recordAppleFlowEvent(req, 'error', 'no_user_auth', 'User exists but no linked auth record was found', {
-					userId: user._id,
-				});
-				return redirectOnError('no_user_auth');
-			}
-
-			if (!isSignupComplete(user)) {
-				const email = user.email ?? '';
-				const appleId = userAuth.appleId ?? '';
-				const pendingToken = createPendingSignupToken({
-					pendingEmail: email,
-					...(appleId && { appleId }),
-					...(email.startsWith('apple-') && email.endsWith('@users.noreply.local')
-						? { requiresEmailInput: true }
-						: {}),
-				});
-				finalizeAppleFlow(
-					req,
-					'signup_required',
-					'signup_required',
-					'Apple authentication succeeded, but the user still needs to complete profile setup.'
-				);
-				recordAppleFlowEvent(req, 'info', 'signup_required', 'Apple sign-in succeeded and the user is being sent to complete signup', {
-					userId: user._id,
-					hasAppleId: !!appleId,
-					email,
-				});
-				const flowTrace = encodeAppleFlowTrace(req);
-				clearAppleNonce(req);
-				clearAppleFlowTrace(req);
-				return res.redirect(getSignupRedirect(pendingToken, flowTrace));
-			}
-
-			finalizeAppleFlow(req, 'success', 'success', 'Apple sign-in succeeded and the user was logged in.');
-			recordAppleFlowEvent(req, 'info', 'login_redirect', 'Apple sign-in completed successfully; creating session and redirecting', {
-				userId: user._id,
-			});
-			clearAppleNonce(req);
-			clearAppleFlowTrace(req);
-			await loginAndRedirect(req, res, user);
-		} catch (caught) {
-			logger.error('Error in appleAuthCallback', { err: caught, applePayload });
-			redirectOnError('unknown', caught);
-		}
-		})(req, res, (passportErr: unknown) => {
-			if (passportErr) {
-				recordAppleFlowEvent(req, 'error', 'passport', 'Passport middleware raised an error before the verify callback completed', {
-					errorMessage: getErrorMessage(passportErr),
-				});
-				redirectOnError('passport', passportErr);
-			} else {
-				next();
-			}
-		});
-	} catch (e) {
-		redirectOnError('crash', e);
-	}
+	)(req, res, next);
 };

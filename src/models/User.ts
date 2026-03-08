@@ -50,6 +50,8 @@ const userSchema = new mongoose.Schema<IUser>(
 			type: String,
 			unique: true,
 			required: true,
+			trim: true,
+			lowercase: true,
 			validate: {
 				validator: function (value: string) {
 					return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(value);

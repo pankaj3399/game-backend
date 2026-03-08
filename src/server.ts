@@ -12,12 +12,32 @@ import adminRoutes from './routes/admin.routes';
 import clubRoutes from './routes/club.routes';
 
 const PORT = process.env.PORT || 4000;
+const REQUEST_ORIGIN = process.env.REQUEST_ORIGIN?.trim();
+const CORS_ORIGIN = process.env.CORS_ORIGIN?.trim();
 
 const app = express();
+app.set('trust proxy', 1);
+
+const allowedOrigins = new Set(
+	[CORS_ORIGIN, REQUEST_ORIGIN]
+		.flatMap((value) => value?.split(',') ?? [])
+		.map((value) => value.trim())
+		.filter(Boolean)
+);
+
+if (allowedOrigins.size === 0) {
+	throw new Error('CORS_ORIGIN or REQUEST_ORIGIN must be set for authenticated requests');
+}
 
 app.use(
 	cors({
-		origin: true,
+		origin(origin, callback) {
+			if (!origin || allowedOrigins.has(origin)) {
+				return callback(null, true);
+			}
+
+			return callback(new Error('CORS origin not allowed'));
+		},
 		credentials: true
 	})
 );

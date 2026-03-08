@@ -2,7 +2,12 @@ import type { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import User, { type UserDocument } from '../models/User';
 import Session from '../models/Session';
-import { extractAuthToken } from '../lib/jwtAuth';
+import {
+	AUTH_TOKEN_AUDIENCE,
+	AUTH_TOKEN_ISSUER,
+	extractAuthToken,
+	hashSessionToken,
+} from '../lib/jwtAuth';
 
 export interface IRequest extends Request {
 	user: UserDocument;
@@ -22,9 +27,14 @@ const authenticate = async (req: Request, res: Response, next: NextFunction): Pr
 	}
 
 	try {
-		jwt.verify(token, secret);
+		jwt.verify(token, secret, {
+			audience: AUTH_TOKEN_AUDIENCE,
+			issuer: AUTH_TOKEN_ISSUER,
+		});
 
-		const session = await Session.findOne({ token }).exec();
+		const session = await Session.findOne({
+			$or: [{ tokenHash: hashSessionToken(token) }, { token }],
+		}).exec();
 		if (!session?.user) {
 			res.status(401).json({ message: 'Session expired, login again' });
 			return;

@@ -1,13 +1,15 @@
+import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import type { Request, Response } from 'express';
-import User, { type UserDocument } from '../models/User';
+import { type UserDocument } from '../models/User';
 import UserAuth from '../models/UserAuth';
 import Session from '../models/Session';
 import { cookieSameSite, isProd } from './config';
-import { logger } from './logger';
 
 export const AUTH_COOKIE_NAME = 'auth_token';
 const JWT_EXPIRY = '7d';
+export const AUTH_TOKEN_AUDIENCE = 'auth-session';
+export const AUTH_TOKEN_ISSUER = 'auth-service';
 
 function getJwtSecret(): string {
 	const secret = process.env.JWT_SECRET;
@@ -15,16 +17,38 @@ function getJwtSecret(): string {
 	return secret;
 }
 
-/** Creates a JWT for the user and stores the session in DB. Uses hmacKey in payload (like backup-branch). */
+export function hashSessionToken(token: string): string {
+	return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+function getTokenExpiryDate(token: string): Date {
+	const decoded = jwt.decode(token);
+	if (!decoded || typeof decoded === 'string' || typeof decoded.exp !== 'number') {
+		throw new Error('Auth token is missing an expiration timestamp');
+	}
+
+	return new Date(decoded.exp * 1000);
+}
+
+/** Creates a JWT for the user and stores a hashed session token in DB. */
 export async function createAuthToken(user: UserDocument): Promise<string> {
 	const userAuth = await UserAuth.findOne({ user: user._id }).exec();
 	if (!userAuth) throw new Error('UserAuth not found for user');
 	const token = jwt.sign(
 		{ userId: userAuth.hmacKey },
 		getJwtSecret(),
-		{ expiresIn: JWT_EXPIRY }
+		{
+			expiresIn: JWT_EXPIRY,
+			audience: AUTH_TOKEN_AUDIENCE,
+			issuer: AUTH_TOKEN_ISSUER,
+			subject: user._id.toString(),
+		}
 	);
-	await Session.create({ token, user: user._id });
+	await Session.create({
+		tokenHash: hashSessionToken(token),
+		user: user._id,
+		expireAt: getTokenExpiryDate(token),
+	});
 	return token;
 }
 
