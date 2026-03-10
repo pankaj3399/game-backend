@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { refine, optional, z } from 'zod';
 
 const courtTypeEnum = z.enum([
 	'concrete',
@@ -27,7 +27,7 @@ const coordinatesSchema = z
 const noDuplicateCourts = (courts: Array<{ name: string; type: string; placement: string }>) => {
 	const seen = new Set<string>();
 	for (const c of courts) {
-		const key = `${c.name}|${c.type}|${c.placement}`;
+		const key = `${c.name.trim()}|${c.type}|${c.placement}`;
 		if (seen.has(key)) return false;
 		seen.add(key);
 	}
@@ -56,11 +56,11 @@ export const updateClubSchema = z
 		address: z.string().trim().min(1).optional(),
 		coordinates: coordinatesSchema.optional(),
 		courts: z
-			.array(
-				courtSchema.extend({
-					id: z.string().optional()
-				})
-			)
+		.array(
+			courtSchema.extend({
+				id: z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid court id').optional()
+			})
+		)
 			.optional()
 	})
 	.refine(
