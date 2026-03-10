@@ -11,7 +11,7 @@ const courtTypeEnum = z.enum([
 const courtPlacementEnum = z.enum(['indoor', 'outdoor']);
 
 const courtSchema = z.object({
-	name: z.string().min(1, 'Court name is required'),
+	name: z.string().trim().min(1, 'Court name is required'),
 	type: courtTypeEnum.default('concrete'),
 	placement: courtPlacementEnum.default('outdoor')
 });
