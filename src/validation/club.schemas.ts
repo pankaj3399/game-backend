@@ -24,29 +24,52 @@ const coordinatesSchema = z
 		{ message: 'Coordinates must be [longitude, latitude] within valid ranges' }
 	);
 
-export const createClubSchema = z.object({
-	name: z.string().trim().min(1, 'Club name is required'),
-	website: z.string().trim().optional().nullable(),
-	bookingSystemUrl: z.string().trim().optional().nullable(),
-	address: z.string().trim().min(1, 'Address is required'),
-	coordinates: coordinatesSchema,
-	courts: z.array(courtSchema).optional().default([])
-});
+const noDuplicateCourts = (courts: Array<{ name: string; type: string; placement: string }>) => {
+	const seen = new Set<string>();
+	for (const c of courts) {
+		const key = `${c.name}|${c.type}|${c.placement}`;
+		if (seen.has(key)) return false;
+		seen.add(key);
+	}
+	return true;
+};
 
-export const updateClubSchema = z.object({
-	name: z.string().trim().min(1).optional(),
-	website: z.string().trim().optional().nullable(),
-	bookingSystemUrl: z.string().trim().optional().nullable(),
-	address: z.string().trim().min(1).optional(),
-	coordinates: coordinatesSchema.optional(),
-	courts: z
-		.array(
-			courtSchema.extend({
-				id: z.string().optional()
-			})
-		)
-		.optional()
-});
+export const createClubSchema = z
+	.object({
+		name: z.string().trim().min(1, 'Club name is required'),
+		website: z.string().trim().optional().nullable(),
+		bookingSystemUrl: z.string().trim().optional().nullable(),
+		address: z.string().trim().min(1, 'Address is required'),
+		coordinates: coordinatesSchema,
+		courts: z.array(courtSchema).optional().default([])
+	})
+	.refine((data) => noDuplicateCourts(data.courts ?? []), {
+		message: 'Duplicate courts are not allowed. Two courts cannot have the same name, type, and placement.',
+		path: ['courts']
+	});
+
+export const updateClubSchema = z
+	.object({
+		name: z.string().trim().min(1).optional(),
+		website: z.string().trim().optional().nullable(),
+		bookingSystemUrl: z.string().trim().optional().nullable(),
+		address: z.string().trim().min(1).optional(),
+		coordinates: coordinatesSchema.optional(),
+		courts: z
+			.array(
+				courtSchema.extend({
+					id: z.string().optional()
+				})
+			)
+			.optional()
+	})
+	.refine(
+		(data) => !data.courts || noDuplicateCourts(data.courts),
+		{
+			message: 'Duplicate courts are not allowed. Two courts cannot have the same name, type, and placement.',
+			path: ['courts']
+		}
+	);
 
 export const addClubStaffSchema = z.object({
 	userId: z.string().min(1, 'userId is required'),
