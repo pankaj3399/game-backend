@@ -6,6 +6,7 @@ import Club from '../../models/Club';
 export interface SponsorResponse {
 	id: string;
 	name: string;
+	description: string | null;
 	logoUrl: string | null;
 	link: string | null;
 	status: 'active' | 'paused';
@@ -55,6 +56,7 @@ export async function getClubSponsors(req: Request, res: Response) {
 	const sponsorsResponse: SponsorResponse[] = sponsors.map((s) => ({
 		id: s._id.toString(),
 		name: s.name,
+		description: s.description ?? null,
 		logoUrl: s.logoUrl ?? null,
 		link: s.link ?? null,
 		status: isPremium ? (s.status as 'active' | 'paused') : 'paused'

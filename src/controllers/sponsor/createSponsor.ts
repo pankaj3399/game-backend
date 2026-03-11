@@ -40,13 +40,15 @@ export async function createSponsor(req: Request, res: Response) {
 		return;
 	}
 
-	const body = req.body as { name: string; logoUrl?: string | null; link?: string | null };
+	const body = req.body as { name: string; description?: string | null; logoUrl?: string | null; link?: string | null };
 	const name = body.name.trim();
+	const description = body.description?.trim() || null;
 	const logoUrl = body.logoUrl ?? null;
 	const link = body.link ?? null;
 
 	const sponsor = await Sponsor.create({
 		name,
+		description,
 		logoUrl,
 		link,
 		scope: 'club',

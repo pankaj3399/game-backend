@@ -1,10 +1,12 @@
 import express from 'express';
 import {
 	searchClubs,
+	listClubs,
+	addClubStaff,
 	createClub,
 	getClubById,
+	getClubPublic,
 	getClubStaff,
-	addClubStaff,
 	updateClub
 } from '../controllers/club/controller';
 import {
@@ -22,6 +24,12 @@ const router = express.Router();
 
 // Search clubs - requires auth so users can add to favorites
 router.get('/', authenticate, searchClubs);
+
+// List all clubs (public - for All Clubs page)
+router.get('/list', listClubs);
+
+// Public club details (for club detail page)
+router.get('/public/:clubId', getClubPublic);
 
 // Create club - any authenticated user can create a club
 router.post(

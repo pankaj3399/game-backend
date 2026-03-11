@@ -52,12 +52,14 @@ export async function updateSponsor(req: Request, res: Response) {
 
 	const body = req.body as {
 		name?: string;
+		description?: string | null;
 		logoUrl?: string | null;
 		link?: string | null;
 		status?: 'active' | 'paused';
 	};
 
 	if (body.name !== undefined) sponsor.name = body.name.trim();
+	if (body.description !== undefined) sponsor.description = body.description?.trim() || null;
 	if (body.logoUrl !== undefined) sponsor.logoUrl = body.logoUrl ?? null;
 	if (body.link !== undefined) sponsor.link = body.link ?? null;
 

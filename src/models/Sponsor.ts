@@ -5,6 +5,7 @@ export type SponsorStatus = 'active' | 'paused';
 
 export interface ISponsor {
 	name: string;
+	description?: string | null;
 	logoUrl?: string | null;
 	link?: string | null;
 	scope: SponsorScope;
@@ -21,6 +22,10 @@ const sponsorSchema = new Schema<ISponsor>(
 		name: {
 			type: String,
 			required: true
+		},
+		description: {
+			type: String,
+			default: null
 		},
 		logoUrl: {
 			type: String,
