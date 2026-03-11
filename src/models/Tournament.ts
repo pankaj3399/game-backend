@@ -3,30 +3,31 @@ import mongoose, { Document, Schema } from 'mongoose';
 // Define the ITournament interface
 export interface ITournament extends Document {
 	club: mongoose.Types.ObjectId;
-	schedule: mongoose.Types.ObjectId;
+	schedule?: mongoose.Types.ObjectId;
+	sponsorId?: mongoose.Types.ObjectId;
 	name: string;
-	logo: string;
-	date: Date;
-	startTime: string;
-	endTime: string;
+	logo?: string;
+	date?: Date;
+	startTime?: string;
+	endTime?: string;
 	playMode: 'TieBreak10' | '1set' | '3setTieBreak10' | '3set' | '5set';
 	tournamentMode: 'singleDay' | 'period';
 	memberFee: number;
 	externalFee: number;
 	minMember: number;
 	maxMember: number;
-	playTime: string;
-	pauseTime: string;
+	playTime?: string;
+	pauseTime?: string;
 	courts: mongoose.Types.ObjectId[];
-	foodInfo: string;
-	descriptionInfo: string;
-	numberOfRounds: number;
+	foodInfo?: string;
+	descriptionInfo?: string;
+	numberOfRounds?: number;
 	roundTimings: { startDate: Date; endDate: Date }[];
 	status: 'active' | 'draft' | 'inactive';
 	createdAt?: Date;
 	updatedAt?: Date;
-	participants: mongoose.Types.ObjectId[]; // contains list of participants
-	dropouts: mongoose.Types.ObjectId[]; // contains list of dropouts a dropout can only exist after the tournament starts (i.e for injury etc)
+	participants: mongoose.Types.ObjectId[];
+	dropouts: mongoose.Types.ObjectId[];
 }
 
 // Define the Tournament schema
@@ -41,9 +42,13 @@ const tournamentSchema = new mongoose.Schema<ITournament>(
 			type: Schema.Types.ObjectId,
 			ref: 'Schedule'
 		},
+		sponsorId: {
+			type: Schema.Types.ObjectId,
+			ref: 'Sponsor',
+			required: false
+		},
 		name: {
 			type: String,
-			unique: true,
 			required: true
 		},
 		logo: {
@@ -77,25 +82,27 @@ const tournamentSchema = new mongoose.Schema<ITournament>(
 		},
 		memberFee: {
 			type: Number,
-			required: true,
-			min: [0, 'Member fee must be a positive number'], // Validation
-			default: 0 // Explicitly set default to 0
+			required: false,
+			min: [0, 'Member fee must be a positive number'],
+			default: 0
 		},
 		externalFee: {
 			type: Number,
-			required: true,
-			min: [0, 'External fee must be a positive number'], // Validation
-			default: 0 // Explicitly set default to 0
+			required: false,
+			min: [0, 'External fee must be a positive number'],
+			default: 0
 		},
 		minMember: {
 			type: Number,
-			required: true,
-			min: [1, 'Minimum members must be at least 1'] // Validation
+			required: false,
+			min: [1, 'Minimum members must be at least 1'],
+			default: 1
 		},
 		maxMember: {
 			type: Number,
-			required: true,
-			min: [1, 'Maximum members must be at least 1'] // Validation
+			required: false,
+			min: [1, 'Maximum members must be at least 1'],
+			default: 1
 		},
 		playTime: {
 			type: String
@@ -114,17 +121,20 @@ const tournamentSchema = new mongoose.Schema<ITournament>(
 		},
 		foodInfo: {
 			type: String,
-			required: true,
-			maxlength: 500 // Length constraint
+			required: false,
+			maxlength: 500,
+			default: ''
 		},
 		descriptionInfo: {
 			type: String,
-			required: true,
-			maxlength: 1000 // Length constraint
+			required: false,
+			maxlength: 1000,
+			default: ''
 		},
 		numberOfRounds: {
 			type: Number,
-			required: true
+			required: false,
+			default: 1
 		},
 		roundTimings: {
 			type: [
@@ -142,7 +152,7 @@ const tournamentSchema = new mongoose.Schema<ITournament>(
 				message: '{VALUE} is not supported'
 			},
 			required: true,
-			default: 'active'
+			default: 'draft'
 		},
 		participants: {
 			type: [
@@ -164,9 +174,11 @@ const tournamentSchema = new mongoose.Schema<ITournament>(
 		}
 	},
 	{
-		timestamps: true // Automatically adds createdAt and updatedAt fields
+		timestamps: true
 	}
 );
+
+tournamentSchema.index({ club: 1, status: 1, date: -1, createdAt: -1 });
 
 tournamentSchema.pre('validate', function () {
 	if (this.maxMember != null && this.minMember != null && this.maxMember < this.minMember) {
