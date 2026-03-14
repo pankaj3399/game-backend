@@ -47,7 +47,12 @@ export async function getTournamentById(req: Request, res: Response) {
 		return;
 	}
 
-	const clubIdStr = tournament.club?._id?.toString() ?? '';
+	const clubIdStr = tournament.club?._id?.toString();
+
+	if (!clubIdStr) {
+		res.status(400).json({ message: 'Tournament has no club' });
+		return;
+	}
 
 	// Check permission:
 	// - active tournaments: any authenticated user can view
@@ -141,7 +146,6 @@ export async function getTournamentById(req: Request, res: Response) {
 			endTime: tournament.endTime ?? null,
 			playMode: tournament.playMode,
 			tournamentMode: tournament.tournamentMode,
-			memberFee: tournament.memberFee ?? 0,
 			externalFee: tournament.externalFee ?? 0,
 			minMember: tournament.minMember ?? 1,
 			maxMember: tournament.maxMember ?? 1,

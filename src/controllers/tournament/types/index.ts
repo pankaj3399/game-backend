@@ -10,8 +10,8 @@ interface PopulatedClub {
 interface PopulatedSponsor {
 	_id: mongoose.Types.ObjectId;
 	name: string;
-	logoUrl?: string;
-	link?: string;
+	logoUrl?: string | null;
+	link?: string | null;
 }
 
 /** Tournament lean doc with club and sponsor populated */

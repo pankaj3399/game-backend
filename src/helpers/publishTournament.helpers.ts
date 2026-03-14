@@ -27,7 +27,6 @@ function toPublishCandidateBase(
 		endTime: normalizedTournament.endTime,
 		playMode: normalizedTournament.playMode,
 		tournamentMode: normalizedTournament.tournamentMode,
-		memberFee: normalizedTournament.memberFee,
 		externalFee: normalizedTournament.externalFee,
 		minMember: normalizedTournament.minMember,
 		maxMember: normalizedTournament.maxMember,

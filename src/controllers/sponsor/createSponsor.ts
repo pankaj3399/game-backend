@@ -2,6 +2,8 @@ import type { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import Sponsor from '../../models/Sponsor';
 import Club from '../../models/Club';
+import { createSponsorSchema } from '../../validation/sponsor.schemas';
+import { logger } from '../../lib/logger';
 
 /**
  * POST /api/clubs/:clubId/sponsors
@@ -40,7 +42,16 @@ export async function createSponsor(req: Request, res: Response) {
 		return;
 	}
 
-	const body = req.body as { name: string; description?: string | null; logoUrl?: string | null; link?: string | null };
+	const parsed = createSponsorSchema.safeParse(req.body);
+	if (!parsed.success) {
+		res.status(400).json({
+			message: 'Invalid request body',
+		});
+		logger.error('Invalid request body', { body: req.body, errors: parsed.error.issues });	
+		return;
+	}
+
+	const body = parsed.data;
 	const name = body.name.trim();
 	const description = body.description?.trim() || null;
 	const logoUrl = body.logoUrl ?? null;

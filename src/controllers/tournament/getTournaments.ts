@@ -37,10 +37,11 @@ export async function getTournaments(req: Request, res: Response) {
 
 	const skip = (page - 1) * limit;
 	const isOrganiserOrAbove = hasRoleOrAbove(sessionUser.role, ROLES.ORGANISER);
+	const isSuperAdmin = sessionUser.role === ROLES.SUPER_ADMIN;
 
-	// Get clubs user can manage (admin or organiser) - only used for organisers
+	// Get clubs user can manage (admin or organiser) - only used for non-super-admin organisers
 	let manageableClubIds: mongoose.Types.ObjectId[] = [];
-	if (isOrganiserOrAbove) {
+	if (isOrganiserOrAbove && !isSuperAdmin) {
 		const adminClubs = (sessionUser.adminOf ?? []) as mongoose.Types.ObjectId[];
 		const organiserClubs = await Club.find({
 			organiserIds: sessionUser._id,
@@ -57,7 +58,16 @@ export async function getTournaments(req: Request, res: Response) {
 
 	const filter: Record<string, unknown> = {};
 
-	if (isOrganiserOrAbove) {
+	if (isSuperAdmin) {
+		// Super admin: no club restrictions, but can use view/status filters
+		if (view === 'drafts') {
+			filter.status = 'draft';
+		} else {
+			filter.status = status && ['active', 'inactive'].includes(status)
+				? status
+				: { $in: ['active', 'inactive'] };
+		}
+	} else if (isOrganiserOrAbove) {
 		// Organiser: filter by manageable clubs
 		if (clubId) {
 			if (!mongoose.Types.ObjectId.isValid(clubId)) {
@@ -93,6 +103,13 @@ export async function getTournaments(req: Request, res: Response) {
 		// Player: only published tournaments from all clubs
 		filter.status =
 			status && ['active', 'inactive'].includes(status) ? status : { $in: ['active', 'inactive'] };
+		if (clubId) {
+			if (!mongoose.Types.ObjectId.isValid(clubId)) {
+				res.status(400).json({ message: 'Invalid club ID' });
+				return;
+			}
+			filter.club = new mongoose.Types.ObjectId(clubId);
+		}
 	}
 
 	if (q && q.trim()) {
@@ -117,7 +134,15 @@ export async function getTournaments(req: Request, res: Response) {
 		club: t.club ? { id: t.club._id, name: t.club.name } : null,
 		date: t.date ? new Date(t.date).toISOString() : null,
 		status: t.status,
-		sponsorId: t.sponsorId
+		sponsor:
+			t.sponsorId
+				? {
+						id: String(t.sponsorId._id),
+						name: t.sponsorId.name,
+						logoUrl: t.sponsorId.logoUrl,
+						link: t.sponsorId.link
+					}
+				: null
 	}));
 
 	res.json({

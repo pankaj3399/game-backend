@@ -21,7 +21,8 @@ export async function joinTournament(req: Request<{ id: string }>, res: Response
 	}
 
 	const tournament = await Tournament.findById(id)
-		.select('_id name club status minMember maxMember participants')
+		.select('_id name status minMember maxMember participants')
+		.populate('club')
 		.lean()
 		.exec();
 
@@ -35,12 +36,11 @@ export async function joinTournament(req: Request<{ id: string }>, res: Response
 		return;
 	}
 
-	if (!tournament.club || !tournament.club._id) {
+	const clubId = tournament.club?._id?.toString();
+	if (!clubId) {
 		res.status(400).json({ message: 'Tournament has no club' });
 		return;
 	}
-
-	const clubId = tournament.club._id.toString();
 	const isManager = await userCanManageClub(
 		{
 			userId: new mongoose.Types.ObjectId(sessionUser._id),
@@ -55,6 +55,11 @@ export async function joinTournament(req: Request<{ id: string }>, res: Response
 	}
 
 	const userId = sessionUser._id.toString();
+	const alreadyJoined = (tournament.participants ?? []).some((pid) => pid.toString() === userId);
+	if (alreadyJoined) {
+		res.status(400).json({ message: 'Already joined' });
+		return;
+	}
 
 	const returnedDoc = await Tournament.findOneAndUpdate(
 		{

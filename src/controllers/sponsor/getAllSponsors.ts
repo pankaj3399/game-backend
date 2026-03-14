@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import Sponsor from '../../models/Sponsor';
+import { logger } from '../../lib/logger';
 
 export interface SponsorPublicItem {
 	id: string;
@@ -17,6 +18,7 @@ export interface SponsorPublicItem {
  * Deduplicates by (name, link) so the same sponsor added by multiple clubs appears once.
  */
 export async function getAllSponsors(_req: Request, res: Response) {
+	try {
 	const sponsors = await Sponsor.find({ status: 'active' })
 		.select('name description logoUrl link')
 		.lean()
@@ -37,7 +39,11 @@ export async function getAllSponsors(_req: Request, res: Response) {
 			logoUrl: s.logoUrl ?? null,
 			link: s.link ?? null
 		});
-	}
+		}
 
-	res.json({ sponsors: unique });
+		res.json({ sponsors: unique });
+	} catch (error) {
+		logger.error('Error getting all sponsors', { error });
+		res.status(500).json({ message: 'Internal server error' });
+	}
 }

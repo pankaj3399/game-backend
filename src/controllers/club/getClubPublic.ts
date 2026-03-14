@@ -60,17 +60,24 @@ export async function getClubPublic(req: Request, res: Response) {
 		return;
 	}
 
-	const [courts, sponsors] = await Promise.all([
-		Court.find({ club: new mongoose.Types.ObjectId(clubId) }).select('type placement').lean().exec(),
-		Sponsor.find({
-			scope: 'club',
-			clubId: new mongoose.Types.ObjectId(clubId),
-			status: 'active'
+
+	const courtsPromise = Court.find({club: new mongoose.Types.ObjectId(clubId)})
+		.select('type placement')
+		.lean()
+		.exec();
+
+	const sponsorsPromise = club.plan === 'premium' ? Sponsor.find({
+		scope: 'club',
+		clubId: new mongoose.Types.ObjectId(clubId),
+		status: 'active'
 		})
-			.select('_id name logoUrl link')
-			.lean()
-			.exec()
-	]);
+		.select('_id name logoUrl link')
+		.lean()
+		.exec()
+	 : Promise.resolve([])
+
+
+	 const [courts,sponsors] = await Promise.all([courtsPromise,sponsorsPromise])
 
 	const isPremium = club.plan === 'premium';
 	const sponsorsResponse: ClubSponsorPublic[] = isPremium

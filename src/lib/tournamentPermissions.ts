@@ -31,22 +31,24 @@ export async function userCanManageClub(
 
 /**
  * Check if sponsorId belongs to the given club and is active.
- * Returns false if sponsorId is null/undefined (no sponsor is valid).
+ * Returns true if sponsorId is null/undefined (no sponsor is valid).
  */
 export async function sponsorBelongsToClub(
 	sponsorId: string | null | undefined,
 	clubId: string
-){
+) {
 	if (!sponsorId) return true;
-	if (!mongoose.Types.ObjectId.isValid(sponsorId)) return false;
+
+	const sponsorObjId = new mongoose.Types.ObjectId(sponsorId);
+	const clubObjId = new mongoose.Types.ObjectId(clubId);
+
+	if (!mongoose.Types.ObjectId.isValid(sponsorObjId) || !mongoose.Types.ObjectId.isValid(clubObjId)) return false;
 
 	const sponsor = await Sponsor.findOne({
-		_id: sponsorId,
+		_id: sponsorObjId,
 		scope: 'club',
-		clubId: new mongoose.Types.ObjectId(clubId),
+		clubId: clubObjId,
 		status: 'active'
-	})
-		.lean()
-		.exec();
+	}).lean().exec();
 	return !!sponsor;
 }

@@ -30,7 +30,6 @@ export const createOrUpdateDraftSchema = z
 		endTime: z.union([z.string().trim().regex(timeRegex, 'Invalid end time (expected HH:mm)'), z.null()]).optional(),
 		playMode: playModeEnum.optional(),
 		tournamentMode: tournamentModeEnum.optional(),
-		memberFee: z.number().min(0).optional(),
 		externalFee: z.number().min(0).optional(),
 		minMember: z.number().int().min(1).optional(),
 		maxMember: z.number().int().min(1).optional(),
@@ -64,7 +63,7 @@ export const createOrUpdateDraftSchema = z
 	);
 
 /** Strict schema for draft create. Requires mandatory fields for new drafts. */
-export const createDraftSchema = createOrUpdateDraftSchema.extend({
+export const createDraftSchema = createOrUpdateDraftSchema.safeExtend({
 	club: z.string().min(1, 'Club is required').regex(/^[0-9a-fA-F]{24}$/, 'Invalid club ID'),
 	name: z.string().trim().min(1, 'Tournament name is required')
 });
@@ -85,15 +84,14 @@ export const publishSchema = z
 		endTime: z.string().optional().nullable(),
 		playMode: playModeEnum,
 		tournamentMode: tournamentModeEnum,
-		memberFee: z.number().min(0),
 		externalFee: z.number().min(0),
 		minMember: z.number().int().min(1),
 		maxMember: z.number().int().min(1),
 		playTime: z.string().optional().nullable(),
 		pauseTime: z.string().optional().nullable(),
 		courts: z.array(z.string().regex(/^[0-9a-fA-F]{24}$/)).optional(),
-		foodInfo: z.string().max(500),
-		descriptionInfo: z.string().max(1000),
+		foodInfo: z.string().min(1).max(500),
+		descriptionInfo: z.string().min(1).max(1000),
 		numberOfRounds: z.number().int().min(1),
 		roundTimings: z.array(roundTimingSchema).optional(),
 		status: z.literal('active')
@@ -187,7 +185,8 @@ export const publishSchema = z
 	);
 
 /** Partial schema for publish request body. Validates and strips unknown fields. */
-export const publishBodySchema = publishSchema
+export const publishBodySchema = z
+	.object(publishSchema.shape)
 	.omit({ club: true, status: true })
 	.partial()
 	.strip();
@@ -195,8 +194,8 @@ export const publishBodySchema = publishSchema
 
 
 export const getTournamentQuerySchema = z.object({
-    page: z.number().int().min(1).optional().default(1),
-    limit: z.number().int().min(1).max(50).optional().default(10),
+    page: z.coerce.number().int().min(1).optional().default(1),
+    limit: z.coerce.number().int().min(1).max(50).optional().default(10),
 	status: z.enum(['active', 'inactive', 'draft']).optional(),
 	clubId: z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid club ID').optional(),
 	q: z.string().optional(),

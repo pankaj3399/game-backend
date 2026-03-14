@@ -20,7 +20,6 @@ export const tournamentPublishSourceSchema = z.object({
 	endTime: z.string().optional().nullable(),
 	playMode: z.enum(['TieBreak10', '1set', '3setTieBreak10', '3set', '5set']).optional(),
 	tournamentMode: z.enum(['singleDay', 'period']).optional(),
-	memberFee: z.number().optional(),
 	externalFee: z.number().optional(),
 	minMember: z.number().int().optional(),
 	maxMember: z.number().int().optional(),
@@ -55,7 +54,6 @@ export type NormalizedTournamentPublishSource = {
 	endTime: string | null;
 	playMode: PublishInput['playMode'];
 	tournamentMode: PublishInput['tournamentMode'];
-	memberFee: number;
 	externalFee: number;
 	minMember: number;
 	maxMember: number;
@@ -86,7 +84,6 @@ export function normalizeTournamentPublishSource(
 		endTime: source.endTime ?? null,
 		playMode: source.playMode ?? DEFAULT_PLAY_MODE,
 		tournamentMode: source.tournamentMode ?? DEFAULT_TOURNAMENT_MODE,
-		memberFee: source.memberFee ?? 0,
 		externalFee: source.externalFee ?? 0,
 		minMember: source.minMember ?? 1,
 		maxMember: source.maxMember ?? 1,

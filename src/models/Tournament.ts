@@ -12,7 +12,6 @@ export interface ITournament extends Document {
 	endTime?: string;
 	playMode: 'TieBreak10' | '1set' | '3setTieBreak10' | '3set' | '5set';
 	tournamentMode: 'singleDay' | 'period';
-	memberFee: number;
 	externalFee: number;
 	minMember: number;
 	maxMember: number;
@@ -78,12 +77,6 @@ const tournamentSchema = new mongoose.Schema<ITournament>(
 				message: '{VALUE} is not supported'
 			},
 			default: 'singleDay' // Default value
-		},
-		memberFee: {
-			type: Number,
-			required: false,
-			min: [0, 'Member fee must be a non-negative number'],
-			default: 0
 		},
 		externalFee: {
 			type: Number,
