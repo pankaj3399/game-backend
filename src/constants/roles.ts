@@ -21,16 +21,16 @@ export const ROLE_HIERARCHY: Role[] = [
 ];
 
 /** Check if role A has at least the privileges of role B */
-export function hasRoleOrAbove(userRole: Role | string | undefined, required: Role): boolean {
+export function hasRoleOrAbove(userRole: Role, required: Role): boolean {
 	if (!userRole) return false;
-	const userIdx = ROLE_HIERARCHY.indexOf(userRole as Role);
+	const userIdx = ROLE_HIERARCHY.indexOf(userRole);
 	const reqIdx = ROLE_HIERARCHY.indexOf(required);
 	if (userIdx === -1 || reqIdx === -1) return false;
 	return userIdx >= reqIdx;
 }
 
 /** Check if user has exactly one of the given roles */
-export function hasAnyRole(userRole: Role | string | undefined, allowed: Role[]): boolean {
+export function hasAnyRole(userRole: Role, allowed: Role[]): boolean {
 	if (!userRole) return false;
-	return allowed.includes(userRole as Role);
+	return allowed.includes(userRole);
 }

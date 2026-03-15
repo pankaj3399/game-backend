@@ -5,6 +5,7 @@ export type ClubSubscriptionStatus = 'renewal_needed' | 'subscribed' ;
 
 export interface IClub {
 	name: string;
+	description?: string | null;
 	address: string;
 	coordinates: {
 		type: 'Point';
@@ -35,6 +36,12 @@ const clubSchema = new Schema<IClub>(
 			type: String,
 			unique: true,
 			required: true
+		},
+		description: {
+			type: String,
+			trim:true,
+			maxLength:1000,
+			default: null
 		},
 		address: {
 			type: String,

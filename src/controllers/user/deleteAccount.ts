@@ -25,10 +25,10 @@ export async function deleteAccount(req: Request, res: Response) {
 					// 2. Delete UserAuth (OAuth credentials)
 					await UserAuth.deleteOne({ user: userId }).session(session);
 
-					// 3. Remove user from tournament participants and dropouts
+					// 3. Remove user from tournament participants
 					await Tournament.updateMany(
-						{ $or: [{ participants: userId }, { dropouts: userId }] },
-						{ $pull: { participants: userId, dropouts: userId } },
+						{ participants: userId },
+						{ $pull: { participants: userId } },
 						{ session }
 					);
 

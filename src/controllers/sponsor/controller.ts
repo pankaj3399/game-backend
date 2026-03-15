@@ -1,4 +1,5 @@
-export { getClubSponsors } from './getClubSponsors';
-export { createSponsor } from './createSponsor';
-export { updateSponsor } from './updateSponsor';
-export { deleteSponsor } from './deleteSponsor';
+export { getAllSponsors } from './getAllSponsors/index';
+export { getClubSponsors } from './getClubSponsors/index';
+export { createSponsor } from './createSponsor/index';
+export { updateSponsor } from './updateSponsor/index';
+export { deleteSponsor } from './deleteSponsor/index';

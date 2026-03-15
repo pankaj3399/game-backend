@@ -1,15 +1,15 @@
 declare global {
 	namespace Express {
 		interface User {
-			_id: import('mongoose').Types.ObjectId;
+			_id: string;
 			email: string;
-			name?: string | null;
+			name: string;
 			alias?: string | null;
 			dateOfBirth?: Date | null;
-			gender?: 'male' | 'female' | 'other' | null;
-			role?: 'player' | 'organiser' | 'club_admin' | 'super_admin';
-			adminOf?: import('mongoose').Types.ObjectId[];
-			organizerOf?: import('mongoose').Types.ObjectId[];
+			gender?: 'male' | 'female' | 'other';
+			role: 'player' | 'organiser' | 'club_admin' | 'super_admin';
+			adminOf?: string[];
+			organizerOf?: string[];
 		}
 	}
 }
