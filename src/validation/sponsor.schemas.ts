@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { SPONSOR_STATUSES } from '../types/domain/sponsor';
 
 const optionalUrl = z
 	.union([z.string().url(), z.literal('')])
@@ -18,7 +19,7 @@ export const updateSponsorSchema = z.object({
 	description: z.string().trim().max(500).optional().nullable(),
 	logoUrl: optionalUrl,
 	link: optionalUrl,
-	status: z.enum(['active', 'paused']).optional()
+	status: z.enum(SPONSOR_STATUSES).optional()
 });
 
 export type CreateSponsorInput = z.infer<typeof createSponsorSchema>;

@@ -1,6 +1,6 @@
-export { getTournaments } from './getTournaments';
-export { getTournamentById } from './getTournamentById';
-export { joinTournament } from './joinTournament';
-export { createTournament } from './createTournament';
-export { updateTournament } from './updateTournament';
-export { publishTournament } from './publishTournament';
+export { getTournaments } from './getTournaments/index';
+export { getTournamentById } from './getTournamentById/index';
+export { joinTournament } from './joinTournament/index';
+export { createTournament } from './createTournament/index';
+export { updateTournament } from './updateTournament/index';
+export { publishTournament } from './publishTournament/index';

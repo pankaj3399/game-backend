@@ -1,28 +1,34 @@
 import mongoose, { Document, Schema } from 'mongoose';
+import {
+	TOURNAMENT_MODES,
+	TOURNAMENT_PLAY_MODES,
+	TOURNAMENT_STATUSES,
+	type TournamentMode,
+	type TournamentPlayMode,
+	type TournamentStatus
+} from '../types/domain/tournament';
 
 // Define the ITournament interface
 export interface ITournament extends Document {
 	club: mongoose.Types.ObjectId;
 	schedule?: mongoose.Types.ObjectId;
-	sponsorId?: mongoose.Types.ObjectId;
+	sponsor?: mongoose.Types.ObjectId;
 	name: string;
 	logo?: string;
 	date?: Date;
 	startTime?: string;
 	endTime?: string;
-	playMode: 'TieBreak10' | '1set' | '3setTieBreak10' | '3set' | '5set';
-	tournamentMode: 'singleDay' | 'period';
-	externalFee: number;
+	playMode: TournamentPlayMode;
+	tournamentMode: TournamentMode;
+	entryFee: number;
 	minMember: number;
 	maxMember: number;
-	playTime?: string;
-	pauseTime?: string;
+	duration: string;
+	breakDuration: string;
 	courts: mongoose.Types.ObjectId[];
 	foodInfo?: string;
 	descriptionInfo?: string;
-	numberOfRounds?: number;
-	roundTimings: { startDate: Date; endDate: Date }[];
-	status: 'active' | 'draft' | 'inactive';
+	status: TournamentStatus;
 	createdAt?: Date;
 	updatedAt?: Date;
 	participants: mongoose.Types.ObjectId[];
@@ -40,7 +46,7 @@ const tournamentSchema = new mongoose.Schema<ITournament>(
 			type: Schema.Types.ObjectId,
 			ref: 'Schedule'
 		},
-		sponsorId: {
+		sponsor: {
 			type: Schema.Types.ObjectId,
 			ref: 'Sponsor',
 			required: false
@@ -65,7 +71,7 @@ const tournamentSchema = new mongoose.Schema<ITournament>(
 		playMode: {
 			type: String,
 			enum: {
-				values: ['TieBreak10', '1set', '3setTieBreak10', '3set', '5set'],
+				values: TOURNAMENT_PLAY_MODES,
 				message: '{VALUE} is not supported'
 			},
 			default: 'TieBreak10' // Default value
@@ -73,15 +79,15 @@ const tournamentSchema = new mongoose.Schema<ITournament>(
 		tournamentMode: {
 			type: String,
 			enum: {
-				values: ['singleDay', 'period'],
+				values: TOURNAMENT_MODES,
 				message: '{VALUE} is not supported'
 			},
 			default: 'singleDay' // Default value
 		},
-		externalFee: {
+		entryFee: {
 			type: Number,
 			required: false,
-			min: [0, 'External fee must be a non-negative number'],
+			min: [0, 'Entry fee must be a non-negative number'],
 			default: 0
 		},
 		minMember: {
@@ -96,11 +102,13 @@ const tournamentSchema = new mongoose.Schema<ITournament>(
 			min: [1, 'Maximum members must be at least 1'],
 			default: 1
 		},
-		playTime: {
-			type: String
+		duration: {
+			type: String,
+			required: true
 		},
-		pauseTime: {
-			type: String
+		breakDuration: {
+			type: String,
+			required: true
 		},
 		courts: {
 			type: [
@@ -123,25 +131,10 @@ const tournamentSchema = new mongoose.Schema<ITournament>(
 			maxlength: 1000,
 			default: ''
 		},
-		numberOfRounds: {
-			type: Number,
-			required: false,
-			default: 1,
-			min:[1, 'Number of rounds must be at least 1']
-		},
-		roundTimings: {
-			type: [
-				{
-					startDate: { type: Date, required: false },
-					endDate: { type: Date, required: false }
-				}
-			],
-			default: []
-		},
 		status: {
 			type: String,
 			enum: {
-				values: ['active', 'draft', 'inactive'],
+				values: TOURNAMENT_STATUSES,
 				message: '{VALUE} is not supported'
 			},
 			required: true,

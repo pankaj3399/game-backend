@@ -1,5 +1,5 @@
 import express from 'express';
-import { getAllSponsors } from '../controllers/sponsor/getAllSponsors';
+import { getAllSponsors } from '../controllers/sponsor/controller';
 
 const router = express.Router();
 

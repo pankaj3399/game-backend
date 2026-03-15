@@ -1,10 +1,11 @@
 import { z } from 'zod';
+import { TOURNAMENT_MODES, TOURNAMENT_PLAY_MODES, TOURNAMENT_STATUSES } from '../types/domain/tournament';
 
 const timeRegex = /^([0-1]\d|2[0-3]):([0-5]\d)$/;
 const isValidTime = (s: string) => timeRegex.test(s);
 
-const playModeEnum = z.enum(['TieBreak10', '1set', '3setTieBreak10', '3set', '5set']);
-const tournamentModeEnum = z.enum(['singleDay', 'period']);
+const playModeEnum = z.enum(TOURNAMENT_PLAY_MODES);
+const tournamentModeEnum = z.enum(TOURNAMENT_MODES);
 const objectIdRegex = /^[0-9a-fA-F]{24}$/;
 const objectIdSchema = z.string().regex(objectIdRegex, 'Invalid ID');
 const nullableNonEmptyString = z.union([z.string().trim().min(1), z.null()]);
@@ -26,11 +27,10 @@ const roundTimingSchema = z
 export const createOrUpdateDraftSchema = z
 	.object({
 		club: z.string().regex(objectIdRegex, 'Invalid club ID').optional(),
-		sponsorId: z
+		sponsor: z
 			.string()
 			.regex(objectIdRegex, 'Invalid sponsor ID')
-			.optional()
-			.nullable(),
+			.optional(),
 		name: z.string().trim().min(1, 'Tournament name is required').optional(),
 		logo: nullableNonEmptyString.optional(),
 		date: z.coerce.date().optional().nullable(),
@@ -38,17 +38,17 @@ export const createOrUpdateDraftSchema = z
 		endTime: z.union([z.string().trim().regex(timeRegex, 'Invalid end time (expected HH:mm)'), z.null()]).optional(),
 		playMode: playModeEnum.optional(),
 		tournamentMode: tournamentModeEnum.optional(),
-		externalFee: z.number().min(0).optional(),
+		entryFee: z.number().min(0).optional(),
 		minMember: z.number().int().min(1).optional(),
 		maxMember: z.number().int().min(1).optional(),
-		playTime: nullableNonEmptyString.optional(),
-		pauseTime: nullableNonEmptyString.optional(),
+		duration: nullableNonEmptyString.optional(),
+		breakDuration: nullableNonEmptyString.optional(),
 		courts: z.array(objectIdSchema).optional(),
 		foodInfo: z.union([z.string().trim().min(1).max(500), z.null()]).optional(),
 		descriptionInfo: z.union([z.string().trim().min(1).max(1000), z.null()]).optional(),
 		numberOfRounds: z.number().int().min(1).optional(),
 		roundTimings: z.array(roundTimingSchema).optional(),
-		status: z.enum(['draft', 'active', 'inactive']).optional()
+		status: z.enum(TOURNAMENT_STATUSES).optional()
 	})
 	.strict()
 	.refine((d) => Object.keys(d).length > 0, {
@@ -80,7 +80,7 @@ export const createDraftSchema = createOrUpdateDraftSchema.safeExtend({
 export const publishSchema = z
 	.object({
 		club: z.string().min(1, 'Club is required').regex(/^[0-9a-fA-F]{24}$/, 'Invalid club ID'),
-		sponsorId: z
+		sponsor: z
 			.string()
 			.regex(/^[0-9a-fA-F]{24}$/, 'Invalid sponsor ID')
 			.optional()
@@ -92,11 +92,11 @@ export const publishSchema = z
 		endTime: z.string().optional().nullable(),
 		playMode: playModeEnum,
 		tournamentMode: tournamentModeEnum,
-		externalFee: z.number().min(0),
+		entryFee: z.number().min(0),
 		minMember: z.number().int().min(1),
 		maxMember: z.number().int().min(1),
-		playTime: z.string().optional().nullable(),
-		pauseTime: z.string().optional().nullable(),
+		duration: z.string().optional().nullable(),
+		breakDuration: z.string().optional().nullable(),
 		courts: z.array(z.string().regex(/^[0-9a-fA-F]{24}$/)).optional(),
 		foodInfo: z.string().min(1).max(500),
 		descriptionInfo: z.string().min(1).max(1000),
@@ -172,16 +172,16 @@ export const publishSchema = z
 	.refine(
 		(d) => {
 			if (d.tournamentMode !== 'singleDay') return true;
-			return d.playTime != null && d.playTime !== '';
+			return d.duration != null && d.duration !== '';
 		},
-		{ message: 'Playing time is required', path: ['playTime'] }
+		{ message: 'Playing time is required', path: ['duration'] }
 	)
 	.refine(
 		(d) => {
 			if (d.tournamentMode !== 'singleDay') return true;
-			return d.pauseTime != null && d.pauseTime !== '';
+			return d.breakDuration != null && d.breakDuration !== '';
 		},
-		{ message: 'Game pause time is required', path: ['pauseTime'] }
+		{ message: 'Game pause time is required', path: ['breakDuration'] }
 	)
 	.refine(
 		(d) => {
@@ -201,15 +201,6 @@ export const publishBodySchema = z
 
 
 
-export const getTournamentQuerySchema = z.object({
-    page: z.coerce.number().int().min(1).optional().default(1),
-    limit: z.coerce.number().int().min(1).max(50).optional().default(10),
-	status: z.enum(['active', 'inactive', 'draft']).optional(),
-	clubId: z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid club ID').optional(),
-	q: z.string().optional(),
-	view: z.enum(['published', 'drafts']).optional()
-});
-
-export type GetTournamentQuery = z.infer<typeof getTournamentQuerySchema>;
 export type CreateOrUpdateDraftInput = z.infer<typeof createOrUpdateDraftSchema>;
 export type PublishInput = z.infer<typeof publishSchema>;
+export type PublishBodyInput = z.infer<typeof publishBodySchema>;
