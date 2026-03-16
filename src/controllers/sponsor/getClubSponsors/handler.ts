@@ -1,6 +1,6 @@
 import Club from '../../../models/Club';
 import Sponsor from '../../../models/Sponsor';
-import { error, ok } from '../../shared/helpers';
+import { error, ok } from '../../../shared/helpers';
 import { mapClubSponsorItem, mapSponsorStatusSummary, type SponsorListDoc } from './mapper';
 
 export async function getClubSponsorsFlow(club: string) {

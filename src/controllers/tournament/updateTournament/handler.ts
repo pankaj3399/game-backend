@@ -1,4 +1,5 @@
 import Tournament from "../../../models/Tournament";
+import Court from "../../../models/Court";
 import type { UpdateDraftInput } from "./validation";
 import type { UpdateContext } from "./authorize";
 
@@ -23,7 +24,7 @@ export async function updateTournamentFlow(
   context: UpdateContext
 ) {
 
-  const payload = buildUpdatePayload(data, context);
+  const payload = await buildUpdatePayload(data, context);
 
   const updated = await Tournament.findByIdAndUpdate(
     tournamentId,
@@ -44,7 +45,7 @@ export async function updateTournamentFlow(
 }
 
 
-function buildUpdatePayload(
+async function buildUpdatePayload(
   data: UpdateDraftInput,
   context: UpdateContext
 ) {
@@ -52,7 +53,11 @@ function buildUpdatePayload(
 
   if (context.isChangingClub) {
     payload.sponsor = undefined;
-    payload.courts = undefined;
+    const clubCourts = await Court.find({ club: context.updateClubId })
+      .select("_id")
+      .lean()
+      .exec();
+    payload.courts = clubCourts.map((court) => court._id.toString());
   }
 
   return payload;

@@ -30,7 +30,7 @@ const baseTournament = z.object({
     duration: z.string(),
     breakDuration: z.string(),
   
-    courts: z.array(objectId).min(1),
+    courts: z.array(objectId).min(1).optional(),
   
     foodInfo: z.string().optional(),
     descriptionInfo: z.string().optional(),
@@ -58,13 +58,11 @@ const baseTournament = z.object({
     date: z.coerce.date(),
     startTime: z.string().regex(/^\d{2}:\d{2}$/),
     endTime: z.string().regex(/^\d{2}:\d{2}$/),
-    courts: z.array(objectId).min(1),
   })
 
   const publishPeriod = baseTournament.extend({
     status: z.literal("active"),
     tournamentMode: z.literal("period"),
-    courts: z.array(objectId).min(1),
   })
 
   const draftModeSchema = z.discriminatedUnion("tournamentMode", [

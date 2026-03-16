@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import { userCanManageClub } from "../../../lib/permissions";
-import { buildPermissionContext, type AuthenticatedSession } from "../../shared/authContext";
-import { error, ok } from "../../shared/helpers";
+import { buildPermissionContext, type AuthenticatedSession } from "../../../shared/authContext";
+import { error, ok } from "../../../shared/helpers";
 
 export interface JoinTournamentDoc {
   _id: mongoose.Types.ObjectId;

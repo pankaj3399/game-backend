@@ -67,11 +67,6 @@ const dbIdLikeSchema = z.union([
   z.string().regex(/^[0-9a-fA-F]{24}$/),
 ]);
 
-const publishRoundTimingSourceSchema = z.object({
-  startDate: z.coerce.date().optional().nullable(),
-  endDate: z.coerce.date().optional().nullable(),
-});
-
 /**
  * Source data shape read from DB before publish normalization.
  * Allows missing/nullable optional fields so defaults can be applied.
@@ -85,8 +80,8 @@ export const tournamentPublishSourceSchema = z
     sponsor: dbIdLikeSchema.optional().nullable(),
     logo: z.string().optional().nullable(),
     date: z.coerce.date().optional().nullable(),
-    startTime: z.string().optional(),
-    endTime: z.string().optional(),
+    startTime: z.string().optional().nullable(),
+    endTime: z.string().optional().nullable(),
     playMode: z.enum(TOURNAMENT_PLAY_MODES).optional(),
     tournamentMode: z.enum(TOURNAMENT_MODES).optional(),
     entryFee: z.number().optional(),
@@ -97,8 +92,6 @@ export const tournamentPublishSourceSchema = z
     courts: z.array(dbIdLikeSchema).optional(),
     foodInfo: z.string().optional(),
     descriptionInfo: z.string().optional(),
-    numberOfRounds: z.number().int().optional(),
-    roundTimings: z.array(publishRoundTimingSourceSchema).optional(),
   })
   .strict();
 
@@ -112,8 +105,8 @@ export type NormalizedTournamentPublishSource = {
   sponsor: DbIdLike | null;
   logo: string | null;
   date: Date | null;
-  startTime?: string;
-  endTime?: string;
+  startTime?: string | null;
+  endTime?: string | null;
   playMode: PublishInput["playMode"];
   tournamentMode: PublishInput["tournamentMode"];
   entryFee?: number;

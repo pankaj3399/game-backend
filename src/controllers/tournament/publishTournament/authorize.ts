@@ -1,8 +1,8 @@
-import { checkClubManagement, checkSponsorBelongsToClub } from "../../shared/relations";
-import { buildPermissionContext, type AuthenticatedSession } from "../../shared/authContext";
-import type { TournamentPublishSource } from "../types/publish";
+import { checkClubManagement, checkSponsorBelongsToClub } from "../../../shared/relations";
+import { buildPermissionContext, type AuthenticatedSession } from "../../../shared/authContext";
+import type { TournamentPublishSource } from "../../../types/api";
 import type { PublishInput } from "./validation";
-import { error, ok } from "../../shared/helpers";
+import { error, ok } from "../../../shared/helpers";
 
 /**
  * Authorizes publish: draft-only, club permission.

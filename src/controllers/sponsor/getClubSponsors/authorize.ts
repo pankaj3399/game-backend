@@ -1,5 +1,5 @@
-import { buildPermissionContext, type AuthenticatedSession } from '../../shared/authContext';
-import { error, ok } from '../../shared/helpers';
+import { buildPermissionContext, type AuthenticatedSession } from '../../../shared/authContext';
+import { error, ok } from '../../../shared/helpers';
 
 export async function authorizeGetClubSponsors(session: AuthenticatedSession, clubId: string) {
 	const context = buildPermissionContext(session);

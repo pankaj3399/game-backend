@@ -1,5 +1,5 @@
 import Sponsor from '../../../models/Sponsor';
-import { ok } from '../../shared/helpers';
+import { ok } from '../../../shared/helpers';
 import { mapPublicSponsorListItem, type SponsorListDoc } from './mapper';
 
 export async function getAllSponsorsFlow() {

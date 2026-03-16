@@ -1,7 +1,7 @@
 import Club from '../../../models/Club';
 import Sponsor from '../../../models/Sponsor';
-import { buildPermissionContext, type AuthenticatedSession } from '../../shared/authContext';
-import { error, ok } from '../../shared/helpers';
+import { buildPermissionContext, type AuthenticatedSession } from '../../../shared/authContext';
+import { error, ok } from '../../../shared/helpers';
 
 export async function authorizeUpdateSponsor(
 	session: AuthenticatedSession,

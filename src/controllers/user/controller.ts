@@ -1,8 +1,8 @@
-export { updateProfile } from './updateProfile';
-export { deleteAccount } from './deleteAccount';
-export { getFavoriteClubs } from './getFavoriteClubs';
-export { addFavoriteClub } from './addFavoriteClub';
-export { removeFavoriteClub } from './removeFavoriteClub';
-export { setHomeClub } from './setHomeClub';
-export { getAdminClubs } from './getAdminClubs';
-export { searchUsers } from './searchUsers';
+export { updateProfile } from './updateProfile/index';
+export { deleteAccount } from './deleteAccount/index';
+export { getFavoriteClubs } from './getFavoriteClubs/index';
+export { addFavoriteClub } from './addFavoriteClub/index';
+export { removeFavoriteClub } from './removeFavoriteClub/index';
+export { setHomeClub } from './setHomeClub/index';
+export { getAdminClubs } from './getAdminClubs/index';
+export { searchUsers } from './searchUsers/index';

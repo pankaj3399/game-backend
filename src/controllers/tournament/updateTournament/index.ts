@@ -1,8 +1,8 @@
 import type { Request, Response } from "express";
 import { logger } from "../../../lib/logger";
-import { guardIdParam } from "../../shared/guards";
-import { buildErrorPayload } from "../../shared/errors";
-import { type AuthenticatedSession } from "../../shared/authContext";
+import { guardIdParam } from "../../../shared/guards";
+import { buildErrorPayload } from "../../../shared/errors";
+import { type AuthenticatedSession } from "../../../shared/authContext";
 import { createOrUpdateDraftSchema } from "./validation";
 import { authorizeUpdate } from "./authorize";
 import { fetchTournamentForUpdate } from "./data";
@@ -33,7 +33,7 @@ export async function updateTournament(req: Request<{ id: string }>, res: Respon
       return;
     }
 
-    const tournament = await fetchTournamentForUpdate(idResult.value);
+    const tournament = await fetchTournamentForUpdate(idResult.data);
     if (!tournament) {
       res.status(404).json(buildErrorPayload("Tournament not found"));
       return;
@@ -49,7 +49,7 @@ export async function updateTournament(req: Request<{ id: string }>, res: Respon
       return;
     }
 
-    const result = await updateTournamentFlow(idResult.value, bodyParse.data, authResult.data);
+    const result = await updateTournamentFlow(idResult.data, bodyParse.data, authResult.data);
     if (!result) {
       res.status(404).json(buildErrorPayload("Tournament not found"));
       return;
@@ -60,6 +60,20 @@ export async function updateTournament(req: Request<{ id: string }>, res: Respon
       tournament: result.tournament,
     });
   } catch (err: unknown) {
+    const mongoErr = err as { code?: number; keyPattern?: Record<string, number> };
+    if (mongoErr?.code === 11000) {
+      if (mongoErr.keyPattern?.club === 1 && mongoErr.keyPattern?.name === 1) {
+        res.status(409).json(buildErrorPayload("A tournament with this name already exists in the selected club"));
+        return;
+      }
+      if (mongoErr.keyPattern?.name === 1) {
+        res.status(409).json(buildErrorPayload("A tournament with this name already exists"));
+        return;
+      }
+      res.status(409).json(buildErrorPayload("A tournament with the same unique data already exists"));
+      return;
+    }
+
     logger.error("Error updating tournament", { err });
     res.status(500).json(buildErrorPayload("Internal server error"));
   }

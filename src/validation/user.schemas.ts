@@ -1,4 +1,5 @@
 import {z} from 'zod';
+import { objectId } from './base-helpers';
 /** Schema for PATCH /api/auth/me - update profile (authenticated users only). */
 export const updateProfileSchema = z.object({
 	alias: z.string().trim().optional(),
@@ -35,10 +36,14 @@ export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
 
 /** Schema for POST /api/user/favorite-clubs - add club to favorites. */
 export const addFavoriteClubSchema = z.object({
-	clubId: z.string().min(1, 'Club ID is required'),
+	club: objectId,
 });
+
+export type AddFavoriteClubInput = z.infer<typeof addFavoriteClubSchema>;
 
 /** Schema for PATCH /api/user/home-club - set home club. */
 export const setHomeClubSchema = z.object({
-	clubId: z.string().min(1, 'Club ID is required'),
+	club: objectId,
 });
+
+export type SetHomeClubInput = z.infer<typeof setHomeClubSchema>;

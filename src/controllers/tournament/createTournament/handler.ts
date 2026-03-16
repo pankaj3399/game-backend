@@ -1,9 +1,9 @@
 import Tournament from "../../../models/Tournament";
+import Court from "../../../models/Court";
 import type { CreateTournamentInput } from "./validation";
 import { authorizeCreate, type AuthenticatedSession } from "./authorize";
-import { checkCourtsBelongToClub } from "../../shared/relations";
 import { logger } from "../../../lib/logger";
-import { error, ok } from "../../shared/helpers";
+import { error, ok } from "../../../shared/helpers";
 /**
  * Orchestrates create-tournament: resolve courts (when applicable), authorize,
  * build payload, persist. Returns a result object for the HTTP layer.
@@ -18,18 +18,28 @@ export async function createTournamentFlow(
     return error(auth.status, auth.message);
   }
 
-  if (data.status === "active" && data.tournamentMode === "singleDay") {
-    const courtResult = await checkCourtsBelongToClub(data.club, data.courts);
-    if (courtResult.status !== 200) {
-      return error(courtResult.status, courtResult.message);
-    }
+  const clubCourts = await Court.find({ club: data.club })
+    .select("_id")
+    .lean()
+    .exec();
+
+  if (data.status === "active" && clubCourts.length === 0) {
+    return error(
+      400,
+      "Selected club has no courts. Add at least one court before publishing this tournament."
+    );
   }
 
+  const payload = {
+    ...data,
+    courts: clubCourts.map((court) => court._id.toString()),
+  };
 
   try {
-    const tournament = await Tournament.create(data);
+    const tournament = await Tournament.create(payload);
     return ok({
       tournament: {
+        id: tournament._id,
         name: tournament.name,
         club: tournament.club,
         status: tournament.status,
@@ -37,7 +47,23 @@ export async function createTournamentFlow(
         createdAt: tournament.createdAt,
       },
     }, { status: 200, message: "Tournament created successfully" });
-  } catch (err) {
+  } catch (err: unknown) {
+    const mongoErr = err as {
+      code?: number;
+      keyPattern?: Record<string, number>;
+      keyValue?: Record<string, unknown>;
+    };
+
+    if (mongoErr?.code === 11000) {
+      if (mongoErr.keyPattern?.club === 1 && mongoErr.keyPattern?.name === 1) {
+        return error(409, "A tournament with this name already exists in the selected club");
+      }
+      if (mongoErr.keyPattern?.name === 1) {
+        return error(409, "A tournament with this name already exists");
+      }
+      return error(409, "A tournament with the same unique data already exists");
+    }
+
     logger.error("Failed to create tournament", { err });
     return error(500, "Failed to create tournament");
   }

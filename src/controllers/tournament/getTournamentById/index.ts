@@ -1,8 +1,8 @@
 import type { Request, Response } from "express";
 import { logger } from "../../../lib/logger";
-import { type AuthenticatedSession } from "../../shared/authContext";
-import { guardIdParam } from "../../shared/guards";
-import { buildErrorPayload } from "../../shared/errors";
+import { type AuthenticatedSession } from "../../../shared/authContext";
+import { guardIdParam } from "../../../shared/guards";
+import { buildErrorPayload } from "../../../shared/errors";
 import { authorizeGetById } from "./authorize";
 import { fetchTournamentById, getClubSponsors } from "./handler";
 import { mapTournamentDetail } from "./mapper";
@@ -25,7 +25,7 @@ export async function getTournamentById(req: Request<{ id: string }>, res: Respo
       return;
     }
 
-    const tournament = await fetchTournamentById(idResult.value);
+    const tournament = await fetchTournamentById(idResult.data);
     if (!tournament) {
       res.status(404).json(buildErrorPayload("Tournament not found"));
       return;

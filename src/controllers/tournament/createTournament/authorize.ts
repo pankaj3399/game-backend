@@ -2,15 +2,15 @@ import type { CreateTournamentInput } from "./validation";
 import {
   buildPermissionContext,
   type AuthenticatedSession,
-} from "../../shared/authContext";
+} from "../../../shared/authContext";
 
 export type { AuthenticatedSession };
 import {
   checkClubManagement,
   checkClubExists,
   checkSponsorBelongsToClub,
-} from "../../shared/relations";
-import { error, ok } from "../../shared/helpers";
+} from "../../../shared/relations";
+import { error, ok } from "../../../shared/helpers";
 
 
 /**

@@ -11,7 +11,7 @@ export async function fetchTournamentById(
 ) {
   return await Tournament.findById(id)
     .populate("club", "name")
-    .populate("sponsorId", "name logoUrl link")
+    .populate("sponsor", "name logoUrl link")
     .populate("courts", "name type placement")
     .populate("participants", "name alias")
     .lean<TournamentPopulated>()

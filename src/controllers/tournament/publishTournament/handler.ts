@@ -2,31 +2,18 @@ import mongoose from "mongoose";
 import Tournament from "../../../models/Tournament";
 import Court from "../../../models/Court";
 import { buildPublishCandidate } from "./helpers";
-import type { TournamentPublishSource } from "../types/publish";
+import type { TournamentPublishSource } from "../../../types/api";
 import { publishSchema, type PublishInput, type PublishBodyInput } from "./validation";
 import { validateSponsorForPublish } from "./authorize";
-import { checkCourtsBelongToClub } from "../../shared/relations";
-import { error, ok } from "../../shared/helpers";
+import { error, ok } from "../../../shared/helpers";
 
 /**
- * Resolves courts for single-day publish when none selected (fallback to all club courts).
+ * Resolves courts for publish from all courts belonging to the selected club.
  */
-async function resolveCourtsForSingleDay(
+async function resolveCourtsForPublish(
   clubId: string,
   publishCandidate: ReturnType<typeof buildPublishCandidate>
 ){
-  const selectedCourts = publishCandidate.courts ?? [];
-  if (selectedCourts.length > 0) {
-    const courtCheck = await checkCourtsBelongToClub(clubId, selectedCourts);
-    if (courtCheck.status !== 200) {
-      return courtCheck;
-    }
-    return ok(
-      { ...publishCandidate, status: "active" } as PublishInput,
-      { status: 200, message: "Courts resolved" }
-    );
-  }
-
   const clubCourts = await Court.find({
     club: new mongoose.Types.ObjectId(clubId),
   })
@@ -61,17 +48,11 @@ export async function publishTournamentFlow(
   clubId: string
 ) {
   const publishCandidate = buildPublishCandidate(tournament, validatedBody, clubId);
-  let candidateForValidation;
-
-  if (publishCandidate.tournamentMode === "singleDay") {
-    const resolved = await resolveCourtsForSingleDay(clubId, publishCandidate);
-    if (resolved.status !== 200) {
-      return resolved;
-    }
-    candidateForValidation = resolved.data;
-  } else {
-    candidateForValidation = { ...publishCandidate, status: "active" };
+  const resolved = await resolveCourtsForPublish(clubId, publishCandidate);
+  if (resolved.status !== 200) {
+    return resolved;
   }
+  const candidateForValidation = resolved.data;
 
   const parsed = publishSchema.safeParse(candidateForValidation);
   if (!parsed.success) {

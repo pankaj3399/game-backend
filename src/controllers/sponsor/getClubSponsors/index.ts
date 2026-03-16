@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express';
 import { logger } from '../../../lib/logger';
-import { buildErrorPayload } from '../../shared/errors';
+import { buildErrorPayload } from '../../../shared/errors';
 import { parseRouteObjectId } from '../shared/validation';
 import { authorizeGetClubSponsors } from './authorize';
 import { getClubSponsorsFlow } from './handler';

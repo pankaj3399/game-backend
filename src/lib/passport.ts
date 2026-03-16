@@ -4,7 +4,7 @@ import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import { Strategy as AppleStrategy } from 'passport-apple';
 import jwt from 'jsonwebtoken';
 import mongoose from 'mongoose';
-import User from '../models/User';
+import User, { type UserDocument } from '../models/User';
 import UserAuth from '../models/UserAuth';
 import { logger } from '../lib/logger';
 import { createOAuthStateStore } from './oauthState';
@@ -147,12 +147,14 @@ async function handleOAuthCallback(
 
 	try {
 		const lookup = { [config.providerIdField]: config.providerId } as { googleId?: string; appleId?: string };
-		const byProviderId = await UserAuth.findOne(lookup).populate('user').session(session);
+		const byProviderId = await UserAuth.findOne(lookup)
+			.populate<{ user: UserDocument }>('user')
+			.session(session);
 
 		if (byProviderId?.user) {
 			await session.abortTransaction();
 			logger.info(config.signInByProviderMessage, { [config.providerIdField]: config.providerId });
-			return done(null, byProviderId.user as unknown as Express.User);
+			return done(null, byProviderId.user);
 		}
 
 		const { user, created } = await findOrCreateUserByEmail(config.email, session);
@@ -183,7 +185,7 @@ async function handleOAuthCallback(
 			userId: user._id,
 			...config.extraLogFields,
 		});
-		return done(null, user as unknown as Express.User);
+		return done(null, user);
 	} catch (error) {
 		await session.abortTransaction();
 		logger.error(`${config.providerName} strategy error`, { error });

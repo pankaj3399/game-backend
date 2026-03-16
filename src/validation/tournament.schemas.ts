@@ -44,8 +44,8 @@ export const createOrUpdateDraftSchema = z
 		duration: nullableNonEmptyString.optional(),
 		breakDuration: nullableNonEmptyString.optional(),
 		courts: z.array(objectIdSchema).optional(),
-		foodInfo: z.union([z.string().trim().min(1).max(500), z.null()]).optional(),
-		descriptionInfo: z.union([z.string().trim().min(1).max(1000), z.null()]).optional(),
+		foodInfo: z.string().max(500).optional().nullable(),
+		descriptionInfo: z.string().max(1000).optional().nullable(),
 		numberOfRounds: z.number().int().min(1).optional(),
 		roundTimings: z.array(roundTimingSchema).optional(),
 		status: z.enum(TOURNAMENT_STATUSES).optional()
@@ -98,44 +98,14 @@ export const publishSchema = z
 		duration: z.string().optional().nullable(),
 		breakDuration: z.string().optional().nullable(),
 		courts: z.array(z.string().regex(/^[0-9a-fA-F]{24}$/)).optional(),
-		foodInfo: z.string().min(1).max(500),
-		descriptionInfo: z.string().min(1).max(1000),
-		numberOfRounds: z.number().int().min(1),
-		roundTimings: z.array(roundTimingSchema).optional(),
+		foodInfo: z.string().max(500).optional().nullable(),
+		descriptionInfo: z.string().max(1000).optional().nullable(),
 		status: z.literal('active')
 	})
 	.refine((d) => d.maxMember >= d.minMember, {
 		message: 'maxMember must be greater than or equal to minMember',
 		path: ['maxMember']
 	})
-	.refine(
-		(d) => {
-			if (d.tournamentMode !== 'period') return true;
-			const n = d.numberOfRounds ?? 0;
-			const timings = d.roundTimings ?? [];
-			return timings.length === n;
-		},
-		{ message: 'Please add timing for all rounds', path: ['roundTimings'] }
-	)
-	.refine(
-		(d) => {
-			if (d.tournamentMode !== 'period') return true;
-			const timings = d.roundTimings;
-			const isValidDate = (v: Date) =>
-				!Number.isNaN(v.getTime());
-			return timings?.every(
-				(r) =>
-					r.startDate != null &&
-					r.endDate != null &&
-					isValidDate(r.startDate) &&
-					isValidDate(r.endDate)
-			);
-		},
-		{
-			message: 'Each round must have valid startDate and endDate when tournament mode is period',
-			path: ['roundTimings']
-		}
-	)
 	.refine(
 		(d) => {
 			if (d.tournamentMode !== 'singleDay') return true;

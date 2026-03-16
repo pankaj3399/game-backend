@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import { logger } from "../../../lib/logger";
-import { buildErrorPayload } from "../../shared/errors";
-import { type AuthenticatedSession } from "../../shared/authContext";
+import { buildErrorPayload } from "../../../shared/errors";
+import { type AuthenticatedSession } from "../../../shared/authContext";
 import { getTournamentQuerySchema } from "./validation";
 import { authorizeList } from "./authorize";
 import { getTournamentsFlow } from "./handler";

@@ -1,12 +1,11 @@
 import type { Request, Response } from 'express';
 import { logger } from '../../lib/logger';
 import { createAuthToken, setAuthCookie } from '../../lib/jwtAuth';
-import type { UserDocument } from '../../models/User';
 
 export const AUTH_CALLBACK_PATH = '/auth/callback';
 
 /** True if user has completed signup (alias and name are required). */
-export function isSignupComplete(user: Express.User): boolean {
+export function isSignupComplete(user: { alias?: string | null; name?: string | null }): boolean {
 	return !!(user.alias && user.name);
 }
 
@@ -47,7 +46,7 @@ export function getSignupRedirect(pendingToken: string): string {
 /** Creates JWT + Session, sets auth cookie, and redirects to success URL. */
 export async function loginAndRedirect(req: Request, res: Response, user: Express.User): Promise<void> {
 	try {
-		const token = await createAuthToken(user as UserDocument);
+		const token = await createAuthToken(user);
 		setAuthCookie(res, token);
 		res.redirect(getSuccessRedirect());
 	} catch (err) {

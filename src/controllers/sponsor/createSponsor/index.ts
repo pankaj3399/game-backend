@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express';
 import { logger } from '../../../lib/logger';
-import { buildErrorPayload } from '../../shared/errors';
+import { buildErrorPayload } from '../../../shared/errors';
 import { createSponsorSchema } from '../../../validation/sponsor.schemas';
 import { parseBodyWithSchema, parseRouteObjectId } from '../shared/validation';
 import { authorizeCreateSponsor } from './authorize';

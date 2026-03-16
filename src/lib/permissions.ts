@@ -9,6 +9,16 @@ export interface TournamentPermissionContext {
 }
 
 /**
+ * Check if the user is an admin of the given club (or super_admin).
+ * Does NOT allow organisers - use userCanManageClub for organiser access.
+ */
+export function userCanManageClubAsAdmin(ctx: TournamentPermissionContext, clubId: string): boolean {
+	if (ctx.userRole === 'super_admin') return true;
+	if (!mongoose.Types.ObjectId.isValid(clubId)) return false;
+	return (ctx.adminOf ?? []).includes(clubId);
+}
+
+/**
  * Check if the user can manage the given club (admin or organiser).
  * Super admins can manage any club.
  */

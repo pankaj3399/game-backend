@@ -1,9 +1,9 @@
 
 import Club from "../../../models/Club";
-import { type AuthenticatedSession } from "../../shared/authContext";
+import { type AuthenticatedSession } from "../../../shared/authContext";
 import { hasRoleOrAbove } from "../../../constants/roles";
 import { ROLES } from "../../../constants/roles";
-import { ok } from "../../shared/helpers";
+import { ok } from "../../../shared/helpers";
 
 export type ListFilterContext = {
   isOrganiserOrAbove: boolean;
@@ -23,7 +23,7 @@ export async function authorizeList(
 
   let manageableClubIds: string[] = [];
   if (isOrganiserOrAbove && !isSuperAdmin) {
-    const adminClubs = session.adminOf ?? [];
+    const adminClubs = (session.adminOf ?? []).map((id) => id.toString());
     const organiserClubs = await Club.find({
       organiserIds: session._id,
       status: "active",

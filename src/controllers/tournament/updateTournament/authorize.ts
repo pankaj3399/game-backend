@@ -4,9 +4,9 @@ import {
   checkClubExists,
   checkSponsorBelongsToClub,
   checkCourtsBelongToClub,
-} from "../../shared/relations";
-import { buildPermissionContext, type AuthenticatedSession } from "../../shared/authContext";
-import { error, ok } from "../../shared/helpers";
+} from "../../../shared/relations";
+import { buildPermissionContext, type AuthenticatedSession } from "../../../shared/authContext";
+import { error, ok } from "../../../shared/helpers";
 
 export interface UpdateContext {
   clubId: string;

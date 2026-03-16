@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import Tournament from "../../../models/Tournament";
-import type { AuthenticatedSession } from "../../shared";
-import { error, ok } from "../../shared/helpers";
+import type { AuthenticatedSession } from "../../../shared";
+import { error, ok } from "../../../shared/helpers";
 
 /**
  * Atomically adds the user to the tournament participants if capacity allows.

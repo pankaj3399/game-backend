@@ -1,13 +1,12 @@
 import type { Request, Response } from "express";
 import { logger } from "../../../lib/logger";
-import { guardIdParam } from "../../shared/guards";
-import { buildErrorPayload } from "../../shared/errors";
-import { tournamentPublishSourceSchema } from "../types/publish";
+import { guardIdParam } from "../../../shared/guards";
+import { buildErrorPayload } from "../../../shared/errors";
 import { publishBodySchema } from "./validation";
 import { authorizePublish } from "./authorize";
 import { fetchTournamentForPublish } from "./data";
 import { publishTournamentFlow } from "./handler";
-
+import { tournamentPublishSourceSchema } from "../../../types/api";
 /**
  * POST /api/tournaments/:id/publish
  * Publish a draft tournament. Body must contain full publish-valid payload (merge with existing).
@@ -27,13 +26,13 @@ export async function publishTournament(req: Request<{ id: string }>, res: Respo
       return;
     }
 
-    const tournamentDoc = await fetchTournamentForPublish(idResult.value);
-    if (!tournamentDoc) {
-      res.status(404).json(buildErrorPayload("Tournament not found"));
+    const tournamentDocResult = await fetchTournamentForPublish(idResult.data);
+    if (tournamentDocResult.status !== 200) {
+      res.status(tournamentDocResult.status).json(buildErrorPayload(tournamentDocResult.message));
       return;
     }
 
-    const tournamentParse = tournamentPublishSourceSchema.safeParse(tournamentDoc);
+    const tournamentParse = tournamentPublishSourceSchema.safeParse(tournamentDocResult.data);
     if (!tournamentParse.success) {
       res.status(500).json(
         buildErrorPayload("Stored tournament data is invalid")
@@ -70,7 +69,7 @@ export async function publishTournament(req: Request<{ id: string }>, res: Respo
     }
 
     const result = await publishTournamentFlow(
-      idResult.value,
+      idResult.data,
       tournament,
       bodyParse.data,
       authResult.data.clubId

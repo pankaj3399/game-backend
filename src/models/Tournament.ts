@@ -156,6 +156,7 @@ const tournamentSchema = new mongoose.Schema<ITournament>(
 );
 
 tournamentSchema.index({ club: 1, status: 1, date: -1, createdAt: -1 });
+tournamentSchema.index({ club: 1, name: 1 }, { unique: true });
 
 tournamentSchema.pre('validate', function () {
 	if (this.maxMember != null && this.minMember != null && this.maxMember < this.minMember) {

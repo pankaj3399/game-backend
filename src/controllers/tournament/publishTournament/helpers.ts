@@ -1,5 +1,5 @@
 import { DbIdLike } from '../../../types/domain';
-import { normalizeTournamentPublishSource, type TournamentPublishSource, PublishBodyInput } from '../types/publish';
+import { normalizeTournamentPublishSource, type TournamentPublishSource, PublishBodyInput } from '../../../types/api';
 function objectIdToString(value: DbIdLike | null | undefined): string | undefined {
 	if (value == null) return undefined;
 	return typeof value === 'string' ? value : value.toString();

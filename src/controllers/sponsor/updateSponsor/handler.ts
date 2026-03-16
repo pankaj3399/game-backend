@@ -1,5 +1,5 @@
 import type { SponsorDocument } from '../../../models/Sponsor';
-import { error, ok } from '../../shared/helpers';
+import { error, ok } from '../../../shared/helpers';
 import type { UpdateSponsorInput } from '../../../validation/sponsor.schemas';
 import { mapUpdatedSponsor } from './mapper';
 

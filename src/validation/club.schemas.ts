@@ -1,4 +1,5 @@
 import { refine, optional, z } from 'zod';
+import { objectId } from './base-helpers';
 
 const courtTypeEnum = z.enum([
 	'concrete',
@@ -72,7 +73,7 @@ export const updateClubSchema = z
 	);
 
 export const addClubStaffSchema = z.object({
-	userId: z.string().min(1, 'userId is required'),
+	userId: objectId,
 	role: z.enum(['admin', 'organiser'])
 });
 

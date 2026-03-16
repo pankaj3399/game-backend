@@ -4,18 +4,22 @@ import type { TournamentListDoc } from "../../../types/api/tournament";
 
 import type { GetTournamentQuery } from "./validation";
 import type { ListFilterContext } from "./authorize";
-import { error, ok } from "../../shared/helpers";
+import { error, ok } from "../../../shared/helpers";
 
 /**
  * Allowed status values for list filtering.
  */
-const PUBLIC_STATUSES = ["active", "inactive", "draft"] as const;
+const PUBLISHED_STATUSES = ["active", "inactive"] as const;
+
+function isPublishedStatus(status: GetTournamentQuery["status"]){
+  return status === "active" || status === "inactive";
+}
 
 /**
  * Builds the MongoDB filter for listing tournaments based on role and query.
  *
  * Rules:
- * - Super Admin: can see all tournaments, including drafts
+ * - Super Admin: published view shows only active/inactive; drafts view shows drafts
  * - Organiser+: can see tournaments from clubs they manage
  * - Player: can only see active tournaments
  */
@@ -52,9 +56,9 @@ function buildTournamentFilter(
     filter.status = "draft";
   } else {
     filter.status =
-      status && PUBLIC_STATUSES.includes(status)
+      status && isPublishedStatus(status)
         ? status
-        : { $in: PUBLIC_STATUSES };
+        : { $in: PUBLISHED_STATUSES };
   }
 
   return applySearchFilter(filter, q);

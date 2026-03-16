@@ -1,7 +1,7 @@
 import { userCanManageClub } from "../../../lib/permissions";
 import type { TournamentPopulated } from "../../../types/api/tournament";
-import { buildPermissionContext, type AuthenticatedSession } from "../../shared/authContext";
-import { error, ok } from "../../shared/helpers";
+import { buildPermissionContext, type AuthenticatedSession } from "../../../shared/authContext";
+import { error, ok } from "../../../shared/helpers";
 
 export interface DetailViewContext {
   isManager: boolean;

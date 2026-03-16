@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { guardObjectId } from '../../shared/guards';
-import { error, ok } from '../../shared/helpers';
+import { guardObjectId } from '../../../shared/guards';
+import { error, ok } from '../../../shared/helpers';
 
 export function readRouteParam(value: string | string[] | undefined) {
 	if (Array.isArray(value)) {

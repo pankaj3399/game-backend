@@ -1,5 +1,5 @@
 import Sponsor from '../../../models/Sponsor';
-import { error, ok } from '../../shared/helpers';
+import { error, ok } from '../../../shared/helpers';
 
 export async function deleteSponsorFlow(club: string, sponsorId: string) {
 	const result = await Sponsor.deleteOne({

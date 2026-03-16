@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 import Sponsor from '../../../models/Sponsor';
 import type { CreateSponsorInput } from '../../../validation/sponsor.schemas';
-import { ok } from '../../shared/helpers';
+import { ok } from '../../../shared/helpers';
 import { mapCreatedSponsor } from './mapper';
 
 export async function createSponsorFlow(input: CreateSponsorInput, club: string) {

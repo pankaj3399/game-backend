@@ -26,7 +26,7 @@ export async function getClubById(req: Request, res: Response) {
 	if (!isAdmin && sessionUser.role !== 'super_admin') {
 		res.status(403).json({ message: 'You do not have permission to edit this club' });
 		return;
-	}
+}
 
 	const club = await Club.findById(clubId).lean().exec();
 	if (!club) {

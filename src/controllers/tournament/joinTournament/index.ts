@@ -1,9 +1,9 @@
 import type { Request, Response } from "express";
 import Tournament from "../../../models/Tournament";
 import { logger } from "../../../lib/logger";
-import { guardIdParam } from "../../shared/guards";
-import { buildErrorPayload } from "../../shared/errors";
-import { type AuthenticatedSession } from "../../shared/authContext";
+import { guardIdParam } from "../../../shared/guards";
+import { buildErrorPayload } from "../../../shared/errors";
+import { type AuthenticatedSession } from "../../../shared/authContext";
 import { authorizeJoin } from "./authorize";
 import { joinTournamentFlow } from "./handler";
 
@@ -25,7 +25,7 @@ export async function joinTournament(req: Request<{ id: string }>, res: Response
       return;
     }
 
-    const tournament = await Tournament.findById(idResult.value)
+    const tournament = await Tournament.findById(idResult.data)
       .select("_id name status minMember maxMember participants")
       .populate("club")
       .lean()
@@ -42,7 +42,7 @@ export async function joinTournament(req: Request<{ id: string }>, res: Response
       return;
     }
 
-    const result = await joinTournamentFlow(idResult.value, session);
+    const result = await joinTournamentFlow(idResult.data, session);
     if (result.status !== 200) {
       res.status(result.status).json(buildErrorPayload(result.message));
       return;
