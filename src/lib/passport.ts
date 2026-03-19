@@ -17,8 +17,18 @@ function normalizeEmail(email: string): string {
 
 async function findOrCreateUserByEmail(email: string, session: mongoose.ClientSession) {
 	const normalizedEmail = normalizeEmail(email);
-	const existing = await User.findOne({ email: normalizedEmail }).session(session);
-	if (existing) return { user: existing, created: false };
+	const existing = await User.findOne({ email: normalizedEmail })
+		.setOptions({ includeDeleted: true })
+		.session(session);
+	if (existing) {
+		if (existing.deletedAt) {
+			existing.deletedAt = null;
+			existing.status = 'active';
+			await existing.save({ session });
+			logger.info('Reactivated soft-deleted user during OAuth sign-in', { userId: existing._id });
+		}
+		return { user: existing, created: false };
+	}
 
 	const [newUser] = await User.create([{ email: normalizedEmail }], { session });
 	if (!newUser) throw new Error('User creation failed');

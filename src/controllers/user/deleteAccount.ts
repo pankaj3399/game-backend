@@ -35,7 +35,7 @@ export async function deleteAccount(req: Request, res: Response) {
 					// 4. Soft-delete the user (set deletedAt)
 					const result = await User.findByIdAndUpdate(
 						userId,
-						{ deletedAt: new Date() },
+						{ deletedAt: new Date(), status: 'inactive' },
 						{ new: true }
 					).session(session);
 					if (!result) {
