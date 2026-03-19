@@ -1,10 +1,12 @@
 import express from 'express';
 import {
 	searchClubs,
+	listClubs,
+	addClubStaff,
 	createClub,
 	getClubById,
+	getClubPublic,
 	getClubStaff,
-	addClubStaff,
 	updateClub
 } from '../controllers/club/controller';
 import {
@@ -15,7 +17,6 @@ import {
 } from '../controllers/sponsor/controller';
 import authenticate from '../middlewares/auth';
 import { validateBody } from '../lib/validation';
-import { createClubSchema, updateClubSchema, addClubStaffSchema } from '../validation/club.schemas';
 import { createSponsorSchema, updateSponsorSchema } from '../validation/sponsor.schemas';
 
 const router = express.Router();
@@ -23,11 +24,16 @@ const router = express.Router();
 // Search clubs - requires auth so users can add to favorites
 router.get('/', authenticate, searchClubs);
 
+// List all clubs (for All Clubs page)
+router.get('/list', authenticate, listClubs);
+
+// Public club details (for club detail page)
+router.get('/public/:clubId',authenticate, getClubPublic);
+
 // Create club - any authenticated user can create a club
 router.post(
 	'/',
 	authenticate,
-	validateBody(createClubSchema),
 	createClub
 );
 
@@ -41,7 +47,6 @@ router.get('/:clubId/staff', authenticate, getClubStaff);
 router.post(
 	'/:clubId/staff',
 	authenticate,
-	validateBody(addClubStaffSchema),
 	addClubStaff
 );
 
@@ -49,7 +54,6 @@ router.post(
 router.patch(
 	'/:clubId',
 	authenticate,
-	validateBody(updateClubSchema),
 	updateClub
 );
 
