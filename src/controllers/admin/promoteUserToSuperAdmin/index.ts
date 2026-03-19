@@ -6,7 +6,6 @@ import { promoteUserToSuperAdminFlow } from './handler';
 import { promoteUserToSuperAdminSchema } from './validation';
 
 export async function promoteUserToSuperAdmin(req: Request, res: Response) {
-    console.log("aihsfgbaksf")
 	try {
 		const parsed = parseBodyWithSchema(promoteUserToSuperAdminSchema, req.body);
 		if (!parsed.ok) {
