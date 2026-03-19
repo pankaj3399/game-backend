@@ -14,6 +14,8 @@ export async function deleteAccount(req: Request, res: Response) {
 	}
 
 	const userId = sessionUser._id;
+	const deletedAt = new Date();
+	const deletedEmail = `deleted+${String(userId)}+${deletedAt.getTime()}@users.noreply.local`;
 
 	try {
 		await mongoose.connection.startSession().then(async (session) => {
@@ -35,7 +37,7 @@ export async function deleteAccount(req: Request, res: Response) {
 					// 4. Soft-delete the user (set deletedAt)
 					const result = await User.findByIdAndUpdate(
 						userId,
-						{ deletedAt: new Date(), status: 'inactive' },
+						{ deletedAt, status: 'inactive', email: deletedEmail },
 						{ new: true }
 					).session(session);
 					if (!result) {

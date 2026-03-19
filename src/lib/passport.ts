@@ -15,19 +15,53 @@ function normalizeEmail(email: string): string {
 	return email.trim().toLowerCase();
 }
 
-async function findOrCreateUserByEmail(email: string, session: mongoose.ClientSession) {
+async function findOrCreateUserByEmail(
+	email: string,
+	providerIdField: 'googleId' | 'appleId',
+	providerId: string,
+	session: mongoose.ClientSession
+) {
 	const normalizedEmail = normalizeEmail(email);
+
 	const existing = await User.findOne({ email: normalizedEmail })
 		.setOptions({ includeDeleted: true })
 		.session(session);
+
 	if (existing) {
+		const auth = await UserAuth.findOne({ user: existing._id }).session(session);
+		const matchesProvider = Boolean(auth && auth[providerIdField] === providerId);
+
 		if (existing.deletedAt) {
-			existing.deletedAt = null;
-			existing.status = 'active';
+			if (matchesProvider) {
+				existing.deletedAt = null;
+				existing.status = 'active';
+				await existing.save({ session });
+
+				logger.info('Reactivated soft-deleted user via matching provider', {
+					userId: existing._id,
+					providerIdField,
+				});
+
+				return { user: existing, created: false };
+			}
+
+			const tombstonedEmail = `deleted+${String(existing._id)}+${Date.now()}@users.noreply.local`;
+			existing.email = tombstonedEmail;
 			await existing.save({ session });
-			logger.info('Reactivated soft-deleted user during OAuth sign-in', { userId: existing._id });
-		}
-		return { user: existing, created: false };
+		} else {
+  const auth = await UserAuth.findOne({ user: existing._id }).session(session);
+
+  const alreadyLinked = auth && auth[providerIdField];
+
+  if (!alreadyLinked) {
+    // ❌ DO NOT auto-link silently
+    throw new Error(
+      'Account exists with this email. Please sign in using the original method and link your OAuth provider from settings.'
+    );
+  }
+
+  return { user: existing, created: false };
+}
 	}
 
 	const [newUser] = await User.create([{ email: normalizedEmail }], { session });
@@ -157,15 +191,36 @@ async function handleOAuthCallback(
 
 	try {
 		const lookup = { [config.providerIdField]: config.providerId } as { googleId?: string; appleId?: string };
-		const byProviderId = await UserAuth.findOne(lookup).populate('user').session(session);
+		const byProviderId = await UserAuth.findOne(lookup).session(session);
 
-		if (byProviderId?.user) {
-			await session.abortTransaction();
-			logger.info(config.signInByProviderMessage, { [config.providerIdField]: config.providerId });
-			return done(null, byProviderId.user as unknown as Express.User);
+		if (byProviderId) {
+			const linkedUser = await User.findById(byProviderId.user)
+				.setOptions({ includeDeleted: true })
+				.session(session);
+
+			if (linkedUser) {
+				if (linkedUser.deletedAt) {
+					linkedUser.deletedAt = null;
+					linkedUser.status = 'active';
+					await linkedUser.save({ session });
+					logger.info('Reactivated soft-deleted user by provider subject', {
+						userId: linkedUser._id,
+						[config.providerIdField]: config.providerId,
+					});
+				}
+
+				await session.commitTransaction();
+				logger.info(config.signInByProviderMessage, { [config.providerIdField]: config.providerId });
+				return done(null, linkedUser as unknown as Express.User);
+			}
 		}
 
-		const { user, created } = await findOrCreateUserByEmail(config.email, session);
+		const { user, created } = await findOrCreateUserByEmail(
+			config.email,
+			config.providerIdField,
+			config.providerId,
+			session
+		);
 		const existingAuth = await UserAuth.findOne({ user: user._id }).session(session);
 
 		if (existingAuth) {
