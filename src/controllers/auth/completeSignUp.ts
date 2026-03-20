@@ -89,11 +89,12 @@ export async function completeSignUp(req: Request, res: Response) {
 			return res.status(404).json({ message: 'No user found. Please login again.', error: true, code: 'NO_USER_FOUND' });
 		}
 
-		user = await reactivateUserIfDeleted(user);
-
 		// Idempotent: if user was already complete (e.g. double submit), create JWT session and return
 		if (isSignupComplete(user)) {
 			try {
+				if (user.deletedAt) {
+					user = await reactivateUserIfDeleted(user);
+				}
 				const token = await createAuthToken(user);
 				setAuthCookie(res, token);
 				return res.status(200).json({ message: 'Sign up completed', code: 'SIGNUP_SUCCESSFUL', error: false, token });
@@ -136,10 +137,21 @@ export async function completeSignUp(req: Request, res: Response) {
 			}
 		}
 
-		user = (await User.findByIdAndUpdate(user._id, {
-			...updatePayload,
-			...(emailToSet !== undefined ? { email: emailToSet } : {})
-		}, { returnDocument: 'after' }).exec()) ?? null;
+		const reactivationFields: { deletedAt: null; status: 'active' } | Record<string, never> = user.deletedAt
+			? { deletedAt: null, status: 'active' }
+			: {};
+
+		user = (await User.findByIdAndUpdate(
+			user._id,
+			{
+				...updatePayload,
+				...(emailToSet !== undefined ? { email: emailToSet } : {}),
+				...reactivationFields
+			},
+			{ returnDocument: 'after' }
+		)
+			.setOptions({ includeDeleted: true })
+			.exec()) ?? null;
 
 		if (!user) {
 			return res.status(404).json({ message: 'No user found. Please login again.', error: true, code: 'NO_USER_FOUND' });
