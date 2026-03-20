@@ -29,8 +29,7 @@ export async function createClubFlow(data: CreateClubInput, userId: string) {
 				coordinates: { type: 'Point' as const, coordinates: [lon, lat] },
 				defaultAdminId: userId,
 				plan: 'free',
-				expiresAt: null,
-				subscriptionStatus: 'subscribed'
+				expiresAt: null
 			},
 			session
 		);

@@ -10,7 +10,7 @@ import {
 	searchUsers,
 } from '../controllers/user/controller';
 import authenticate from '../middlewares/auth';
-import { requireClubAdminOrAbove } from '../middlewares/rbac';
+import { requireClubAdminOrAbove } from '../middlewares';
 
 const router = express.Router();
 

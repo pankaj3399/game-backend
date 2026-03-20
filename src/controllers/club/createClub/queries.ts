@@ -17,7 +17,6 @@ export async function createClubWithSession(
 		defaultAdminId: string;
 		plan: 'free';
 		expiresAt: null;
-		subscriptionStatus: 'subscribed';
 	},
 	session: mongoose.ClientSession
 ) {

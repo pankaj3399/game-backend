@@ -32,8 +32,7 @@ export async function getClubByIdFlow(clubId: string, session: Session) {
 				bookingSystemUrl: club.bookingSystemUrl ?? null,
 				coordinates: coords ? [coords[0], coords[1]] : null,
 				plan: club.plan ?? 'free',
-				expiresAt: club.expiresAt ?? null,
-				subscriptionStatus: club.subscriptionStatus ?? 'subscribed'
+				expiresAt: club.expiresAt ?? null
 			},
 			courts: courts.map((court) => ({
 				id: court._id,

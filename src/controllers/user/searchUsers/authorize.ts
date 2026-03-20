@@ -1,4 +1,5 @@
 import { error, ok } from '../../../shared/helpers';
+
 function canSearchUsers(role: string) {
 	return role === 'club_admin' || role === 'super_admin';
 }
