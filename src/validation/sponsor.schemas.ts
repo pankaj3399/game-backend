@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { SPONSOR_STATUSES } from '../types/domain/sponsor';
 
 const optionalUrl = z
-	.union([z.string().url(), z.literal('')])
+	.union([z.url(), z.literal('')])
 	.optional()
 	.nullable()
 	.transform((v) => (v === '' ? null : v));
