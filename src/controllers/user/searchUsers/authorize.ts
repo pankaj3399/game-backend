@@ -1,8 +1,7 @@
 import { error, ok } from '../../../shared/helpers';
 
-// TODO: Remove player role from this check once super_admins can also search users. Currently left in temporarily to allow player access for initial setup/testing of user search functionality.
 function canSearchUsers(role: string) {
-	return role === 'club_admin' || role === 'super_admin' || role === 'player';
+	return role === 'club_admin' || role === 'super_admin';
 }
 
 export function authorizeSearchUsers(role: string) {
