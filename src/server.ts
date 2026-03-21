@@ -12,7 +12,6 @@ import adminRoutes from './routes/admin.routes';
 import clubRoutes from './routes/club.routes';
 import tournamentRoutes from './routes/tournament.routes';
 import sponsorRoutes from './routes/sponsor.routes';
-import uploadthingRoutes from './routes/uploadthing.routes';
 
 const PORT = process.env.PORT || 4000;
 const REQUEST_ORIGIN = process.env.REQUEST_ORIGIN?.trim();
@@ -49,8 +48,8 @@ app.use(
 	})
 );
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 app.use(cookieParser());
 
 app.get('/', (req, res) => {
@@ -69,7 +68,6 @@ async function start() {
 		app.use('/api/clubs', clubRoutes);
 		app.use('/api/tournaments', tournamentRoutes);
 		app.use('/api/sponsors', sponsorRoutes);
-		app.use('/api/uploadthing', uploadthingRoutes);
 
 		app.listen(PORT, () => {
 			logger.info(`Server is running on port ${PORT}`);
