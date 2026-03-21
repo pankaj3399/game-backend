@@ -24,7 +24,8 @@ const sponsorSchema = new Schema<ISponsor>(
 	{
 		name: {
 			type: String,
-			required: true
+			required: true,
+			unique: true
 		},
 		description: {
 			type: String,
