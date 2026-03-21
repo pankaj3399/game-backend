@@ -34,6 +34,11 @@ export async function createSponsor(req: Request, res: Response): Promise<void> 
 		}
 
 		const result = await createSponsorFlow(parsed.data, clubIdResult.data);
+		if (result.status !== 201) {
+			res.status(result.status).json(buildErrorPayload(result.message));
+			return;
+		}
+
 		res.status(result.status).json(result.data.sponsor);
 	} catch (error) {
 		logger.error('Error creating sponsor', { error });

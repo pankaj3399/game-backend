@@ -1,6 +1,7 @@
 import Club from '../../../models/Club';
 import Sponsor from '../../../models/Sponsor';
 import { buildPermissionContext, type AuthenticatedSession } from '../../../shared/authContext';
+import { userCanManageClub } from '../../../lib/permissions';
 import { error, ok } from '../../../shared/helpers';
 
 export async function authorizeUpdateSponsor(
@@ -9,8 +10,7 @@ export async function authorizeUpdateSponsor(
 	sponsor: string
 ) {
 	const context = buildPermissionContext(session);
-	const isAdmin = context.adminOf.includes(club);
-	if (!isAdmin && context.userRole !== 'super_admin') {
+	if (!(await userCanManageClub(context, club))) {
 		return error(403, 'You do not have permission to manage this club');
 	}
 

@@ -20,7 +20,19 @@ export async function updateSponsorFlow(
 		sponsor.status = input.status;
 	}
 
-	await sponsor.save();
+	try {
+		await sponsor.save();
+	} catch (err) {
+		const mongoErr = err as { code?: number; name?: string };
+		if (
+			mongoErr.code === 11000 &&
+			(mongoErr.name === 'MongoServerError' || mongoErr.name === 'MongoError')
+		) {
+			return error(409, 'Sponsor name already exists for this scope');
+		}
+
+		return error(500, 'Internal server error');
+	}
 
 	return ok({ sponsor: mapUpdatedSponsor(sponsor) }, { status: 200, message: 'Sponsor updated' });
 }

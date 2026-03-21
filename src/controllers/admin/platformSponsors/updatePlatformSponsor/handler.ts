@@ -21,7 +21,14 @@ export async function updatePlatformSponsorFlow(sponsorId: string, input: Update
 	try {
 		await sponsor.save();
 	} catch (err) {
-		const mongoErr = err as { name?: string };
+		const mongoErr = err as { name?: string; code?: number };
+		if (
+			mongoErr.code === 11000 &&
+			(mongoErr.name === 'MongoServerError' || mongoErr.name === 'MongoError')
+		) {
+			return error(409, 'Sponsor name already exists for this scope');
+		}
+
 		if (mongoErr.name === 'VersionError') {
 			return error(409, 'Sponsor was modified concurrently. Please retry.');
 		}

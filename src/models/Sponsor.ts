@@ -25,7 +25,7 @@ const sponsorSchema = new Schema<ISponsor>(
 		name: {
 			type: String,
 			required: true,
-			unique: true
+			trim: true
 		},
 		description: {
 			type: String,
@@ -76,6 +76,7 @@ sponsorSchema.pre('save', function () {
 
 sponsorSchema.index({ club: 1 });
 sponsorSchema.index({ scope: 1, club: 1 });
+sponsorSchema.index({ scope: 1, name: 1 }, { unique: true });
 
 const Sponsor = mongoose.model<ISponsor>('Sponsor', sponsorSchema);
 
