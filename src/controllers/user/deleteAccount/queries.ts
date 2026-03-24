@@ -43,7 +43,7 @@ export async function softDeleteUser(userId: string, session: mongoose.ClientSes
 			deletedAt: new Date(),
 			status: 'inactive'
 		},
-		{ new: true, session }
+		{ returnDocument: 'after', session }
 	);
 
 	await UserAuth.findOneAndUpdate(
@@ -78,7 +78,7 @@ export async function softDeleteUser(userId: string, session: mongoose.ClientSes
 				}
 			}
 		],
-		{ session }
+		{ session, updatePipeline: true }
 	);
 
 	return updatedUser;
