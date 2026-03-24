@@ -1,16 +1,13 @@
 import type { ListClubsQuery } from './validation';
 import { ok,error} from '../../../shared/helpers';
-import { countActiveClubs, findActiveClubsPage } from './queries';
+import { listActiveClubsPage } from './queries';
 import { logger } from '../../../lib/logger';
 export async function listClubsFlow(query: ListClubsQuery) {
 	try{
 		const { page, limit, q } = query;
 		const skip = (page - 1) * limit;
 	
-		const [totalCount, clubs] = await Promise.all([
-			countActiveClubs(q),
-			findActiveClubsPage(skip, limit, q)
-		]);
+		const { totalCount, clubs } = await listActiveClubsPage(skip, limit, q);
 	
 		const totalPages = Math.max(1, Math.ceil(totalCount / limit));
 	

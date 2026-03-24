@@ -16,9 +16,9 @@ export const listClubsQuerySchema = z.object({
 	q: z
 		.string()
 		.optional()
-		.transform((value) => value?.trim())
-		.refine((value) => value === undefined || value.length > 0, {
-			message: 'q must not be empty'
+		.transform((value) => {
+			const trimmed = value?.trim();
+			return trimmed ? trimmed : undefined;
 		})
 });
 
