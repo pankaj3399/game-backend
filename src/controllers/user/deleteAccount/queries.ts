@@ -28,6 +28,10 @@ export async function softDeleteUser(userId: string, session: mongoose.ClientSes
 		return null;
 	}
 
+	if (user.deletedAt) {
+		return user;
+	}
+
 	const deletionSuffix = Date.now().toString();
 
 	const updatedUser = await User.findByIdAndUpdate(
@@ -40,20 +44,42 @@ export async function softDeleteUser(userId: string, session: mongoose.ClientSes
 			status: 'inactive'
 		},
 		{ new: true, session }
-	).session(session);
+	);
 
-	const userAuth = await UserAuth.findOne({ user: user._id }).session(session);
-
-	if (userAuth) {
-		await UserAuth.findOneAndUpdate(
-			{ user: user._id },
+	await UserAuth.findOneAndUpdate(
+		{ user: user._id },
+		[
 			{
-				googleId: buildDeletedValue(userAuth.googleId, deletionSuffix),
-				appleId: buildDeletedValue(userAuth.appleId, deletionSuffix)
-			},
-			{ session }
-		);
-	}
+				$set: {
+					googleId: {
+						$cond: [
+							{
+								$and: [
+									{ $ne: [{ $ifNull: ['$googleId', null] }, null] },
+									{ $ne: [{ $ifNull: ['$googleId', ''] }, ''] }
+								]
+							},
+							{ $concat: ['deleted-', deletionSuffix, '-', '$googleId'] },
+							'$googleId'
+						]
+					},
+					appleId: {
+						$cond: [
+							{
+								$and: [
+									{ $ne: [{ $ifNull: ['$appleId', null] }, null] },
+									{ $ne: [{ $ifNull: ['$appleId', ''] }, ''] }
+								]
+							},
+							{ $concat: ['deleted-', deletionSuffix, '-', '$appleId'] },
+							'$appleId'
+						]
+					}
+				}
+			}
+		],
+		{ session }
+	);
 
 	return updatedUser;
 }
