@@ -12,7 +12,14 @@ export const listClubsQuerySchema = z.object({
 		.min(1)
 		.max(MAX_LIMIT)
 		.optional()
-		.default(DEFAULT_LIMIT)
+		.default(DEFAULT_LIMIT),
+	q: z
+		.string()
+		.optional()
+		.transform((value) => value?.trim())
+		.refine((value) => value === undefined || value.length > 0, {
+			message: 'q must not be empty'
+		})
 });
 
 export type ListClubsQuery = z.infer<typeof listClubsQuerySchema>;
