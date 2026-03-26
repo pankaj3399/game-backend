@@ -39,7 +39,7 @@ export async function updateClubStaffRole(req: Request, res: Response): Promise<
 		}
 
 		const result = await updateClubStaffRoleFlow(clubIdResult.data, staffIdResult.data, parsed.data, authResult.data);
-		if (result.status !== 200) {
+		if (!result.ok) {
 			res.status(result.status).json(buildErrorPayload(result.message));
 			return;
 		}

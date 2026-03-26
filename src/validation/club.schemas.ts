@@ -72,13 +72,15 @@ export const updateClubSchema = z
 		}
 	);
 
+export const clubStaffRoleSchema = z.enum(['admin', 'organiser']);
+
 export const addClubStaffSchema = z.object({
 	userId: objectId,
-	role: z.enum(['admin', 'organiser'])
+	role: clubStaffRoleSchema
 });
 
 export const updateClubStaffRoleSchema = z.object({
-	role: z.enum(['admin', 'organiser'])
+	role: clubStaffRoleSchema
 });
 
 export const setClubMainAdminSchema = z.object({

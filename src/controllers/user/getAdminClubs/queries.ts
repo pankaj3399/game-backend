@@ -127,7 +127,7 @@ export async function findClubMemberCountsByClub(clubIds: mongoose.Types.ObjectI
 	const organiserIds = Array.from(organiserIdSet).map((value) => new mongoose.Types.ObjectId(value));
 
 	const activeOrganiserRows = organiserIds.length
-		? await User.find({ _id: { $in: organiserIds } }).select('_id').lean<{ _id: mongoose.Types.ObjectId }[]>().exec()
+		? await User.find({ ...notDeleted, _id: { $in: organiserIds } }).select('_id').lean<{ _id: mongoose.Types.ObjectId }[]>().exec()
 		: [];
 
 	const activeOrganiserIds = new Set(activeOrganiserRows.map((user) => user._id.toString()));

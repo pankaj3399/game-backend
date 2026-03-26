@@ -28,7 +28,7 @@ export async function removeClubStaffFlow(clubId: string, staffId: string, acces
 	}
 
 	if (isAdmin) {
-		await removeUserAdminOfClub(staffId, clubId);
+		await removeUserAdminOfClub(clubId, staffId);
 	}
 
 	if (isOrganiser) {

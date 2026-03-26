@@ -33,7 +33,7 @@ export async function addClubStaffFlow(clubId: string, payload: AddClubStaffInpu
 	}
 
 	if (payload.role === 'admin') {
-		const result = await addUserAdminOfClub(payload.userId, clubId);
+		const result = await addUserAdminOfClub(clubId, payload.userId);
 
 		if (result.modifiedCount === 0) {
 			return error(409, 'User is already an admin of this club');
