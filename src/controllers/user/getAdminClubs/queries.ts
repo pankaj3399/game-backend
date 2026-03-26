@@ -84,8 +84,15 @@ export async function findClubMemberCountsByClub(clubIds: mongoose.Types.ObjectI
 		User.aggregate<MemberIdsByClubRow>([
 			{
 				$match: {
-					...notDeleted,
-					$or: [{ favoriteClubs: { $in: clubIds } }, { adminOf: { $in: clubIds } }]
+					$and: [
+						notDeleted,
+						{
+							$or: [
+								{ favoriteClubs: { $in: clubIds } },
+								{ adminOf: { $in: clubIds } }
+							]
+						}
+					]
 				}
 			},
 			{

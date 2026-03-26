@@ -32,7 +32,7 @@ export async function removeClubStaff(req: Request, res: Response){
 		}
 
 		const result = await removeClubStaffFlow(clubIdResult.data, staffIdResult.data, authResult.data);
-		if (result.status !== 200) {
+		if (!result.ok) {
 			res.status(result.status).json(buildErrorPayload(result.message));
 			return;
 		}

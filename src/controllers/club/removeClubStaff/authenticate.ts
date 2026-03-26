@@ -4,8 +4,6 @@ import { findClubStaffSnapshotById } from '../shared/queries';
 
 export interface RemoveClubStaffAccess {
 	canRemoveAdmins: boolean;
-	defaultAdminId: string | null;
-	organiserIds: string[];
 }
 
 export async function authenticateRemoveClubStaff(clubId: string, session: AuthenticatedSession) {
@@ -25,11 +23,7 @@ export async function authenticateRemoveClubStaff(clubId: string, session: Authe
 	}
 
 	return ok(
-		{
-			canRemoveAdmins: isSuperAdmin || isClubAdmin,
-			defaultAdminId: club.defaultAdminId?.toString() ?? null,
-			organiserIds
-		},
+		{ canRemoveAdmins: isSuperAdmin || isClubAdmin },
 		{ status: 200, message: 'Authorized for club staff removal' }
 	);
 }

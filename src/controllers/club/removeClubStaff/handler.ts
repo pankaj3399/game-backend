@@ -1,38 +1,11 @@
-import { error, ok } from '../../../shared/helpers';
+import { ok } from '../../../shared/helpers';
 import type { RemoveClubStaffAccess } from './authenticate';
-import {
-	findClubStaffUserSnapshotById,
-	removeUserAdminOfClub,
-	removeUserAsClubOrganiser
-} from '../shared/queries';
+import { removeClubStaffTransaction } from './queries';
 
 export async function removeClubStaffFlow(clubId: string, staffId: string, access: RemoveClubStaffAccess) {
-	if (access.defaultAdminId === staffId) {
-		return error(400, 'Cannot remove the default admin');
-	}
-
-	const user = await findClubStaffUserSnapshotById(staffId);
-	if (!user) {
-		return error(404, 'User not found');
-	}
-
-	const isAdmin = (user.adminOf ?? []).some((id) => id.toString() === clubId);
-	const isOrganiser = access.organiserIds.includes(staffId);
-
-	if (!isAdmin && !isOrganiser) {
-		return error(404, 'Staff member not found in this club');
-	}
-
-	if (isAdmin && !access.canRemoveAdmins) {
-		return error(403, 'Only club admins can remove admins');
-	}
-
-	if (isAdmin) {
-		await removeUserAdminOfClub(clubId, staffId);
-	}
-
-	if (isOrganiser) {
-		await removeUserAsClubOrganiser(clubId, staffId);
+	const tx = await removeClubStaffTransaction(clubId, staffId, access);
+	if (!tx.ok) {
+		return tx;
 	}
 
 	return ok(
