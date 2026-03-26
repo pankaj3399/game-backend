@@ -9,7 +9,10 @@ type SearchUserDoc = {
 
 export async function findUsersBySearchQuery(searchRegex: RegExp) {
 	return User.find({
-		$or: [{ name: searchRegex }, { alias: searchRegex }, { email: searchRegex }]
+		$and: [
+			{ $or: [{ deletedAt: null }, { deletedAt: { $exists: false } }] },
+			{ $or: [{ name: searchRegex }, { alias: searchRegex }, { email: searchRegex }] }
+		]
 	})
 		.select('_id email name alias')
 		.limit(20)

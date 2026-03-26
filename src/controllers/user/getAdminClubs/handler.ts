@@ -2,7 +2,7 @@ import { error, ok } from '../../../shared/helpers';
 import { mapAdminClubsResponse } from './mapper';
 import {
 	findCourtCountsByClub,
-	findFavoriteMemberCountsByClub,
+	findClubMemberCountsByClub,
 	findTournamentCountsByClub,
 	findUserAdminClubs
 } from './queries';
@@ -17,7 +17,7 @@ export async function getAdminClubsFlow(userId: string) {
 		const clubIds = adminClubs.map((club) => club._id);
 		const [courtCountMap, membersCountMap, eventsCountMap] = await Promise.all([
 			findCourtCountsByClub(clubIds),
-			findFavoriteMemberCountsByClub(clubIds),
+			findClubMemberCountsByClub(clubIds),
 			findTournamentCountsByClub(clubIds)
 		]);
 		const response = mapAdminClubsResponse(adminClubs, courtCountMap, membersCountMap, eventsCountMap);

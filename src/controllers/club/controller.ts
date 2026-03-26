@@ -5,4 +5,7 @@ export { getClubPublic } from './getClubPublic/index';
 export { getClubById } from './getClubById/index';
 export { getClubStaff } from './getClubStaff/index';
 export { addClubStaff } from './addClubStaff/index';
+export { setClubMainAdmin } from './setClubMainAdmin/index';
+export { updateClubStaffRole } from './updateClubStaffRole/index';
+export { removeClubStaff } from './removeClubStaff/index';
 export { updateClub } from './updateClub/index';

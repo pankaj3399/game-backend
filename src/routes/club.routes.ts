@@ -3,6 +3,9 @@ import {
 	searchClubs,
 	listClubs,
 	addClubStaff,
+	setClubMainAdmin,
+	updateClubStaffRole,
+	removeClubStaff,
 	createClub,
 	getClubById,
 	getClubPublic,
@@ -48,6 +51,27 @@ router.post(
 	'/:clubId/staff',
 	authenticate,
 	addClubStaff
+);
+
+// Set club main admin - only current main admin or super admin
+router.patch(
+	'/:clubId/staff/main-admin',
+	authenticate,
+	setClubMainAdmin
+);
+
+// Update admin/organiser role - user must be admin/organiser of club
+router.patch(
+	'/:clubId/staff/:staffId',
+	authenticate,
+	updateClubStaffRole
+);
+
+// Remove admin/organiser from club staff
+router.delete(
+	'/:clubId/staff/:staffId',
+	authenticate,
+	removeClubStaff
 );
 
 // Update club - user must be admin of club

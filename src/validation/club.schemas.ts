@@ -77,6 +77,16 @@ export const addClubStaffSchema = z.object({
 	role: z.enum(['admin', 'organiser'])
 });
 
+export const updateClubStaffRoleSchema = z.object({
+	role: z.enum(['admin', 'organiser'])
+});
+
+export const setClubMainAdminSchema = z.object({
+	userId: objectId
+});
+
 export type CreateClubInput = z.infer<typeof createClubSchema>;
 export type UpdateClubInput = z.infer<typeof updateClubSchema>;
 export type AddClubStaffInput = z.infer<typeof addClubStaffSchema>;
+export type UpdateClubStaffRoleInput = z.infer<typeof updateClubStaffRoleSchema>;
+export type SetClubMainAdminInput = z.infer<typeof setClubMainAdminSchema>;

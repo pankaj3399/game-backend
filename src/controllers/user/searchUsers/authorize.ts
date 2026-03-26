@@ -1,7 +1,7 @@
 import { error, ok } from '../../../shared/helpers';
 
 function canSearchUsers(role: string) {
-	return role === 'club_admin' || role === 'super_admin';
+	return role === 'club_admin' || role === 'super_admin' || role === 'organiser';
 }
 
 export function authorizeSearchUsers(role: string) {

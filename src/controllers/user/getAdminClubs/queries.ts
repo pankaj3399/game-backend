@@ -5,6 +5,16 @@ import Tournament from '../../../models/Tournament';
 import User from '../../../models/User';
 import type { AdminClubDoc, CourtCountRow, UserAdminClubsDoc } from './types';
 
+type MemberIdsByClubRow = {
+	_id: mongoose.Types.ObjectId;
+	memberIds: mongoose.Types.ObjectId[];
+};
+
+type ClubOrganiserSnapshot = {
+	_id: mongoose.Types.ObjectId;
+	organiserIds?: mongoose.Types.ObjectId[];
+};
+
 export async function findUserAdminClubs(userId: string) {
 	const [user, organiserClubs] = await Promise.all([
 		User.findById(userId)
@@ -61,7 +71,7 @@ export async function findCourtCountsByClub(clubIds: mongoose.Types.ObjectId[]) 
 }
 
 /** Users who favorited the club (excludes soft-deleted accounts). */
-export async function findFavoriteMemberCountsByClub(clubIds: mongoose.Types.ObjectId[]) {
+export async function findClubMemberCountsByClub(clubIds: mongoose.Types.ObjectId[]) {
 	if (!clubIds.length) {
 		return new Map<string, number>();
 	}
@@ -70,19 +80,82 @@ export async function findFavoriteMemberCountsByClub(clubIds: mongoose.Types.Obj
 		$or: [{ deletedAt: null }, { deletedAt: { $exists: false } }]
 	};
 
-	const memberCounts = await User.aggregate<CourtCountRow>([
-		{
-			$match: {
-				...notDeleted,
-				favoriteClubs: { $in: clubIds }
-			}
-		},
-		{ $unwind: '$favoriteClubs' },
-		{ $match: { favoriteClubs: { $in: clubIds } } },
-		{ $group: { _id: '$favoriteClubs', count: { $sum: 1 } } }
-	]).exec();
+	const [userMembersByClub, clubs] = await Promise.all([
+		User.aggregate<MemberIdsByClubRow>([
+			{
+				$match: {
+					...notDeleted,
+					$or: [{ favoriteClubs: { $in: clubIds } }, { adminOf: { $in: clubIds } }]
+				}
+			},
+			{
+				$project: {
+					userId: '$_id',
+					memberClubIds: {
+						$setUnion: [
+							{
+								$filter: {
+									input: '$favoriteClubs',
+									as: 'clubId',
+									cond: { $in: ['$$clubId', clubIds] }
+								}
+							},
+							{
+								$filter: {
+									input: '$adminOf',
+									as: 'clubId',
+									cond: { $in: ['$$clubId', clubIds] }
+								}
+							}
+						]
+					}
+				}
+			},
+			{ $unwind: '$memberClubIds' },
+			{ $group: { _id: '$memberClubIds', memberIds: { $addToSet: '$userId' } } }
+		]).exec(),
+		Club.find({ _id: { $in: clubIds } }).select('_id organiserIds').lean<ClubOrganiserSnapshot[]>().exec()
+	]);
 
-	return new Map(memberCounts.map((item) => [item._id.toString(), item.count]));
+	const organiserIdSet = new Set<string>();
+	for (const club of clubs) {
+		for (const organiserId of club.organiserIds ?? []) {
+			organiserIdSet.add(organiserId.toString());
+		}
+	}
+
+	const organiserIds = Array.from(organiserIdSet).map((value) => new mongoose.Types.ObjectId(value));
+
+	const activeOrganiserRows = organiserIds.length
+		? await User.find({ _id: { $in: organiserIds } }).select('_id').lean<{ _id: mongoose.Types.ObjectId }[]>().exec()
+		: [];
+
+	const activeOrganiserIds = new Set(activeOrganiserRows.map((user) => user._id.toString()));
+	const membersByClub = new Map<string, Set<string>>();
+
+	for (const row of userMembersByClub) {
+		const clubId = row._id.toString();
+		membersByClub.set(
+			clubId,
+			new Set((row.memberIds ?? []).map((memberId) => memberId.toString()))
+		);
+	}
+
+	for (const club of clubs) {
+		const clubId = club._id.toString();
+		const memberIds = membersByClub.get(clubId) ?? new Set<string>();
+
+		for (const organiserId of club.organiserIds ?? []) {
+			const organiserIdString = organiserId.toString();
+			if (activeOrganiserIds.has(organiserIdString)) {
+				memberIds.add(organiserIdString);
+			}
+		}
+
+		membersByClub.set(clubId, memberIds);
+	}
+
+	return new Map(Array.from(membersByClub.entries()).map(([clubId, memberIds]) => [clubId, memberIds.size]));
 }
 
 export async function findTournamentCountsByClub(clubIds: mongoose.Types.ObjectId[]) {
