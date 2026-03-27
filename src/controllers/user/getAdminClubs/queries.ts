@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { ROLES } from '../../../constants/roles';
 import Court from '../../../models/Court';
 import Club from '../../../models/Club';
 import Tournament from '../../../models/Tournament';
@@ -29,7 +30,7 @@ export async function findUserAdminClubs(userId: string) {
 				select: '_id name',
 				model: 'Club'
 			})
-			.select('adminOf')
+			.select('adminOf role')
 			.lean<UserAdminClubsDoc>()
 			.exec(),
 		Club.find({ organiserIds: userId })
@@ -40,6 +41,13 @@ export async function findUserAdminClubs(userId: string) {
 
 	if (!user) {
 		return null;
+	}
+
+	if (user.role === ROLES.SUPER_ADMIN) {
+		return Club.find({})
+			.select('_id name')
+			.lean<AdminClubDoc[]>()
+			.exec();
 	}
 
 	const merged = new Map<string, AdminClubDoc>();

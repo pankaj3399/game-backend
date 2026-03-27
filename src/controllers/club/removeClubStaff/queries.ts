@@ -1,7 +1,8 @@
 import mongoose from 'mongoose';
 import Club from '../../../models/Club';
+import User from '../../../models/User';
+import { computeClubStaffPermissionsForActor } from '../../../shared/clubStaffPermissions';
 import { error } from '../../../shared/helpers';
-import type { RemoveClubStaffAccess } from './authenticate';
 import {
 	findClubStaffSnapshotById,
 	findClubStaffUserSnapshotById,
@@ -18,10 +19,7 @@ export type RemoveClubStaffTransactionResult = { ok: true } | ReturnType<typeof 
 export async function removeClubStaffTransaction(
 	clubId: string,
 	staffId: string,
-	access: Pick<
-		RemoveClubStaffAccess,
-		'canManageOrganisers' | 'canManageAdmins' | 'canRemoveDefaultAdmin'
-	>
+	actorUserId: string
 ): Promise<RemoveClubStaffTransactionResult> {
 	const session = await mongoose.startSession();
 	try {
@@ -32,6 +30,31 @@ export async function removeClubStaffTransaction(
 			}
 
 			const defaultAdminId = club.defaultAdminId?.toString() ?? null;
+
+			const actorDoc = await User.findById(actorUserId)
+				.select('role adminOf')
+				.session(session)
+				.lean()
+				.exec();
+			if (!actorDoc) {
+				return error(403, 'You do not have permission to manage this club');
+			}
+
+			const base = computeClubStaffPermissionsForActor(club, clubId, {
+				id: actorDoc._id.toString(),
+				role: actorDoc.role,
+				adminOf: actorDoc.adminOf
+			});
+			if (!base.ok) {
+				return error(403, 'You do not have permission to manage this club');
+			}
+
+			const access = {
+				canManageOrganisers: base.canManageOrganisers,
+				canManageAdmins: base.canManageAdmins,
+				canRemoveDefaultAdmin: actorDoc.role === 'super_admin'
+			};
+
 			const isDefaultAdminTarget = defaultAdminId === staffId;
 
 			const organiserIds = (club.organiserIds ?? []).map((id) => id.toString());

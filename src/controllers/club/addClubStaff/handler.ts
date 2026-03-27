@@ -28,32 +28,38 @@ export async function addClubStaffFlow(clubId: string, payload: AddClubStaffInpu
 		return error(404, 'User not found');
 	}
 
-	if (payload.role === 'admin') {
-		const result = await addUserAdminOfClub(clubId, payload.userId);
-
-		if (result.modifiedCount === 0) {
-			return error(409, 'User is already an admin of this club');
-		}
-	} else {
-		const result = await addUserAsClubOrganiser(clubId,payload.userId);
-
-		if (result.modifiedCount === 0) {
-			return error(409, 'User is already an organiser of this club');
-		}
-	}
-
-	return ok(
-		{
-			message: payload.role === 'admin' ? 'Admin added successfully' : 'Organiser added successfully',
-			staff: {
-				id: targetUser._id.toString(),
-				email: targetUser.email,
-				name: targetUser.name ?? null,
-				alias: targetUser.alias ?? null,
-				role: payload.role,
-				roleLabel: payload.role === 'admin' ? 'Admin' : 'Organiser'
+	const dbSession = await mongoose.startSession();
+	try {
+		return await dbSession.withTransaction(async () => {
+			if (payload.role === 'admin') {
+				const result = await addUserAdminOfClub(clubId, payload.userId, dbSession);
+				if (result.modifiedCount === 0) {
+					return error(409, 'User is already an admin of this club');
+				}
+			} else {
+				const result = await addUserAsClubOrganiser(clubId, payload.userId, dbSession);
+				if (result.modifiedCount === 0) {
+					return error(409, 'User is already an organiser of this club');
+				}
 			}
-		},
-		{ status: 201, message: 'Club staff added successfully' }
-	);
+
+			return ok(
+				{
+					message:
+						payload.role === 'admin' ? 'Admin added successfully' : 'Organiser added successfully',
+					staff: {
+						id: targetUser._id.toString(),
+						email: targetUser.email,
+						name: targetUser.name ?? null,
+						alias: targetUser.alias ?? null,
+						role: payload.role,
+						roleLabel: payload.role === 'admin' ? 'Admin' : 'Organiser'
+					}
+				},
+				{ status: 201, message: 'Club staff added successfully' }
+			);
+		});
+	} finally {
+		await dbSession.endSession().catch(() => {});
+	}
 }

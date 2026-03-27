@@ -16,12 +16,12 @@ function mapSubscriptionStatus(
 	expiresAt: Date | null,
 	renewalRequestedAt: Date | null
 ): ClubSubscriptionStatus {
-	if (renewalRequestedAt != null) {
-		return 'requested';
-	}
-
 	if (plan === 'free') {
 		return 'nothing';
+	}
+
+	if (renewalRequestedAt != null) {
+		return 'requested';
 	}
 
 	if (!expiresAt || expiresAt.getTime() <= Date.now()) {

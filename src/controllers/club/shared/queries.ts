@@ -28,23 +28,22 @@ function deriveRoleFromAssignments(user: {
 	return ROLES.PLAYER;
 }
 
-async function syncUserRoleFromAssignments(userId: string, session?: ClientSession | null) {
-	let q = User.findById(userId).select('_id role adminOf');
-	if (session) {
-		q = q.session(session);
+function requireClubStaffSession(session: ClientSession | null | undefined): ClientSession {
+	if (session == null) {
+		throw new Error('ClientSession is required for club staff membership and role updates');
 	}
+	return session;
+}
 
-	const user = await q.exec();
+async function syncUserRoleFromAssignments(userId: string, session: ClientSession) {
+	const user = await User.findById(userId).select('_id role adminOf').session(session).exec();
 	if (!user) {
 		return;
 	}
 
-	let organiserClubQuery = Club.exists({ organiserIds: userId });
-	if (session) {
-		organiserClubQuery = organiserClubQuery.session(session);
-	}
-
-	const hasClubOrganiserAssignment = !!(await organiserClubQuery.exec());
+	const hasClubOrganiserAssignment = !!(await Club.exists({ organiserIds: userId })
+		.session(session)
+		.exec());
 
 	const nextRole = deriveRoleFromAssignments(user, hasClubOrganiserAssignment);
 	if (user.role === nextRole) {
@@ -52,12 +51,7 @@ async function syncUserRoleFromAssignments(userId: string, session?: ClientSessi
 	}
 
 	user.role = nextRole;
-	if (session) {
-		await user.save({ session });
-		return;
-	}
-
-	await user.save();
+	await user.save({ session });
 }
 
 export async function findClubStaffSnapshotById(clubId: string, session?: ClientSession | null) {
@@ -86,59 +80,39 @@ export async function isUserOrganiserOfClub(clubId: string, userId: string) {
 	return !!existing;
 }
 
-export async function addUserAdminOfClub(
-	clubId: string,
-	userId: string,
-	session?: ClientSession | null
-) {
-	let q = User.updateOne({ _id: userId }, { $addToSet: { adminOf: clubId } });
-	if (session) {
-		q = q.session(session);
-	}
-	const result = await q.exec();
-	await syncUserRoleFromAssignments(userId, session);
+export async function addUserAdminOfClub(clubId: string, userId: string, session: ClientSession) {
+	const s = requireClubStaffSession(session);
+	const result = await User.updateOne({ _id: userId }, { $addToSet: { adminOf: clubId } })
+		.session(s)
+		.exec();
+	await syncUserRoleFromAssignments(userId, s);
 	return result;
 }
 
-export async function removeUserAdminOfClub(
-	clubId: string,
-	userId: string,
-	session?: ClientSession | null
-) {
-	let q = User.updateOne({ _id: userId }, { $pull: { adminOf: clubId } });
-	if (session) {
-		q = q.session(session);
-	}
-	const result = await q.exec();
-	await syncUserRoleFromAssignments(userId, session);
+export async function removeUserAdminOfClub(clubId: string, userId: string, session: ClientSession) {
+	const s = requireClubStaffSession(session);
+	const result = await User.updateOne({ _id: userId }, { $pull: { adminOf: clubId } })
+		.session(s)
+		.exec();
+	await syncUserRoleFromAssignments(userId, s);
 	return result;
 }
 
-export async function addUserAsClubOrganiser(
-	clubId: string,
-	userId: string,
-	session?: ClientSession | null
-) {
-	let q = Club.updateOne({ _id: clubId }, { $addToSet: { organiserIds: userId } });
-	if (session) {
-		q = q.session(session);
-	}
-	const result = await q.exec();
-	await syncUserRoleFromAssignments(userId, session);
+export async function addUserAsClubOrganiser(clubId: string, userId: string, session: ClientSession) {
+	const s = requireClubStaffSession(session);
+	const result = await Club.updateOne({ _id: clubId }, { $addToSet: { organiserIds: userId } })
+		.session(s)
+		.exec();
+	await syncUserRoleFromAssignments(userId, s);
 	return result;
 }
 
-export async function removeUserAsClubOrganiser(
-	clubId: string,
-	userId: string,
-	session?: ClientSession | null
-) {
-	let q = Club.updateOne({ _id: clubId }, { $pull: { organiserIds: userId } });
-	if (session) {
-		q = q.session(session);
-	}
-	const result = await q.exec();
-	await syncUserRoleFromAssignments(userId, session);
+export async function removeUserAsClubOrganiser(clubId: string, userId: string, session: ClientSession) {
+	const s = requireClubStaffSession(session);
+	const result = await Club.updateOne({ _id: clubId }, { $pull: { organiserIds: userId } })
+		.session(s)
+		.exec();
+	await syncUserRoleFromAssignments(userId, s);
 	return result;
 }
 

@@ -10,6 +10,7 @@ import {
 export async function getAdminClubsFlow(userId: string) {
 	try {
 		const adminClubs = await findUserAdminClubs(userId);
+
 		if (!adminClubs) {
 			return error(404, 'User not found');
 		}
