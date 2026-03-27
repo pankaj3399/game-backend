@@ -4,7 +4,20 @@ import Court from '../../../models/Court';
 import Club from '../../../models/Club';
 import Tournament from '../../../models/Tournament';
 import User from '../../../models/User';
-import type { AdminClubDoc, CourtCountRow, UserAdminClubsDoc } from './types';
+import type { AdminClubDoc, CourtCountRow } from './types';
+
+const SUPER_ADMIN_DEFAULT_LIMIT = 100;
+const SUPER_ADMIN_MAX_LIMIT = 200;
+
+type FindUserAdminClubsOptions = {
+	limit?: number;
+	offset?: number;
+};
+
+type UserAdminMembershipDoc = {
+	adminOf?: AdminClubDoc[];
+	role: string;
+};
 
 type UserMembersByClubRow = {
 	_id: mongoose.Types.ObjectId;
@@ -22,7 +35,12 @@ type ActiveOrganiserMembershipDoc = {
 	adminOf?: mongoose.Types.ObjectId[];
 };
 
-export async function findUserAdminClubs(userId: string) {
+export async function findUserAdminClubs(userId: string, options?: FindUserAdminClubsOptions) {
+	const requestedLimit = options?.limit ?? SUPER_ADMIN_DEFAULT_LIMIT;
+	const requestedOffset = options?.offset ?? 0;
+	const superAdminLimit = Math.min(Math.max(requestedLimit, 1), SUPER_ADMIN_MAX_LIMIT);
+	const superAdminOffset = Math.max(requestedOffset, 0);
+
 	const [user, organiserClubs] = await Promise.all([
 		User.findById(userId)
 			.populate({
@@ -31,7 +49,7 @@ export async function findUserAdminClubs(userId: string) {
 				model: 'Club'
 			})
 			.select('adminOf role')
-			.lean<UserAdminClubsDoc>()
+			.lean<UserAdminMembershipDoc>()
 			.exec(),
 		Club.find({ organiserIds: userId })
 			.select('_id name')
@@ -46,6 +64,9 @@ export async function findUserAdminClubs(userId: string) {
 	if (user.role === ROLES.SUPER_ADMIN) {
 		return Club.find({})
 			.select('_id name')
+			.sort({ name: 1, _id: 1 })
+			.skip(superAdminOffset)
+			.limit(superAdminLimit)
 			.lean<AdminClubDoc[]>()
 			.exec();
 	}

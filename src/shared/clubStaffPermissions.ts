@@ -1,3 +1,4 @@
+import type { ObjectId } from 'mongodb';
 import type { AuthenticatedSession } from './authContext';
 
 /** Minimal club fields used for club-staff RBAC (matches staff snapshot selects). */
@@ -17,7 +18,7 @@ export type ComputeClubStaffPermissionsResult =
 export type ClubStaffActorFields = {
 	id: string;
 	role: string;
-	adminOf?: unknown[];
+	adminOf?: Array<string | ObjectId>;
 };
 
 /** RBAC from explicit actor fields (session or DB snapshot); use inside transactions with a session-bound user read. */

@@ -14,7 +14,8 @@ interface ClubOverviewItemInput {
 function mapSubscriptionStatus(
 	plan: ClubPlan,
 	expiresAt: Date | null,
-	renewalRequestedAt: Date | null
+	renewalRequestedAt: Date | null,
+	nowMs: number = Date.now()
 ): ClubSubscriptionStatus {
 	if (plan === 'free') {
 		return 'nothing';
@@ -24,7 +25,7 @@ function mapSubscriptionStatus(
 		return 'requested';
 	}
 
-	if (!expiresAt || expiresAt.getTime() <= Date.now()) {
+	if (!expiresAt || expiresAt.getTime() <= nowMs) {
 		return 'renewal_needed';
 	}
 
@@ -33,7 +34,8 @@ function mapSubscriptionStatus(
 
 export function mapClubSubscriptionOverviewItem(
 	club: ClubOverviewItemInput,
-	membersCount: number
+	membersCount: number,
+	nowMs: number = Date.now()
 ) {
 	return {
 		id: club._id.toString(),
@@ -43,7 +45,7 @@ export function mapClubSubscriptionOverviewItem(
 			plan: club.plan,
 			expiresAt: club.expiresAt,
 			renewalRequestedAt: club.renewalRequestedAt,
-			status: mapSubscriptionStatus(club.plan, club.expiresAt, club.renewalRequestedAt)
+			status: mapSubscriptionStatus(club.plan, club.expiresAt, club.renewalRequestedAt, nowMs)
 		}
 	};
 }

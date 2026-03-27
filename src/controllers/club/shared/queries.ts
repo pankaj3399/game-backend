@@ -3,6 +3,20 @@ import Club from '../../../models/Club';
 import User from '../../../models/User';
 import { ROLES } from '../../../constants/roles';
 
+export class ClubStaffMutationNotFoundError extends Error {
+	entity: 'club' | 'user';
+
+	constructor(entity: 'club' | 'user') {
+		super(entity === 'club' ? 'Club not found' : 'User not found');
+		this.name = 'ClubStaffMutationNotFoundError';
+		this.entity = entity;
+	}
+}
+
+export function isClubStaffMutationNotFoundError(err: unknown): err is ClubStaffMutationNotFoundError {
+	return err instanceof ClubStaffMutationNotFoundError;
+}
+
 export type TransferClubDefaultAdminIfExpectedCode =
 	| 'ok'
 	| 'club_not_found'
@@ -82,6 +96,16 @@ export async function isUserOrganiserOfClub(clubId: string, userId: string) {
 
 export async function addUserAdminOfClub(clubId: string, userId: string, session: ClientSession) {
 	const s = requireClubStaffSession(session);
+	const clubExists = await Club.exists({ _id: clubId }).session(s).exec();
+	if (!clubExists) {
+		throw new ClubStaffMutationNotFoundError('club');
+	}
+
+	const userExists = await User.exists({ _id: userId }).session(s).exec();
+	if (!userExists) {
+		throw new ClubStaffMutationNotFoundError('user');
+	}
+
 	const result = await User.updateOne({ _id: userId }, { $addToSet: { adminOf: clubId } })
 		.session(s)
 		.exec();
@@ -100,6 +124,16 @@ export async function removeUserAdminOfClub(clubId: string, userId: string, sess
 
 export async function addUserAsClubOrganiser(clubId: string, userId: string, session: ClientSession) {
 	const s = requireClubStaffSession(session);
+	const clubExists = await Club.exists({ _id: clubId }).session(s).exec();
+	if (!clubExists) {
+		throw new ClubStaffMutationNotFoundError('club');
+	}
+
+	const userExists = await User.exists({ _id: userId }).session(s).exec();
+	if (!userExists) {
+		throw new ClubStaffMutationNotFoundError('user');
+	}
+
 	const result = await Club.updateOne({ _id: clubId }, { $addToSet: { organiserIds: userId } })
 		.session(s)
 		.exec();

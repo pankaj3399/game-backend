@@ -3,12 +3,6 @@ import { computeClubStaffPermissions } from '../../../shared/clubStaffPermission
 import { error, ok } from '../../../shared/helpers';
 import { findClubStaffSnapshotById } from '../shared/queries';
 
-export interface RemoveClubStaffAccess {
-	canManageOrganisers: boolean;
-	canManageAdmins: boolean;
-	canRemoveDefaultAdmin: boolean;
-}
-
 export async function authenticateRemoveClubStaff(clubId: string, session: AuthenticatedSession) {
 	const club = await findClubStaffSnapshotById(clubId);
 	if (!club) {
@@ -20,12 +14,5 @@ export async function authenticateRemoveClubStaff(clubId: string, session: Authe
 		return error(403, 'You do not have permission to manage this club');
 	}
 
-	return ok(
-		{
-			canManageOrganisers: base.canManageOrganisers,
-			canManageAdmins: base.canManageAdmins,
-			canRemoveDefaultAdmin: session.role === 'super_admin'
-		},
-		{ status: 200, message: 'Authorized for club staff removal' }
-	);
+	return ok(null, { status: 200, message: 'Authorized for club staff removal' });
 }
