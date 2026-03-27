@@ -77,7 +77,7 @@ export async function findClubStaffSnapshotById(clubId: string, session?: Client
 }
 
 export async function findClubStaffUserSnapshotById(userId: string, session?: ClientSession | null) {
-	let q = User.findById(userId).select('_id email name alias adminOf').lean();
+	let q = User.findById(userId).select('_id email name alias role adminOf').lean();
 	if (session) {
 		q = q.session(session);
 	}

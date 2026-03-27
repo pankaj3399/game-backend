@@ -8,6 +8,7 @@ import {
 	addUserAdminOfClub,
 	addUserAsClubOrganiser,
 	findClubPlanById,
+	findClubStaffUserSnapshotById,
 	findUserById
 } from './queries';
 import { isClubStaffMutationNotFoundError } from '../shared/queries';
@@ -61,6 +62,30 @@ export async function addClubStaffFlow(clubId: string, payload: AddClubStaffInpu
 
 			if (latestClub.plan === 'free') {
 				return error(403, 'Cannot add admins or organisers on a free plan. Upgrade to premium.');
+			}
+
+			const actorSnapshot = await findClubStaffUserSnapshotById(ctx.userId, dbSession);
+			if (!actorSnapshot) {
+				return error(403, 'You do not have permission to manage this club');
+			}
+
+			const accessInTx = computeClubStaffPermissionsForActor(
+				{ defaultAdminId: latestClub.defaultAdminId },
+				clubId,
+				{
+					id: actorSnapshot._id.toString(),
+					role: actorSnapshot.role,
+					adminOf: actorSnapshot.adminOf
+				}
+			);
+			if (!accessInTx.ok) {
+				return error(403, 'You do not have permission to manage this club');
+			}
+			if (payload.role === 'admin' && !accessInTx.canManageAdmins) {
+				return error(403, 'Only the main admin can assign the admin role');
+			}
+			if (payload.role === 'organiser' && !accessInTx.canManageOrganisers) {
+				return error(403, 'Only club admins can manage organisers');
 			}
 
 			try {

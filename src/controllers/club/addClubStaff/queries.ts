@@ -4,6 +4,7 @@ export {
 	addUserAdminOfClub,
 	addUserAsClubOrganiser,
 	findClubStaffSnapshotById,
+	findClubStaffUserSnapshotById,
 	findUserById
 } from '../shared/queries';
 
