@@ -43,12 +43,3 @@ export async function insertCourtsWithSession(
 export async function findUserByIdWithSession(userId: string, session: mongoose.ClientSession) {
 	return User.findById(userId).session(session).exec();
 }
-
-export async function pushAdminClubWithSession(
-	user: { adminOf: Array<unknown>; save: (options: { session: mongoose.ClientSession }) => Promise<unknown> },
-	clubId: unknown,
-	session: mongoose.ClientSession
-) {
-	user.adminOf.push(clubId);
-	await user.save({ session });
-}

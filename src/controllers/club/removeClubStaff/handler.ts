@@ -1,9 +1,8 @@
 import { ok } from '../../../shared/helpers';
-import type { RemoveClubStaffAccess } from './authenticate';
 import { removeClubStaffTransaction } from './queries';
 
-export async function removeClubStaffFlow(clubId: string, staffId: string, access: RemoveClubStaffAccess) {
-	const tx = await removeClubStaffTransaction(clubId, staffId, access);
+export async function removeClubStaffFlow(clubId: string, staffId: string, actorUserId: string) {
+	const tx = await removeClubStaffTransaction(clubId, staffId, actorUserId);
 	if (!tx.ok) {
 		return tx;
 	}

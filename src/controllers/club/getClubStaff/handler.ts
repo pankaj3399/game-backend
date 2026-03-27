@@ -69,7 +69,8 @@ export async function getClubStaffFlow(clubId: string, session: Session) {
 			staff,
 			subscription: {
 				plan: club.plan ?? 'free',
-				expiresAt: club.expiresAt ?? null
+				expiresAt: club.expiresAt ?? null,
+				renewalRequestedAt: club.renewalRequestedAt ?? null
 			}
 		},
 		{ status: 200, message: 'Club staff found successfully' }

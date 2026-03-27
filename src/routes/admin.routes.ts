@@ -2,6 +2,7 @@ import express from 'express';
 import authenticate from '../middlewares/auth';
 import { requireSuperAdmin } from '../middlewares/rbac';
 import { updateClubSubscription } from '../controllers/admin/updateClubSubscription';
+import { getClubSubscriptionsOverview } from '../controllers/admin/getClubSubscriptionsOverview';
 import {
 	createPlatformSponsor,
 	deletePlatformSponsor,
@@ -15,6 +16,13 @@ const router = express.Router();
 router.get('/ping', authenticate, requireSuperAdmin, (_req, res) => {
 	res.json({ message: 'Admin access granted', role: 'super_admin' });
 });
+
+/**
+ * Super Admin only: list all club subscriptions for admin overview.
+ *
+ * GET /clubs/subscriptions
+ */
+router.get('/clubs/subscriptions', authenticate, requireSuperAdmin, getClubSubscriptionsOverview);
 
 /**
  * Super Admin only: update a club's subscription.

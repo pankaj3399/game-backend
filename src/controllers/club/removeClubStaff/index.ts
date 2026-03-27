@@ -31,7 +31,7 @@ export async function removeClubStaff(req: Request, res: Response){
 			return;
 		}
 
-		const result = await removeClubStaffFlow(clubIdResult.data, staffIdResult.data, authResult.data);
+		const result = await removeClubStaffFlow(clubIdResult.data, staffIdResult.data, session._id.toString());
 		if (!result.ok) {
 			res.status(result.status).json(buildErrorPayload(result.message));
 			return;

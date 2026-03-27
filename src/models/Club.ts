@@ -21,6 +21,8 @@ export interface IClub {
 	plan: ClubPlan;
 	/** When the subscription expires. Null for free plans with no expiry. */
 	expiresAt: Date | null;
+	/** When a renewal request was submitted by club staff and awaits super admin approval. */
+	renewalRequestedAt: Date | null;
 	createdAt: Date;
 	updatedAt: Date;
 }
@@ -102,6 +104,10 @@ const clubSchema = new Schema<IClub>(
 			default: 'free'
 		},
 		expiresAt: {
+			type: Date,
+			default: null
+		},
+		renewalRequestedAt: {
 			type: Date,
 			default: null
 		}

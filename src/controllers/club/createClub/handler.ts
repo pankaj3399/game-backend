@@ -5,9 +5,9 @@ import {
 	findClubByName,
 	createClubWithSession,
 	insertCourtsWithSession,
-	findUserByIdWithSession,
-	pushAdminClubWithSession
+	findUserByIdWithSession
 } from './queries';
+import { addUserAdminOfClub } from '../shared/queries';
 
 export async function createClubFlow(data: CreateClubInput, userId: string) {
 	const existing = await findClubByName(data.name.trim());
@@ -50,7 +50,7 @@ export async function createClubFlow(data: CreateClubInput, userId: string) {
 			return error(404, 'Authenticated user not found');
 		}
 
-		await pushAdminClubWithSession(user, club._id, session);
+		await addUserAdminOfClub(club._id.toString(), userId, session);
 
 		await session.commitTransaction();
 		session.endSession();

@@ -10,7 +10,8 @@ import {
 	getClubById,
 	getClubPublic,
 	getClubStaff,
-	updateClub
+	updateClub,
+	requestClubSubscriptionRenewal
 } from '../controllers/club/controller';
 import {
 	getClubSponsors,
@@ -79,6 +80,13 @@ router.patch(
 	'/:clubId',
 	authenticate,
 	updateClub
+);
+
+// Request subscription renewal - user must be admin/organiser of club
+router.patch(
+	'/:clubId/subscription/renewal-request',
+	authenticate,
+	requestClubSubscriptionRenewal
 );
 
 // Sponsors - user must be admin of club; premium required for create/activate

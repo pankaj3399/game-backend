@@ -1,11 +1,11 @@
 import { type AuthenticatedSession } from '../../../shared/authContext';
+import { computeClubStaffPermissions } from '../../../shared/clubStaffPermissions';
 import { error, ok } from '../../../shared/helpers';
 import { findClubStaffSnapshotById } from '../shared/queries';
 
 export interface UpdateClubStaffRoleAccess {
-	canAssignAdminRole: boolean;
-	defaultAdminId: string | null;
-	organiserIds: string[];
+	canManageOrganisers: boolean;
+	canManageAdmins: boolean;
 }
 
 export async function authenticateUpdateClubStaffRole(clubId: string, session: AuthenticatedSession) {
@@ -14,21 +14,15 @@ export async function authenticateUpdateClubStaffRole(clubId: string, session: A
 		return error(404, 'Club not found');
 	}
 
-	const currentUserId = session._id.toString();
-	const organiserIds = (club.organiserIds ?? []).map((id) => id.toString());
-	const isSuperAdmin = session.role === 'super_admin';
-	const isClubAdmin = (session.adminOf ?? []).some((id) => id.toString() === clubId);
-	const isClubOrganiser = organiserIds.includes(currentUserId);
-
-	if (!isSuperAdmin && !isClubAdmin && !isClubOrganiser) {
+	const base = computeClubStaffPermissions(session, club, clubId);
+	if (!base.ok) {
 		return error(403, 'You do not have permission to manage this club');
 	}
 
 	return ok(
 		{
-			canAssignAdminRole: isSuperAdmin || isClubAdmin,
-			defaultAdminId: club.defaultAdminId?.toString() ?? null,
-			organiserIds
+			canManageOrganisers: base.canManageOrganisers,
+			canManageAdmins: base.canManageAdmins
 		},
 		{ status: 200, message: 'Authorized for club staff role update' }
 	);

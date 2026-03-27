@@ -7,9 +7,20 @@ import {
 	findUserAdminClubs
 } from './queries';
 
-export async function getAdminClubsFlow(userId: string) {
+type GetAdminClubsQuery = {
+	limit?: number;
+	offset?: number;
+	page?: number;
+};
+
+export async function getAdminClubsFlow(userId: string, query?: GetAdminClubsQuery) {
 	try {
-		const adminClubs = await findUserAdminClubs(userId);
+		const limit = query?.limit;
+		const offset =
+			query?.offset ?? (limit != null && query?.page != null ? (query.page - 1) * limit : undefined);
+
+		const adminClubs = await findUserAdminClubs(userId, { limit, offset });
+
 		if (!adminClubs) {
 			return error(404, 'User not found');
 		}

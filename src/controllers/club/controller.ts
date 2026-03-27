@@ -9,3 +9,4 @@ export { setClubMainAdmin } from './setClubMainAdmin/index';
 export { updateClubStaffRole } from './updateClubStaffRole/index';
 export { removeClubStaff } from './removeClubStaff/index';
 export { updateClub } from './updateClub/index';
+export { requestClubSubscriptionRenewal } from './updateClubSubscription/index';

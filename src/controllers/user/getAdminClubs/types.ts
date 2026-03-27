@@ -5,9 +5,7 @@ export type AdminClubDoc = {
 	name: string;
 };
 
-export type UserAdminClubsDoc = {
-	adminOf: AdminClubDoc[];
-};
+export type UserAdminClubsDoc = AdminClubDoc[] | null;
 
 export type CourtCountRow = {
 	_id: mongoose.Types.ObjectId;

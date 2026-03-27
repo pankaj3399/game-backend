@@ -25,7 +25,7 @@ export async function updateClubStaffRoleAtomic(
 	clubId: string,
 	staffId: string,
 	payload: UpdateClubStaffRoleInput,
-	access: Pick<UpdateClubStaffRoleAccess, 'canAssignAdminRole'>
+	access: Pick<UpdateClubStaffRoleAccess, 'canManageOrganisers' | 'canManageAdmins'>
 ): Promise<UpdateClubStaffRoleAtomicResult> {
 	const session = await mongoose.startSession();
 	try {
@@ -53,12 +53,16 @@ export async function updateClubStaffRoleAtomic(
 				return error(404, 'Staff member not found in this club');
 			}
 
-			if (payload.role === 'admin' && !access.canAssignAdminRole) {
-				return error(403, 'Only club admins can assign the admin role');
+			if (payload.role === 'admin' && !access.canManageAdmins) {
+				return error(403, 'Only the main admin can assign the admin role');
 			}
 
-			if (payload.role === 'organiser' && isAdmin && !access.canAssignAdminRole) {
-				return error(403, 'Only club admins can change admin roles');
+			if (payload.role === 'organiser' && !access.canManageOrganisers) {
+				return error(403, 'Only club admins can manage organisers');
+			}
+
+			if (payload.role === 'organiser' && isAdmin && !access.canManageAdmins) {
+				return error(403, 'Only the main admin can change admin roles');
 			}
 
 			if (payload.role === 'admin' && isAdmin && !isOrganiser) {

@@ -44,6 +44,7 @@ export async function updateClubSubscriptionFlow(
 
 	club.plan = finalPlan;
 	club.expiresAt = finalExpiresAt;
+	club.renewalRequestedAt = null;
 	try{
 		await club.save();
 	} catch (err) {
