@@ -5,7 +5,7 @@ import Sponsor from '../../../models/Sponsor';
 
 export async function findActiveClubPublicById(clubId: string) {
 	return Club.findOne({ _id: clubId, status: 'active' })
-		.select('_id name description address website bookingSystemUrl plan')
+		.select('_id name description address website bookingSystemUrl plan expiresAt trialPremiumUntil')
 		.lean()
 		.exec();
 }

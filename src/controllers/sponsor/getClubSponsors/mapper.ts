@@ -20,9 +20,12 @@ export function mapClubSponsorItem(sponsor: SponsorListDoc, isPremium: boolean):
 	};
 }
 
-export function mapSponsorStatusSummary(plan: 'free' | 'premium'): SponsorStatusSummary {
+export function mapSponsorStatusSummary(
+	plan: 'free' | 'premium',
+	hasPremiumAccess: boolean
+): SponsorStatusSummary {
 	return {
 		plan,
-		canManageSponsors: plan === 'premium'
+		canManageSponsors: hasPremiumAccess
 	};
 }

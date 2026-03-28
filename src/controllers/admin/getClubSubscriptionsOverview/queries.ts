@@ -7,12 +7,13 @@ type ClubSubscriptionOverviewClubDoc = {
 	name: string;
 	plan: ClubPlan;
 	expiresAt: Date | null;
+	trialPremiumUntil: Date | null;
 	renewalRequestedAt: Date | null;
 };
 
 export async function findClubsForSubscriptionsOverview() {
 	const clubs = await Club.find({ status: 'active' })
-		.select('_id name plan expiresAt renewalRequestedAt')
+		.select('_id name plan expiresAt trialPremiumUntil renewalRequestedAt')
 		.sort({ name: 1 })
 		.lean<ClubSubscriptionOverviewClubDoc[]>()
 		.exec();

@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { hasEffectivePremiumAccess } from '../../../lib/subscription';
 import { error, ok } from '../../../shared/helpers';
 import {
 	findActiveClubPublicById,
@@ -24,9 +25,14 @@ export async function getClubPublicFlow(clubId: string) {
 	}
 
 	const courtsPromise = findClubCourtsForPublicView(clubId);
+	const hasPremiumAccess = hasEffectivePremiumAccess(
+		club.plan,
+		club.expiresAt ?? null,
+		club.trialPremiumUntil ?? null
+	);
 
 	const sponsorsPromise =
-		club.plan === 'premium' ? findActiveClubSponsorsForPublicView(clubId) : Promise.resolve([]);
+		hasPremiumAccess ? findActiveClubSponsorsForPublicView(clubId) : Promise.resolve([]);
 
 	const [courts, sponsors] = await Promise.all([courtsPromise, sponsorsPromise]);
 
@@ -68,7 +74,7 @@ export async function getClubPublicFlow(clubId: string) {
 			courtCount: courts.length,
 			courts: groupedCourts,
 			sponsors:
-				club.plan === 'premium'
+				hasPremiumAccess
 					? sponsors.map((sponsor) => ({
 							id: sponsor._id.toString(),
 							name: sponsor.name,

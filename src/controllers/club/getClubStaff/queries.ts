@@ -3,7 +3,7 @@ import Club from '../../../models/Club';
 
 export async function findClubStaffSnapshotById(clubId: string) {
 	return Club.findById(clubId)
-		.select('defaultAdminId organiserIds plan expiresAt renewalRequestedAt')
+		.select('defaultAdminId organiserIds plan expiresAt trialPremiumUntil renewalRequestedAt')
 		.lean()
 		.exec();
 }

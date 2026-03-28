@@ -37,7 +37,11 @@ export async function updateSponsor(req: Request, res: Response): Promise<void> 
 			return;
 		}
 
-		const result = await updateSponsorFlow(parsed.data, authorization.data.clubPlan, authorization.data.sponsor);
+		const result = await updateSponsorFlow(
+			parsed.data,
+			authorization.data.clubHasPremiumAccess,
+			authorization.data.sponsor
+		);
 		if (result.status !== 200) {
 			res.status(result.status).json(buildErrorPayload(result.message));
 			return;

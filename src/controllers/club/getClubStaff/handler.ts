@@ -1,5 +1,6 @@
 import type { Request } from 'express';
 import { userCanManageClub } from '../../../lib/permissions';
+import { hasEffectivePremiumAccess } from '../../../lib/subscription';
 import { buildPermissionContext } from '../../../shared/authContext';
 import { error, ok } from '../../../shared/helpers';
 import { findClubAdmins, findClubStaffSnapshotById, findOrganiserUsersByIds } from './queries';
@@ -64,12 +65,20 @@ export async function getClubStaffFlow(clubId: string, session: Session) {
 					roleLabel: 'Organiser'
 				}))
 		];
+
+		const hasPremiumAccess = hasEffectivePremiumAccess(
+			club.plan ?? 'free',
+			club.expiresAt ?? null,
+			club.trialPremiumUntil ?? null
+		);
 	
 		return ok({
 			staff,
 			subscription: {
 				plan: club.plan ?? 'free',
 				expiresAt: club.expiresAt ?? null,
+				trialPremiumUntil: club.trialPremiumUntil ?? null,
+				hasPremiumAccess,
 				renewalRequestedAt: club.renewalRequestedAt ?? null
 			}
 		},

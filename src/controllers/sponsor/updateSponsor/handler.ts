@@ -5,7 +5,7 @@ import { mapUpdatedSponsor } from './mapper';
 
 export async function updateSponsorFlow(
 	input: UpdateSponsorInput,
-	clubPlan: 'free' | 'premium',
+	clubHasPremiumAccess: boolean,
 	sponsor: SponsorDocument
 ) {
 	if (input.name !== undefined) sponsor.name = input.name.trim();
@@ -14,7 +14,7 @@ export async function updateSponsorFlow(
 	if (input.link !== undefined) sponsor.link = input.link ?? null;
 
 	if (input.status !== undefined) {
-		if (clubPlan !== 'premium' && input.status === 'active') {
+		if (!clubHasPremiumAccess && input.status === 'active') {
 			return error(403, 'Cannot activate sponsors on a free plan. Upgrade to premium.');
 		}
 		sponsor.status = input.status;

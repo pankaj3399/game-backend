@@ -9,7 +9,7 @@ export {
 } from '../shared/queries';
 
 export async function findClubPlanById(clubId: string, session?: ClientSession | null) {
-	let query = Club.findById(clubId).select('plan defaultAdminId');
+	let query = Club.findById(clubId).select('plan expiresAt trialPremiumUntil defaultAdminId');
 	if (session) {
 		query = query.session(session);
 	}

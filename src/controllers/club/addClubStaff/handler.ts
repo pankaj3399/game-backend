@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import type { Request } from 'express';
+import { hasEffectivePremiumAccess } from '../../../lib/subscription';
 import type { AddClubStaffInput } from '../../../validation/club.schemas';
 import { buildPermissionContext } from '../../../shared/authContext';
 import { computeClubStaffPermissionsForActor } from '../../../shared/clubStaffPermissions';
@@ -43,7 +44,7 @@ export async function addClubStaffFlow(clubId: string, payload: AddClubStaffInpu
 		return error(403, 'Only club admins can manage organisers');
 	}
 
-	if (club.plan === 'free') {
+	if (!hasEffectivePremiumAccess(club.plan, club.expiresAt, club.trialPremiumUntil)) {
 		return error(403, 'Cannot add admins or organisers on a free plan. Upgrade to premium.');
 	}
 
@@ -60,7 +61,13 @@ export async function addClubStaffFlow(clubId: string, payload: AddClubStaffInpu
 				return error(404, 'Club not found');
 			}
 
-			if (latestClub.plan === 'free') {
+			if (
+				!hasEffectivePremiumAccess(
+					latestClub.plan,
+					latestClub.expiresAt,
+					latestClub.trialPremiumUntil
+				)
+			) {
 				return error(403, 'Cannot add admins or organisers on a free plan. Upgrade to premium.');
 			}
 
