@@ -35,10 +35,6 @@ export async function addClubStaffFlow(clubId: string, payload: AddClubStaffInpu
 		return error(403, 'You do not have permission to manage this club');
 	}
 
-	if (payload.role === 'admin' && !access.canManageAdmins) {
-		return error(403, 'Only the main admin can assign the admin role');
-	}
-
 	if (payload.role === 'organiser' && !access.canManageOrganisers) {
 		return error(403, 'Only club admins can manage organisers');
 	}
@@ -80,9 +76,6 @@ export async function addClubStaffFlow(clubId: string, payload: AddClubStaffInpu
 			);
 			if (!accessInTx.ok) {
 				return error(403, 'You do not have permission to manage this club');
-			}
-			if (payload.role === 'admin' && !accessInTx.canManageAdmins) {
-				return error(403, 'Only the main admin can assign the admin role');
 			}
 			if (payload.role === 'organiser' && !accessInTx.canManageOrganisers) {
 				return error(403, 'Only club admins can manage organisers');
