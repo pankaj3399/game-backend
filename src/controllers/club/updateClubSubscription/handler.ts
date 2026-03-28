@@ -19,15 +19,13 @@ export async function requestClubSubscriptionRenewalFlow(clubId: string, session
 		return error(404, 'Club not found');
 	}
 
-	const now = Date.now();
-	const oneWeekFromNow = new Date(now + ONE_WEEK_IN_MS);
-
-	if (!club.trialPremiumUntil || club.trialPremiumUntil.getTime() < oneWeekFromNow.getTime()) {
-		club.trialPremiumUntil = oneWeekFromNow;
-	}
-
 	if (club.renewalRequestedAt == null) {
-		club.renewalRequestedAt = new Date();
+		const requestedAt = new Date();
+		const oneWeekFromNow = new Date(requestedAt.getTime() + ONE_WEEK_IN_MS);
+		if (!club.trialPremiumUntil || club.trialPremiumUntil.getTime() < oneWeekFromNow.getTime()) {
+			club.trialPremiumUntil = oneWeekFromNow;
+		}
+		club.renewalRequestedAt = requestedAt;
 	}
 
 	try {

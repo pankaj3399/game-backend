@@ -46,13 +46,13 @@ export async function updateClubSubscriptionFlow(
 	club.expiresAt = finalExpiresAt;
 	club.trialPremiumUntil = null;
 	club.renewalRequestedAt = null;
-	try{
+	try {
 		await club.save();
 	} catch (err) {
-		const mongoErr = err as { name?: string };
-		if (mongoErr.name === 'VersionError') {
+		if (err instanceof Error && err.name === 'VersionError') {
 			return error(409, 'Club was modified concurrently. Please retry.');
 		}
+		throw err;
 	}
 
 	return ok(

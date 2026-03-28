@@ -16,6 +16,9 @@ import { isClubStaffMutationNotFoundError } from '../shared/queries';
 
 type Session = NonNullable<Request['user']>;
 
+const PREMIUM_ENTITLEMENT_REQUIRED_MESSAGE =
+	'Cannot add admins or organisers without an active premium entitlement. Upgrade or renew your premium/trial.';
+
 export async function addClubStaffFlow(clubId: string, payload: AddClubStaffInput, session: Session) {
 	const ctx = buildPermissionContext(session);
 	const club = await findClubPlanById(clubId);
@@ -36,8 +39,8 @@ export async function addClubStaffFlow(clubId: string, payload: AddClubStaffInpu
 		return error(403, 'You do not have permission to manage this club');
 	}
 
-	if (payload.role === 'admin' && !access.canManageAdmins) {
-		return error(403, 'Only the main admin can assign the admin role');
+	if (payload.role === 'admin' && !access.canManageOrganisers) {
+		return error(403, 'Only club admins can manage admins');
 	}
 
 	if (payload.role === 'organiser' && !access.canManageOrganisers) {
@@ -45,7 +48,7 @@ export async function addClubStaffFlow(clubId: string, payload: AddClubStaffInpu
 	}
 
 	if (!hasEffectivePremiumAccess(club.plan, club.expiresAt, club.trialPremiumUntil)) {
-		return error(403, 'Cannot add admins or organisers on a free plan. Upgrade to premium.');
+		return error(403, PREMIUM_ENTITLEMENT_REQUIRED_MESSAGE);
 	}
 
 	const targetUser = await findUserById(payload.userId);
@@ -68,7 +71,7 @@ export async function addClubStaffFlow(clubId: string, payload: AddClubStaffInpu
 					latestClub.trialPremiumUntil
 				)
 			) {
-				return error(403, 'Cannot add admins or organisers on a free plan. Upgrade to premium.');
+				return error(403, PREMIUM_ENTITLEMENT_REQUIRED_MESSAGE);
 			}
 
 			const actorSnapshot = await findClubStaffUserSnapshotById(ctx.userId, dbSession);
@@ -88,8 +91,8 @@ export async function addClubStaffFlow(clubId: string, payload: AddClubStaffInpu
 			if (!accessInTx.ok) {
 				return error(403, 'You do not have permission to manage this club');
 			}
-			if (payload.role === 'admin' && !accessInTx.canManageAdmins) {
-				return error(403, 'Only the main admin can assign the admin role');
+			if (payload.role === 'admin' && !accessInTx.canManageOrganisers) {
+				return error(403, 'Only club admins can manage admins');
 			}
 			if (payload.role === 'organiser' && !accessInTx.canManageOrganisers) {
 				return error(403, 'Only club admins can manage organisers');

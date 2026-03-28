@@ -15,7 +15,10 @@ export async function updateSponsorFlow(
 
 	if (input.status !== undefined) {
 		if (!clubHasPremiumAccess && input.status === 'active') {
-			return error(403, 'Cannot activate sponsors on a free plan. Upgrade to premium.');
+			return error(
+				403,
+				'Cannot activate sponsors: subscription does not currently grant access. Please renew or upgrade.'
+			);
 		}
 		sponsor.status = input.status;
 	}
