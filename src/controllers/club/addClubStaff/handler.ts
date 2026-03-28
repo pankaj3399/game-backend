@@ -90,14 +90,6 @@ export async function addClubStaffFlow(clubId: string, payload: AddClubStaffInpu
 
 			try {
 				if (payload.role === 'admin') {
-					const adminBranchClub = await findClubPlanById(clubId, dbSession);
-					if (!adminBranchClub) {
-						return error(404, 'Club not found');
-					}
-					if (adminBranchClub.plan === 'free') {
-						return error(403, 'Cannot add admins or organisers on a free plan. Upgrade to premium.');
-					}
-
 					const result = await addUserAdminOfClub(clubId, payload.userId, dbSession);
 					if (result.modifiedCount === 0) {
 						return error(409, 'User is already an admin of this club');
