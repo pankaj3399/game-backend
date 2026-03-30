@@ -57,8 +57,7 @@ export async function createClubFlow(data: CreateClubInput, userId: string) {
     );
 
     if (
-      adminAssignmentResult.modifiedCount === 0 &&
-      adminAssignmentResult.upsertedCount === 0
+      adminAssignmentResult.modifiedCount === 0
     ) {
       await session.abortTransaction();
       session.endSession();
@@ -87,9 +86,7 @@ export async function createClubFlow(data: CreateClubInput, userId: string) {
 
     const mongoErr = err as { code?: number; name?: string };
     if (
-      mongoErr?.code === 11000 ||
-      mongoErr?.name === "MongoServerError" ||
-      mongoErr?.name === "MongoError"
+      mongoErr?.code === 11000
     ) {
       return error(409, "A club with this name already exists");
     }
