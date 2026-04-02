@@ -75,8 +75,16 @@ export async function removeClubStaffTransaction(
 				);
 			}
 
-			if (isAdmin && !isDefaultAdminTarget && !access.canManageAdmins) {
-				return error(403, 'Only the main admin can remove other admins');
+			if (
+				isAdmin &&
+				!isDefaultAdminTarget &&
+				!access.canManageAdmins &&
+				actorUserId !== staffId
+			) {
+				return error(
+					403,
+					'Only the default admin can remove other club admins. If you transferred that role, ask the current default admin to remove this person, or become default admin again first.'
+				);
 			}
 
 			if (isOrganiser && !access.canManageOrganisers) {

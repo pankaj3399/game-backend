@@ -2,14 +2,8 @@ import { logger } from '../../../lib/logger';
 import Sponsor from '../../../models/Sponsor';
 import type { CreateSponsorInput } from '../../../validation/sponsor.schemas';
 import { error, ok } from '../../../shared/helpers';
+import { isDuplicateKeyError } from '../../../shared/mongoErrors';
 import { mapCreatedSponsor } from './mapper';
-function isDuplicateKeyError(err: unknown): boolean {
-	const mongoErr = err as { code?: number; name?: string };
-	return (
-		mongoErr.code === 11000 &&
-		(mongoErr.name === 'MongoServerError' || mongoErr.name === 'MongoError')
-	);
-}
 
 export async function createSponsorFlow(input: CreateSponsorInput, club: string) {
 	try {
