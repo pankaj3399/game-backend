@@ -3,7 +3,7 @@ import { ok } from '../../../shared/helpers';
 import { mapPublicSponsorListItem, type SponsorListDoc } from './mapper';
 
 export async function getAllSponsorsFlow() {
-	const sponsors = await Sponsor.find({ status: 'active' })
+	const sponsors = await Sponsor.find({ status: 'active', scope: 'global' })
 		.select('name description logoUrl link')
 		.lean<SponsorListDoc[]>()
 		.exec();

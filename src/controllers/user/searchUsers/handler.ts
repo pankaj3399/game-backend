@@ -10,11 +10,13 @@ export async function searchUsersFlow(role: string, query: {q: string}) {
 		return authResult;
 	}
 
-	if (query.q?.length < 2) {
+	const trimmedQuery = query.q?.trim() ?? '';
+
+	if (trimmedQuery.length < 1) {
 		return ok({ users: [] }, { status: 200, message: 'Users fetched successfully' });
 	}
 
-	const searchRegex = new RegExp(escapeRegex(query.q ?? ''), 'i');
+	const searchRegex = new RegExp(escapeRegex(trimmedQuery), 'i');
 	const users = await findUsersBySearchQuery(searchRegex);
 
 	return ok(
