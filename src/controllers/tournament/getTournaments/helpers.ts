@@ -1,21 +1,10 @@
- import type { TournamentFilter, ResolvedTournamentQuery } from "./validation";
- import type { ListFilterContext } from "./authorize";
- import { error, ok } from "../../../shared/helpers";
+import type { TournamentFilter, ResolvedTournamentQuery } from "./validation";
+import type { ListFilterContext } from "./authorize";
+import { error, ok } from "../../../shared/helpers";
 import { TournamentStatus } from "./validation";
-import mongoose from "mongoose";
 import { escapeRegex } from "../../../lib/validation";
 
-
-function toObjectIds(ids: string[]) {
-    return ids.map((id) => {
-      if (!mongoose.Types.ObjectId.isValid(id)) {
-        throw new Error(`Invalid club id: ${id}`);
-      }
-      return new mongoose.Types.ObjectId(id);
-    });
-  }
-  
-  function intersectIds(
+function intersectIds(
     base: string[] | null,
     incoming: string[]
   ): string[] {
@@ -120,15 +109,8 @@ function toObjectIds(ids: string[]) {
       allowedClubIds = [query.club];
     }
   
-    // --- DISTANCE ---
+    // --- DISTANCE --- (homeClubCoordinates when query.distance: validated in getTournamentsFlow)
     if (query.distance) {
-      if (!ctx.homeClubCoordinates) {
-        return error(
-          400,
-          "Invalid tournament filter configuration"
-        );
-      }
-  
       if (!query.distanceClubIds) {
         return error(
           400,

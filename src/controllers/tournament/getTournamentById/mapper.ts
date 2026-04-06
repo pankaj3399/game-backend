@@ -199,7 +199,7 @@ export function mapTournamentDetail(
         return {
           id,
           name: tournament.club.name ?? "",
-          address: tournament.club.address ?? "",
+          address: tournament.club.address ?? null,
         };
       })()
     : null;
@@ -216,8 +216,8 @@ export function mapTournamentDetail(
         return {
           id,
           name: tournament.sponsor.name ?? "",
-          logoUrl: tournament.sponsor.logoUrl ?? "",
-          link: tournament.sponsor.link ?? "",
+          logoUrl: tournament.sponsor.logoUrl ?? null,
+          link: tournament.sponsor.link ?? null,
         };
       })()
     : null;
@@ -234,8 +234,8 @@ export function mapTournamentDetail(
     clubSponsors.push({
         id,
       name: s.name ?? "",
-      logoUrl: s.logoUrl ?? "",
-      link: s.link ?? "",
+      logoUrl: s.logoUrl ?? null,
+      link: s.link ?? null,
     });
   }
 

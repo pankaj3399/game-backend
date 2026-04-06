@@ -43,5 +43,17 @@ export async function authorizeJoin(
     return error(400, "Already joined");
   }
 
+  // Capacity must match mapTournamentDetail `permissions.canJoin` (hasAvailableSpots).
+  const spotsFilled = (tournament.participants ?? []).length;
+  const maxMember = tournament.maxMember;
+  const spotsTotal =
+    maxMember !== undefined && Number.isFinite(maxMember)
+      ? Math.max(0, Math.trunc(maxMember))
+      : 0;
+  const hasAvailableSpots = spotsFilled < spotsTotal;
+  if (!hasAvailableSpots) {
+    return error(400, "Tournament full");
+  }
+
   return ok({}, { status: 200, message: "Authorized" });
 }

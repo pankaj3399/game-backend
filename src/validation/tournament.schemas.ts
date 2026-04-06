@@ -118,20 +118,6 @@ export const publishSchema = z
 	.refine(
 		(d) => {
 			if (d.tournamentMode !== 'singleDay') return true;
-			return d.duration != null && d.duration !== '';
-		},
-		{ message: 'Playing time is required', path: ['duration'] }
-	)
-	.refine(
-		(d) => {
-			if (d.tournamentMode !== 'singleDay') return true;
-			return d.breakDuration != null && d.breakDuration !== '';
-		},
-		{ message: 'Game pause time is required', path: ['breakDuration'] }
-	)
-	.refine(
-		(d) => {
-			if (d.tournamentMode !== 'singleDay') return true;
 			const courts = d.courts ?? [];
 			return courts.length > 0;
 		},
