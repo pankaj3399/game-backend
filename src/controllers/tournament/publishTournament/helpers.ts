@@ -1,5 +1,6 @@
 import { DbIdLike } from '../../../types/domain';
-import { normalizeTournamentPublishSource, type TournamentPublishSource, PublishBodyInput } from '../../../types/api';
+import { normalizeTournamentPublishSource, type TournamentPublishSource } from '../../../types/api';
+import type { PublishBodyInput } from './validation';
 function objectIdToString(value: DbIdLike | null | undefined): string | undefined {
 	if (value == null) return undefined;
 	return typeof value === 'string' ? value : value.toString();
@@ -36,15 +37,9 @@ function toPublishCandidateBase(
 export function buildPublishCandidate(
 	tournament: Readonly<TournamentPublishSource>,
 	validatedBody: Readonly<PublishBodyInput>,
-	clubId: string,
-	isChangingClub: boolean
+	clubId: string
 ) {
-	const hasSponsorOverride = Object.prototype.hasOwnProperty.call(validatedBody, 'sponsor');
 	const base = toPublishCandidateBase(tournament, clubId);
-
-	if (isChangingClub && !hasSponsorOverride) {
-		base.sponsor = null;
-	}
 
 	const { club: _clientClub, ...bodyWithoutClub } = validatedBody as PublishBodyInput & {
 		club?: unknown;

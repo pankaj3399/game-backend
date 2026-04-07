@@ -58,7 +58,7 @@ export async function publishTournament(req: AuthenticatedRequest, res: Response
       return;
     }
 
-    const authResult = await authorizePublish(tournament, bodyParse.data, req.user);
+    const authResult = await authorizePublish(tournament, req.user);
     if (authResult.status !== 200) {
       res.status(authResult.status).json(buildErrorPayload(authResult.message));
       return;
@@ -68,8 +68,7 @@ export async function publishTournament(req: AuthenticatedRequest, res: Response
       idResult.data,
       tournament,
       bodyParse.data,
-      authResult.data.targetClubId,
-      authResult.data.isChangingClub
+      authResult.data.clubId
     );
 
     if (result.status !== 200) {

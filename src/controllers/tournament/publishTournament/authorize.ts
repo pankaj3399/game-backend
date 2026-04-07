@@ -1,7 +1,7 @@
 import { checkClubManagement, checkSponsorBelongsToClub } from "../../../shared/relations";
 import { buildPermissionContext, type AuthenticatedSession } from "../../../shared/authContext";
 import type { TournamentPublishSource } from "../../../types/api";
-import type { PublishBodyInput, PublishInput } from "./validation";
+import type { PublishInput } from "./validation";
 import { error, ok } from "../../../shared/helpers";
 
 /**
@@ -10,7 +10,6 @@ import { error, ok } from "../../../shared/helpers";
  */
 export async function authorizePublish(
   tournament: TournamentPublishSource,
-  _data: PublishBodyInput,
   session: AuthenticatedSession
 ){
   if (tournament.status !== "draft") {
@@ -32,10 +31,7 @@ export async function authorizePublish(
     return manageResult;
   }
 
-  const targetClubId = clubId;
-  const isChangingClub = false;
-
-  return ok({ clubId, targetClubId, isChangingClub }, { status: 200, message: "Authorized" });
+  return ok({ clubId }, { status: 200, message: "Authorized" });
 }
 
 /**

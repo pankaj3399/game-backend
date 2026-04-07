@@ -132,9 +132,9 @@ export function mapTournamentDetail(
     if (!id) continue;
 
     participantItems.push({
-        id,
-      name: p.name ?? "",
-      alias: p.alias ?? "",
+      id,
+      name: p.name ?? null,
+      alias: p.alias ?? null,
     });
   }
 
@@ -181,10 +181,10 @@ export function mapTournamentDetail(
     if (!id) continue;
 
     courts.push({
-        id,
+      id,
       name: court.name ?? "",
-      type: court.type ?? "",
-      placement: court.placement ?? "",
+      type: court.type ?? null,
+      placement: court.placement ?? null,
     });
   }
 
@@ -250,7 +250,7 @@ export function mapTournamentDetail(
     club,
     sponsor,
     clubSponsors,
-    date: tournament.date?.toISOString?.() || null,
+    date: tournament.date instanceof Date ? tournament.date.toISOString() : null,
     startTime: tournament.startTime ?? null,
     endTime: tournament.endTime ?? null,
     playMode: tournament.playMode,
