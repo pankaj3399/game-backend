@@ -126,8 +126,9 @@ export function mapTournamentDetail(
      Participants
   ========================= */
 
+  const participantsRaw = tournament.participants ?? [];
   const participantItems: ParticipantInfo[] = [];
-  for (const p of tournament.participants ?? []) {
+  for (const p of participantsRaw) {
     const id = toSafeStringId(p._id);
     if (!id) continue;
 
@@ -144,7 +145,7 @@ export function mapTournamentDetail(
      Progress
   ========================= */
 
-  const spotsFilled = participantItems.length;
+  const spotsFilled = participantsRaw.length;
   const spotsTotal = computeSpotsTotal(tournament.maxMember);
 
   const percentage = spotsTotal > 0 ? Math.round((spotsFilled / spotsTotal) * 100) : 0;
