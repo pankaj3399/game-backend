@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import { ROLES } from "../../../constants/roles";
 import type { AuthenticatedSession } from "../../../shared/authContext";
 import { error, ok } from "../../../shared/helpers";
+import { computeSpotsTotal } from "../computeSpotsTotal";
 
 export interface JoinTournamentDoc {
   _id: mongoose.Types.ObjectId;
@@ -45,11 +46,7 @@ export async function authorizeJoin(
 
   // Capacity must match mapTournamentDetail `permissions.canJoin` (hasAvailableSpots).
   const spotsFilled = (tournament.participants ?? []).length;
-  const maxMember = tournament.maxMember;
-  const spotsTotal =
-    maxMember !== undefined && Number.isFinite(maxMember)
-      ? Math.max(0, Math.trunc(maxMember))
-      : 0;
+  const spotsTotal = computeSpotsTotal(tournament.maxMember);
   const hasAvailableSpots = spotsFilled < spotsTotal;
   if (!hasAvailableSpots) {
     return error(400, "Tournament full");

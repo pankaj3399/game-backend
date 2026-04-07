@@ -127,7 +127,7 @@ export const publishSchema = z
 /** Partial schema for publish request body. Validates and strips unknown fields. */
 export const publishBodySchema = z
 	.object(publishSchema.shape)
-	.omit({ status: true })
+	.omit({ status: true, club: true })
 	.partial()
 	.strip();
 

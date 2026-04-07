@@ -46,9 +46,13 @@ export function buildPublishCandidate(
 		base.sponsor = null;
 	}
 
+	const { club: _clientClub, ...bodyWithoutClub } = validatedBody as PublishBodyInput & {
+		club?: unknown;
+	};
+
 	return {
 		...base,
-		...validatedBody,
+		...bodyWithoutClub,
 		status: 'active'
 	};
 }

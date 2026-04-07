@@ -1,4 +1,4 @@
-import { checkClubExists, checkClubManagement, checkSponsorBelongsToClub } from "../../../shared/relations";
+import { checkClubManagement, checkSponsorBelongsToClub } from "../../../shared/relations";
 import { buildPermissionContext, type AuthenticatedSession } from "../../../shared/authContext";
 import type { TournamentPublishSource } from "../../../types/api";
 import type { PublishBodyInput, PublishInput } from "./validation";
@@ -10,7 +10,7 @@ import { error, ok } from "../../../shared/helpers";
  */
 export async function authorizePublish(
   tournament: TournamentPublishSource,
-  data: PublishBodyInput,
+  _data: PublishBodyInput,
   session: AuthenticatedSession
 ){
   if (tournament.status !== "draft") {
@@ -32,24 +32,8 @@ export async function authorizePublish(
     return manageResult;
   }
 
-  const targetClubId = data.club ?? clubId;
-  const isChangingClub = targetClubId !== clubId;
-
-  if (isChangingClub) {
-    const clubResult = await checkClubExists(targetClubId);
-    if (clubResult.status !== 200) {
-      return clubResult;
-    }
-
-    const manageTargetResult = await checkClubManagement(
-      ctx,
-      targetClubId,
-      "You do not have permission to assign this tournament to that club"
-    );
-    if (manageTargetResult.status !== 200) {
-      return manageTargetResult;
-    }
-  }
+  const targetClubId = clubId;
+  const isChangingClub = false;
 
   return ok({ clubId, targetClubId, isChangingClub }, { status: 200, message: "Authorized" });
 }

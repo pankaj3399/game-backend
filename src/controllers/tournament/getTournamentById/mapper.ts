@@ -1,6 +1,7 @@
 import type { TournamentPopulated } from "../../../types/api/tournament";
 import { ROLES } from "../../../constants/roles";
 import type { DetailViewContext } from "./authorize";
+import { computeSpotsTotal } from "../computeSpotsTotal";
 
 /* =========================
    Response Types
@@ -144,7 +145,7 @@ export function mapTournamentDetail(
   ========================= */
 
   const spotsFilled = participantItems.length;
-  const spotsTotal = Number.isFinite(tournament.maxMember) ? Math.max(0, Math.trunc(tournament.maxMember)) : 0;
+  const spotsTotal = computeSpotsTotal(tournament.maxMember);
 
   const percentage = spotsTotal > 0 ? Math.round((spotsFilled / spotsTotal) * 100) : 0;
 
