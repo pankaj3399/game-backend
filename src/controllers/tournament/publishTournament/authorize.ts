@@ -5,14 +5,14 @@ import type { PublishInput } from "./validation";
 import { error, ok } from "../../../shared/helpers";
 
 /**
- * Authorizes publish/update via publish endpoint: draft or active, club permission.
+ * Authorizes publish via publish endpoint: draft only, club permission.
  */
 export async function authorizePublish(
   tournament: TournamentPublishSource,
   session: AuthenticatedSession
 ){
-  if (tournament.status !== "draft" && tournament.status !== "active") {
-    return error(400, "Only draft or active tournaments can be updated via publish endpoint");
+  if (tournament.status !== "draft") {
+    return error(400, "Only draft tournaments can be published");
   }
 
   const clubId = tournament.club?.toString();

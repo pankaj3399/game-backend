@@ -99,6 +99,19 @@ const baseTournament = z.object({
       },
       { message: "Start time must be before end time", path: ["startTime"] }
     )
+    .superRefine((d, ctx) => {
+      if (
+        d.sponsor !== undefined &&
+        d.sponsorId !== undefined &&
+        d.sponsor !== d.sponsorId
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["sponsor"],
+          message: "conflicting sponsor and sponsorId",
+        });
+      }
+    })
     .transform((d) => {
       const sponsor = d.sponsor ?? d.sponsorId ?? undefined;
       const { sponsorId, ...rest } = d;
