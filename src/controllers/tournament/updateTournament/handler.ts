@@ -20,8 +20,7 @@ export async function updateTournamentFlow(
   tournamentId: string,
   data: UpdateDraftInput
 ) {
-
-  const payload = buildUpdatePayload(data);
+  const payload = { ...data };
 
   const updated = await Tournament.findByIdAndUpdate(
     tournamentId,
@@ -40,18 +39,6 @@ export async function updateTournamentFlow(
     tournament: mapTournamentSummary(updated),
   };
 }
-
-
-function buildUpdatePayload(
-  data: UpdateDraftInput
-) {
-  const payload = { ...data };
-
-  return payload;
-}
-
-
-
 function mapTournamentSummary(updated: any) {
   return {
     id: updated._id,
