@@ -1,7 +1,7 @@
 import { logger } from "../../../lib/logger";
 import Tournament from "../../../models/Tournament";
 import { error, ok } from "../../../shared/helpers";
-import type { TournamentForUpdateAuth } from "./authorize";
+import type { TournamentForUpdateAuth } from "../../../types/api";
 
 /**
  * Fetches a tournament by ID as a lean document for update flow.

@@ -1,27 +1,18 @@
 import type { UpdateDraftInput } from "./validation";
-import type mongoose from "mongoose";
-import type { TournamentStatus } from "../../../types/domain/tournament";
 import {
   checkClubExists,
   checkSponsorBelongsToClub,
   checkCourtsBelongToClub,
 } from "../../../shared/relations";
-import { ROLES } from "../../../constants/roles";
+import { isOwnerOrSuperAdmin } from "../../../lib/permissions";
 import type { AuthenticatedSession } from "../../../shared/authContext";
+import type { TournamentForUpdateAuth } from "../../../types/api";
 import { error, ok } from "../../../shared/helpers";
 
 export interface UpdateContext {
   clubId: string;
   updateClubId: string;
   isChangingClub: boolean;
-}
-
-export interface TournamentForUpdateAuth {
-  club: mongoose.Types.ObjectId;
-  createdBy: mongoose.Types.ObjectId;
-  status: TournamentStatus;
-  minMember: number;
-  maxMember: number;
 }
 
 /**
@@ -37,15 +28,16 @@ export async function authorizeUpdate(
   }
 
   const clubId = tournament.club.toString();
-  const createdBy = tournament.createdBy.toString();
-  const isCreator = createdBy === session._id.toString();
-  const isSuperAdmin = session.role === ROLES.SUPER_ADMIN;
-  if (!isCreator && !isSuperAdmin) {
+  if (!isOwnerOrSuperAdmin(session, tournament.createdBy)) {
     return error(403, "You do not have permission to update this tournament");
   }
 
   const updateClubId = data.club ?? clubId;
   const isChangingClub = Boolean(data.club && data.club !== clubId);
+
+  if (isChangingClub) {
+    return error(400, "club cannot be changed for an existing tournament");
+  }
 
   const clubResult = await checkClubExists(updateClubId);
   if (clubResult.status !== 200) {
@@ -57,10 +49,6 @@ export async function authorizeUpdate(
     if (sponsorResult.status !== 200) {
       return sponsorResult;
     }
-  }
-
-  if (isChangingClub) {
-    return error(400, "club cannot be changed for an existing tournament");
   }
 
   if (Array.isArray(data.courts) && data.courts.length > 0) {

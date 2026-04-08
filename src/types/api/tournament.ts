@@ -37,6 +37,14 @@ export interface TournamentListDoc {
 	sponsorId?: PopulatedSponsor | null;
 }
 
+export interface TournamentForUpdateAuth {
+  club: mongoose.Types.ObjectId;
+  createdBy: mongoose.Types.ObjectId;
+  status: TournamentStatus;
+  minMember: number;
+  maxMember: number;
+}
+
 export type TournamentPopulated = Omit<
 	ITournament,
 	'club' | 'sponsor' | 'courts' | 'participants'
@@ -129,7 +137,7 @@ const DEFAULT_TOURNAMENT_MODE: PublishInput["tournamentMode"] = "singleDay";
 
 export function normalizeTournamentPublishSource(
   source: Readonly<TournamentPublishSource>
-) {
+): NormalizedTournamentPublishSource {
   return {
     _id: source._id,
     club: source.club,

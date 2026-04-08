@@ -1,4 +1,4 @@
-import { userCanManageClub } from "../../../lib/permissions";
+import { isOwnerOrSuperAdmin, userCanManageClub } from "../../../lib/permissions";
 import { ROLES, type Role } from "../../../constants/roles";
 import type { TournamentPopulated } from "../../../types/api/tournament";
 import { buildPermissionContext, type AuthenticatedSession } from "../../../shared/authContext";
@@ -28,9 +28,10 @@ export async function authorizeGetById(
   const ctx = buildPermissionContext(session);
   const isManager = await userCanManageClub(ctx, clubIdStr);
   const isCreator = String(tournament.createdBy) === session._id.toString();
+  const hasOwnerOrAdminAccess = isOwnerOrSuperAdmin(session, tournament.createdBy ?? null);
 
   // Non-managers/non-creators can only view active tournaments.
-  if (tournament.status !== "active" && !isManager && !isCreator) {
+  if (tournament.status !== "active" && !isManager && !hasOwnerOrAdminAccess) {
     return error(403, "You do not have permission to view this tournament");
   }
 

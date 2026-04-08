@@ -1,11 +1,26 @@
 import mongoose from 'mongoose';
 import Club from '../models/Club';
 import Sponsor from '../models/Sponsor';
+import { ROLES } from "../constants/roles";
+import type { AuthenticatedSession } from "../shared/authContext";
 
 export interface TournamentPermissionContext {
 	userId: string;
 	userRole?: string;
 	adminOf: string[];
+}
+
+/**
+ * Returns true when the session belongs to the resource owner
+ * or to a super admin. Safely handles null/undefined/invalid ids.
+ */
+export function isOwnerOrSuperAdmin(
+  session: AuthenticatedSession,
+  resourceCreatedBy: mongoose.Types.ObjectId | string | null | undefined
+) {
+  if (session.role === ROLES.SUPER_ADMIN) return true;
+  if (!resourceCreatedBy) return false;
+  return resourceCreatedBy.toString() === session._id.toString();
 }
 
 /**

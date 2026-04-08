@@ -1,6 +1,6 @@
 import { checkSponsorBelongsToClub } from "../../../shared/relations";
 import type { AuthenticatedSession } from "../../../shared/authContext";
-import { ROLES } from "../../../constants/roles";
+import { isOwnerOrSuperAdmin } from "../../../lib/permissions";
 import type { TournamentPublishSource } from "../../../types/api";
 import type { PublishInput } from "./validation";
 import { error, ok } from "../../../shared/helpers";
@@ -21,9 +21,7 @@ export async function authorizePublish(
     return error(400, "Tournament has no club");
   }
 
-  const isCreator = String(tournament.createdBy) === session._id.toString();
-  const isSuperAdmin = session.role === ROLES.SUPER_ADMIN;
-  if (!isCreator && !isSuperAdmin) {
+  if (!isOwnerOrSuperAdmin(session, tournament.createdBy)) {
     return error(403, "You do not have permission to publish this tournament");
   }
 
