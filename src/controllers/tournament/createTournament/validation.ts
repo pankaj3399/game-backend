@@ -46,9 +46,9 @@ const baseTournament = z.object({
     endTime: z.string().optional(),
   })
 
-  const draftPeriod = baseTournament.partial().extend({
+  const draftUnscheduled = baseTournament.partial().extend({
     status: z.literal("draft"),
-    tournamentMode: z.literal("period"),
+    tournamentMode: z.literal("unscheduled"),
   })
 
   const publishSingleDay = baseTournament.extend({
@@ -59,19 +59,19 @@ const baseTournament = z.object({
     endTime: z.string().regex(/^\d{2}:\d{2}$/),
   })
 
-  const publishPeriod = baseTournament.extend({
+  const publishUnscheduled = baseTournament.extend({
     status: z.literal("active"),
-    tournamentMode: z.literal("period"),
+    tournamentMode: z.literal("unscheduled"),
   })
 
   const draftModeSchema = z.discriminatedUnion("tournamentMode", [
     draftSingleDay,
-    draftPeriod,
+    draftUnscheduled,
   ]);
   
   const publishModeSchema = z.discriminatedUnion("tournamentMode", [
     publishSingleDay,
-    publishPeriod,
+    publishUnscheduled,
   ]);
 
   const createTournamentSchemaBase = z.discriminatedUnion("status", [
