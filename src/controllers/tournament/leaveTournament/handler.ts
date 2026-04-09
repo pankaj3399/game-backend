@@ -1,4 +1,3 @@
-import mongoose from "mongoose";
 import Tournament from "../../../models/Tournament";
 import type { AuthenticatedSession } from "../../../shared";
 import { error, ok } from "../../../shared/helpers";
@@ -30,9 +29,8 @@ export async function leaveTournamentFlow(
 
   const spotsFilled = (returnedDoc.participants ?? []).length;
   const spotsTotal = Math.max(1, returnedDoc.maxMember ?? 1);
-  const isParticipant = (returnedDoc.participants ?? []).some(
-    (pid: mongoose.Types.ObjectId) => pid.toString() === session._id.toString()
-  );
+  // Post-$pull document no longer contains this user in participants, so membership is always false here.
+  const isParticipant = false;
 
   return ok(
     {
