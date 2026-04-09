@@ -15,16 +15,18 @@ import type {
 
 import type { ITournament } from "../../models/Tournament";
 
+export interface PopulatedCourt {
+  _id: mongoose.Types.ObjectId;
+  name?: string;
+  type?: string;
+  placement?: string;
+}
+
 export interface PopulatedClub {
 	_id: mongoose.Types.ObjectId;
 	name: string;
   address?: string | null;
-  courts?: Array<{
-    _id: mongoose.Types.ObjectId;
-    name?: string;
-    type?: string;
-    placement?: string;
-  }>;
+  courts?: PopulatedCourt[];
 }
 
 export interface PopulatedSponsor {
@@ -49,6 +51,10 @@ export interface TournamentForUpdateAuth {
   status: TournamentStatus;
   minMember?: number;
   maxMember?: number;
+  participants?: mongoose.Types.ObjectId[];
+  date?: Date | null;
+  startTime?: string | null;
+  endTime?: string | null;
 }
 
 export type TournamentPopulated = Omit<
@@ -59,12 +65,7 @@ export type TournamentPopulated = Omit<
     _id: mongoose.Types.ObjectId;
     name?: string;
     address?: string | null;
-    courts?: Array<{
-      _id: mongoose.Types.ObjectId;
-      name?: string;
-      type?: string;
-      placement?: string;
-    }>;
+    courts?: PopulatedCourt[];
   } | null;
 	sponsor?: {
 		_id: mongoose.Types.ObjectId;

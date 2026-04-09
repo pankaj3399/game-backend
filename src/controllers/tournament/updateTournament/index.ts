@@ -7,6 +7,7 @@ import { updateDraftSchema } from "./validation";
 import { authorizeUpdate } from "./authorize";
 import { fetchTournamentForUpdate } from "./queries";
 import { updateTournamentFlow } from "./handler";
+import { validateActiveTournamentEnrolledUpdate } from "./activeEnrolledUpdate";
 
 /**
  * PATCH /api/tournaments/:id
@@ -35,6 +36,15 @@ export async function updateTournament(req: AuthenticatedRequest ,res: Response)
     }
     if (tournament.status !== 200) {
       res.status(tournament.status).json(buildErrorPayload(tournament.message));
+      return;
+    }
+
+    const enrolledGuard = validateActiveTournamentEnrolledUpdate(
+      tournament.data,
+      bodyParse.data
+    );
+    if (!enrolledGuard.ok) {
+      res.status(enrolledGuard.status).json(buildErrorPayload(enrolledGuard.message));
       return;
     }
 

@@ -1,10 +1,14 @@
 import type { UpdateDraftInput } from "./validation";
 import {
   checkClubExists,
+  checkClubManagement,
   checkSponsorBelongsToClub,
 } from "../../../shared/relations";
 import { isOwnerOrSuperAdmin } from "../../../lib/permissions";
-import type { AuthenticatedSession } from "../../../shared/authContext";
+import {
+  buildPermissionContext,
+  type AuthenticatedSession,
+} from "../../../shared/authContext";
 import type { TournamentForUpdateAuth } from "../../../types/api";
 import { error, ok } from "../../../shared/helpers";
 
@@ -28,6 +32,18 @@ export async function authorizeUpdate(
 
   const targetClubId = data.club ?? currentClubId;
   const clubChanged = targetClubId !== currentClubId;
+
+  if (clubChanged) {
+    const ctx = buildPermissionContext(session);
+    const manageResult = await checkClubManagement(
+      ctx,
+      targetClubId,
+      "You do not have permission to move this tournament to the selected club"
+    );
+    if (manageResult.status !== 200) {
+      return manageResult;
+    }
+  }
 
   const clubResult = await checkClubExists(targetClubId);
   if (clubResult.status !== 200) {

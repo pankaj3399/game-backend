@@ -10,7 +10,9 @@ import type { TournamentForUpdateAuth } from "../../../types/api";
 export async function fetchTournamentForUpdate(id: string) {
   try{
     const tournament = await Tournament.findById(id)
-      .select("club createdBy status minMember maxMember")
+      .select(
+        "club createdBy status minMember maxMember participants date startTime endTime"
+      )
       .lean<TournamentForUpdateAuth>()
       .exec();
     if(!tournament){
