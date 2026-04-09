@@ -9,11 +9,6 @@ export async function leaveTournamentFlow(
   tournamentId: string,
   session: AuthenticatedSession
 ) {
-  const tournamentExists = await Tournament.exists({ _id: tournamentId });
-  if (!tournamentExists) {
-    return error(404, "Tournament not found");
-  }
-
   const returnedDoc = await Tournament.findOneAndUpdate(
     { _id: tournamentId, participants: session._id },
     { $pull: { participants: session._id } },
@@ -24,6 +19,10 @@ export async function leaveTournamentFlow(
     .exec();
 
   if (!returnedDoc) {
+    const tournamentExists = await Tournament.exists({ _id: tournamentId });
+    if (!tournamentExists) {
+      return error(404, "Tournament not found");
+    }
     return error(400, "You are not a participant in this tournament");
   }
 
