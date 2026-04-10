@@ -10,6 +10,7 @@ const nullableNonEmptyString = z.union([z.string().trim().min(1), z.null()]);
 
 
 const draftFields = {
+	club: objectId.optional(),
 	sponsor: objectId.nullable().optional(),
 	name: z.string().trim().min(1, 'Tournament name is required').optional(),
 	date: z.coerce.date().optional().nullable(),
@@ -22,7 +23,6 @@ const draftFields = {
 	maxMember: z.number().int().min(1).optional(),
 	duration: nullableNonEmptyString.optional(),
 	breakDuration: nullableNonEmptyString.optional(),
-	courts: z.array(objectId).optional(),
 	foodInfo: z.string().max(500).optional().nullable(),
 	descriptionInfo: z.string().max(1000).optional().nullable(),
 } satisfies z.ZodRawShape;
@@ -113,14 +113,6 @@ export const publishSchema = z
 			return toMin(d.startTime) < toMin(d.endTime);
 		},
 		{ message: 'Start time must be before end time', path: ['startTime'] }
-	)
-	.refine(
-		(d) => {
-			if (d.tournamentMode !== 'singleDay') return true;
-			const courts = d.courts ?? [];
-			return courts.length > 0;
-		},
-		{ message: 'At least one court is required', path: ['courts'] }
 	);
 
 /** Partial schema for publish request body. Validates and strips unknown fields. */

@@ -1,4 +1,5 @@
-import Tournament from "../../../models/Tournament";
+import type { Types } from "mongoose";
+import Tournament, { type ITournament } from "../../../models/Tournament";
 import type { UpdateDraftInput } from "./validation";
 
 export interface UpdateResult {
@@ -18,9 +19,17 @@ export interface UpdateResult {
  */
 export async function updateTournamentFlow(
   tournamentId: string,
-  data: UpdateDraftInput
+  data: UpdateDraftInput,
+  context: { clubChanged: boolean }
 ) {
-  const payload = { ...data };
+  const payload: Record<string, unknown> = { ...data };
+
+  // When tournament club changes, clear cross-club relations unless explicitly reassigned.
+  if (context.clubChanged) {
+    if (data.sponsor === undefined) {
+      payload.sponsor = null;
+    }
+  }
 
   const updated = await Tournament.findByIdAndUpdate(
     tournamentId,
@@ -39,7 +48,11 @@ export async function updateTournamentFlow(
     tournament: mapTournamentSummary(updated),
   };
 }
-function mapTournamentSummary(updated: any) {
+function mapTournamentSummary(
+  updated: Pick<ITournament, "name" | "club" | "status" | "date" | "updatedAt"> & {
+    _id: Types.ObjectId;
+  }
+) {
   return {
     id: updated._id,
     name: updated.name,

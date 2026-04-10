@@ -185,7 +185,7 @@ export function mapTournamentDetail(
   ========================= */
 
   const courts: CourtInfo[] = [];
-  for (const court of tournament.courts ?? []) {
+  for (const court of tournament.club?.courts ?? []) {
     const id = toSafeStringId(court._id);
     if (!id) continue;
 

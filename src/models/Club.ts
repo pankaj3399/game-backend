@@ -114,10 +114,18 @@ const clubSchema = new Schema<IClub>(
 	},
 	{
 		timestamps: true,
+		toJSON: { virtuals: true },
+		toObject: { virtuals: true },
 	}
 );
 
 clubSchema.index({ coordinates: '2dsphere' });
+
+clubSchema.virtual('courts', {
+	ref: 'Court',
+	localField: '_id',
+	foreignField: 'club'
+});
 
 const Club = mongoose.model<IClub>('Club', clubSchema);
 

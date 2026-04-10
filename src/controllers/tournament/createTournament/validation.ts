@@ -29,8 +29,6 @@ const baseTournament = z.object({
     duration: z.string(),
     breakDuration: z.string(),
   
-    courts: z.array(objectId).min(1).optional(),
-  
     foodInfo: z.string().optional(),
     descriptionInfo: z.string().optional(),
   

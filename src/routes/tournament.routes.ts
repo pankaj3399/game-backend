@@ -3,6 +3,7 @@ import {
 	getTournaments,
 	getTournamentById,
 	joinTournament,
+	leaveTournament,
 	createTournament,
 	updateTournament,
 	publishTournament
@@ -16,6 +17,7 @@ const authed = createAuthedRouter(router);
 authed.get('/', requirePlayerOrAbove, getTournaments);
 authed.get('/:id', requirePlayerOrAbove, getTournamentById);
 authed.post('/:id/join', requirePlayerOrAbove, joinTournament);
+authed.post('/:id/leave', requirePlayerOrAbove, leaveTournament);
 authed.post('/', requireOrganiserOrAbove, createTournament);
 authed.patch('/:id', requireOrganiserOrAbove, updateTournament);
 authed.post('/:id/publish', requireOrganiserOrAbove, publishTournament);

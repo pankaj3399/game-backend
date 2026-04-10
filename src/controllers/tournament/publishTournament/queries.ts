@@ -10,7 +10,7 @@ import { logger } from "../../../lib/logger";
 export async function fetchTournamentForPublish(id: string) {
   try{
     const tournament = await Tournament.findById(id)
-    .select("_id club createdBy status name sponsor date startTime endTime playMode tournamentMode entryFee minMember maxMember duration breakDuration courts foodInfo descriptionInfo")
+    .select("_id club createdBy status name sponsor date startTime endTime playMode tournamentMode entryFee minMember maxMember duration breakDuration foodInfo descriptionInfo")
     .lean()
     .exec();
     if(!tournament){

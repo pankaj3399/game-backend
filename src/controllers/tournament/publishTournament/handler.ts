@@ -7,9 +7,9 @@ import { error, ok } from "../../../shared/helpers";
 import { fetchClubCourtIdsForPublish, updateTournamentForPublish } from "./queries";
 
 /**
- * Resolves courts for publish from all courts belonging to the selected club.
+ * Ensures selected club has at least one court before publish.
  */
-async function resolveCourtsForPublish(
+async function ensureClubHasCourtsForPublish(
   clubId: string,
   publishCandidate: ReturnType<typeof buildPublishCandidate>
 ){
@@ -28,15 +28,14 @@ async function resolveCourtsForPublish(
   return ok(
     {
       ...publishCandidate,
-      courts: clubCourtsResult.data,
       status: "active",
     },
-    { status: 200, message: "Courts resolved" }
+    { status: 200, message: "Club courts verified" }
   );
 }
 
 /**
- * Orchestrates the publish flow: build candidate, resolve courts if needed, persist.
+ * Orchestrates the publish flow: build candidate, verify club courts, persist.
  */
 export async function publishTournamentFlow(
   tournamentId: string,
@@ -49,7 +48,7 @@ export async function publishTournamentFlow(
     validatedBody,
     clubId
   );
-  const resolved = await resolveCourtsForPublish(clubId, publishCandidate);
+  const resolved = await ensureClubHasCourtsForPublish(clubId, publishCandidate);
   if (resolved.status !== 200) {
     return resolved;
   }

@@ -29,7 +29,6 @@ export async function createTournamentFlow(
   const payload = {
     ...data,
     createdBy: session._id,
-    courts: clubCourtIds,
   };
 
   try {

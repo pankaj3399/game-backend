@@ -7,10 +7,11 @@ import { updateDraftSchema } from "./validation";
 import { authorizeUpdate } from "./authorize";
 import { fetchTournamentForUpdate } from "./queries";
 import { updateTournamentFlow } from "./handler";
+import { validateActiveTournamentEnrolledUpdate } from "./activeEnrolledUpdate";
 
 /**
  * PATCH /api/tournaments/:id
- * Update tournament. Only draft tournaments can be updated. User must have club permission.
+ * Update tournament. Existing draft and published tournaments can be updated.
  */
 export async function updateTournament(req: AuthenticatedRequest ,res: Response){
   try {
@@ -38,13 +39,24 @@ export async function updateTournament(req: AuthenticatedRequest ,res: Response)
       return;
     }
 
+    const enrolledGuard = validateActiveTournamentEnrolledUpdate(
+      tournament.data,
+      bodyParse.data
+    );
+    if (!enrolledGuard.ok) {
+      res.status(enrolledGuard.status).json(buildErrorPayload(enrolledGuard.message));
+      return;
+    }
+
     const authResult = await authorizeUpdate(tournament.data, bodyParse.data, req.user);
     if (authResult.status !== 200) {
       res.status(authResult.status).json(buildErrorPayload(authResult.message));
       return;
     }
 
-    const result = await updateTournamentFlow(idResult.data, bodyParse.data);
+    const result = await updateTournamentFlow(idResult.data, bodyParse.data, {
+      clubChanged: authResult.data.clubChanged,
+    });
     if (!result) {
       res.status(404).json(buildErrorPayload("Tournament not found"));
       return;

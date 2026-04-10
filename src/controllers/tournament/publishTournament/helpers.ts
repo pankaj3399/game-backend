@@ -26,9 +26,6 @@ function toPublishCandidateBase(
 		maxMember: normalizedTournament.maxMember,
 		duration: normalizedTournament.duration,
 		breakDuration: normalizedTournament.breakDuration,
-		courts: normalizedTournament.courts
-			.map((courtId) => objectIdToString(courtId))
-			.filter((courtId): courtId is string => !!courtId),
 		foodInfo: normalizedTournament.foodInfo,
 		descriptionInfo: normalizedTournament.descriptionInfo,
 	};

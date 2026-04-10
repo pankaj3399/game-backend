@@ -10,9 +10,15 @@ export async function fetchTournamentById(
   id: string
 ) {
   return await Tournament.findById(id)
-    .populate("club", "name address")
+    .populate({
+      path: "club",
+      select: "name address",
+      populate: {
+        path: "courts",
+        select: "name type placement",
+      },
+    })
     .populate("sponsor", "name logoUrl link")
-    .populate("courts", "name type placement")
     .populate("participants", "name alias")
     .lean<TournamentPopulated>()
     .exec();
@@ -25,7 +31,7 @@ export async function fetchTournamentById(
 export async function getClubSponsors(clubId: string) {
   return await Sponsor.find({
     scope: "club",
-    clubId,
+    club: clubId,
     status: "active",
   })
     .select("name logoUrl link")

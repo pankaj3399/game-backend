@@ -25,7 +25,6 @@ export interface ITournament extends Document {
 	maxMember: number;
 	duration: string;
 	breakDuration: string;
-	courts: mongoose.Types.ObjectId[];
 	foodInfo?: string;
 	descriptionInfo?: string;
 	status: TournamentStatus;
@@ -110,15 +109,6 @@ const tournamentSchema = new mongoose.Schema<ITournament>(
 		breakDuration: {
 			type: String,
 			required: true
-		},
-		courts: {
-			type: [
-				{
-					type: Schema.Types.ObjectId,
-					ref: 'Court'
-				}
-			],
-			default: []
 		},
 		foodInfo: {
 			type: String,
