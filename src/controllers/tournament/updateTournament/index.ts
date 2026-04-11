@@ -7,7 +7,10 @@ import { updateDraftSchema } from "./validation";
 import { authorizeUpdate } from "./authorize";
 import { fetchTournamentForUpdate } from "./queries";
 import { updateTournamentFlow } from "./handler";
+import { computeEffectiveSponsor } from "./computeEffectiveSponsor";
 import { validateActiveTournamentEnrolledUpdate } from "./activeEnrolledUpdate";
+import { publishSchema } from "../../../validation/tournament.schemas";
+import { getClubCourtIds } from "../createTournament/queries";
 
 /**
  * PATCH /api/tournaments/:id
@@ -52,6 +55,63 @@ export async function updateTournament(req: AuthenticatedRequest ,res: Response)
     if (authResult.status !== 200) {
       res.status(authResult.status).json(buildErrorPayload(authResult.message));
       return;
+    }
+
+    const nextStatus = bodyParse.data.status ?? tournament.data.status;
+    if (nextStatus === "active") {
+      const clubId = authResult.data.clubId;
+      const d = bodyParse.data;
+      const t = tournament.data;
+      const effectiveSponsor = computeEffectiveSponsor(
+        authResult.data.clubChanged,
+        d.sponsor,
+        t.sponsor ?? null
+      );
+
+      const publishCandidate = {
+        club: clubId,
+        sponsor: effectiveSponsor,
+        name: d.name !== undefined ? d.name : t.name,
+        date: d.date !== undefined ? d.date : t.date ?? null,
+        startTime:
+          d.startTime !== undefined ? d.startTime : t.startTime ?? null,
+        endTime: d.endTime !== undefined ? d.endTime : t.endTime ?? null,
+        playMode:
+          d.playMode !== undefined ? d.playMode : t.playMode,
+        tournamentMode:
+          d.tournamentMode !== undefined ? d.tournamentMode : t.tournamentMode,
+        entryFee: d.entryFee !== undefined ? d.entryFee : t.entryFee,
+        minMember: d.minMember !== undefined ? d.minMember : t.minMember,
+        maxMember: d.maxMember !== undefined ? d.maxMember : t.maxMember,
+        duration:
+          d.duration !== undefined ? d.duration : t.duration ?? "",
+        breakDuration:
+          d.breakDuration !== undefined
+            ? d.breakDuration
+            : t.breakDuration ?? "",
+        foodInfo:
+          d.foodInfo !== undefined ? d.foodInfo : t.foodInfo ?? "",
+        descriptionInfo:
+          d.descriptionInfo !== undefined
+            ? d.descriptionInfo
+            : t.descriptionInfo ?? "",
+        status: "active" as const,
+      };
+
+      const publishValidation = publishSchema.safeParse(publishCandidate);
+      if (!publishValidation.success) {
+        const message = publishValidation.error.issues.map((issue) => issue.message).join("; ");
+        res.status(400).json(buildErrorPayload(message || "Tournament publish validation failed"));
+        return;
+      }
+
+      const clubCourtIds = await getClubCourtIds(clubId);
+      if (clubCourtIds.length === 0) {
+        res.status(400).json(
+          buildErrorPayload("Selected club has no courts. Add at least one court before publishing this tournament.")
+        );
+        return;
+      }
     }
 
     const result = await updateTournamentFlow(idResult.data, bodyParse.data, {

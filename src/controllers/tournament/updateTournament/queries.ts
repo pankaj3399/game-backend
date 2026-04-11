@@ -11,7 +11,7 @@ export async function fetchTournamentForUpdate(id: string) {
   try{
     const tournament = await Tournament.findById(id)
       .select(
-        "club createdBy status minMember maxMember participants date startTime endTime"
+        "club createdBy status sponsor name minMember maxMember participants date startTime endTime playMode tournamentMode entryFee duration breakDuration foodInfo descriptionInfo"
       )
       .lean<TournamentForUpdateAuth>()
       .exec();

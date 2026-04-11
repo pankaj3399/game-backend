@@ -46,15 +46,25 @@ export interface TournamentListDoc {
 }
 
 export interface TournamentForUpdateAuth {
+  _id?: mongoose.Types.ObjectId;
   club: mongoose.Types.ObjectId;
   createdBy: mongoose.Types.ObjectId;
   status: TournamentStatus;
+  sponsor?: mongoose.Types.ObjectId | null;
+  name?: string;
   minMember?: number;
   maxMember?: number;
   participants?: mongoose.Types.ObjectId[];
   date?: Date | null;
   startTime?: string | null;
   endTime?: string | null;
+  playMode?: (typeof TOURNAMENT_PLAY_MODES)[number];
+  tournamentMode?: (typeof TOURNAMENT_MODES)[number];
+  entryFee?: number;
+  duration?: string | null;
+  breakDuration?: string | null;
+  foodInfo?: string | null;
+  descriptionInfo?: string | null;
 }
 
 export type TournamentPopulated = Omit<

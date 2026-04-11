@@ -11,6 +11,7 @@ const nullableNonEmptyString = z.union([z.string().trim().min(1), z.null()]);
 
 const draftFields = {
 	club: objectId.optional(),
+	status: z.enum(TOURNAMENT_STATUSES).optional(),
 	sponsor: objectId.nullable().optional(),
 	name: z.string().trim().min(1, 'Tournament name is required').optional(),
 	date: z.coerce.date().optional().nullable(),
