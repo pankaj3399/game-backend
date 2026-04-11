@@ -1,6 +1,7 @@
 import type { Types } from "mongoose";
 import Tournament, { type ITournament } from "../../../models/Tournament";
 import type { UpdateDraftInput } from "./validation";
+import { computeEffectiveSponsor } from "./computeEffectiveSponsor";
 
 export interface UpdateResult {
   ok: true;
@@ -24,11 +25,8 @@ export async function updateTournamentFlow(
 ) {
   const payload: Record<string, unknown> = { ...data };
 
-  // When tournament club changes, clear cross-club relations unless explicitly reassigned.
   if (context.clubChanged) {
-    if (data.sponsor === undefined) {
-      payload.sponsor = null;
-    }
+    payload.sponsor = computeEffectiveSponsor(true, data.sponsor, undefined);
   }
 
   const updated = await Tournament.findByIdAndUpdate(

@@ -20,16 +20,14 @@ function nullableStringEqual(
 
 /**
  * When a tournament is active and has enrolled participants, blocks schedule
- * changes and ensures capacity stays consistent with enrollment.
+ * changes and ensures capacity stays consistent with enrollment. Applies even
+ * when the payload sets status to draft/inactive so mixed updates cannot bypass
+ * these checks.
  */
 export function validateActiveTournamentEnrolledUpdate(
   tournament: TournamentForUpdateAuth,
   data: UpdateDraftInput
 ) {
-  if (data.status === "draft") {
-    return ok(undefined, { status: 200, message: "OK" });
-  }
-
   if (tournament.status !== "active") {
     return ok(undefined, { status: 200, message: "OK" });
   }
@@ -66,8 +64,10 @@ export function validateActiveTournamentEnrolledUpdate(
     );
   }
 
-  const effectiveMin = data.minMember ?? tournament.minMember;
-  const effectiveMax = data.maxMember ?? tournament.maxMember;
+  const effectiveMin =
+    data.minMember !== undefined ? data.minMember : tournament.minMember;
+  const effectiveMax =
+    data.maxMember !== undefined ? data.maxMember : tournament.maxMember;
 
   if (effectiveMax != null && effectiveMax < enrolledCount) {
     return error(

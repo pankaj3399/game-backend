@@ -7,6 +7,7 @@ import { updateDraftSchema } from "./validation";
 import { authorizeUpdate } from "./authorize";
 import { fetchTournamentForUpdate } from "./queries";
 import { updateTournamentFlow } from "./handler";
+import { computeEffectiveSponsor } from "./computeEffectiveSponsor";
 import { validateActiveTournamentEnrolledUpdate } from "./activeEnrolledUpdate";
 import { publishSchema } from "../../../validation/tournament.schemas";
 import { getClubCourtIds } from "../createTournament/queries";
@@ -59,27 +60,41 @@ export async function updateTournament(req: AuthenticatedRequest ,res: Response)
     const nextStatus = bodyParse.data.status ?? tournament.data.status;
     if (nextStatus === "active") {
       const clubId = authResult.data.clubId;
-      const shouldClearSponsor = authResult.data.clubChanged && bodyParse.data.sponsor === undefined;
-      const effectiveSponsor = shouldClearSponsor
-        ? null
-        : (bodyParse.data.sponsor ?? tournament.data.sponsor ?? null);
+      const d = bodyParse.data;
+      const t = tournament.data;
+      const effectiveSponsor = computeEffectiveSponsor(
+        authResult.data.clubChanged,
+        d.sponsor,
+        t.sponsor ?? null
+      );
 
       const publishCandidate = {
         club: clubId,
         sponsor: effectiveSponsor,
-        name: bodyParse.data.name ?? tournament.data.name,
-        date: bodyParse.data.date ?? tournament.data.date ?? null,
-        startTime: bodyParse.data.startTime ?? tournament.data.startTime ?? null,
-        endTime: bodyParse.data.endTime ?? tournament.data.endTime ?? null,
-        playMode: bodyParse.data.playMode ?? tournament.data.playMode,
-        tournamentMode: bodyParse.data.tournamentMode ?? tournament.data.tournamentMode,
-        entryFee: bodyParse.data.entryFee ?? tournament.data.entryFee,
-        minMember: bodyParse.data.minMember ?? tournament.data.minMember,
-        maxMember: bodyParse.data.maxMember ?? tournament.data.maxMember,
-        duration: bodyParse.data.duration ?? tournament.data.duration ?? "",
-        breakDuration: bodyParse.data.breakDuration ?? tournament.data.breakDuration ?? "",
-        foodInfo: bodyParse.data.foodInfo ?? tournament.data.foodInfo ?? "",
-        descriptionInfo: bodyParse.data.descriptionInfo ?? tournament.data.descriptionInfo ?? "",
+        name: d.name !== undefined ? d.name : t.name,
+        date: d.date !== undefined ? d.date : t.date ?? null,
+        startTime:
+          d.startTime !== undefined ? d.startTime : t.startTime ?? null,
+        endTime: d.endTime !== undefined ? d.endTime : t.endTime ?? null,
+        playMode:
+          d.playMode !== undefined ? d.playMode : t.playMode,
+        tournamentMode:
+          d.tournamentMode !== undefined ? d.tournamentMode : t.tournamentMode,
+        entryFee: d.entryFee !== undefined ? d.entryFee : t.entryFee,
+        minMember: d.minMember !== undefined ? d.minMember : t.minMember,
+        maxMember: d.maxMember !== undefined ? d.maxMember : t.maxMember,
+        duration:
+          d.duration !== undefined ? d.duration : t.duration ?? "",
+        breakDuration:
+          d.breakDuration !== undefined
+            ? d.breakDuration
+            : t.breakDuration ?? "",
+        foodInfo:
+          d.foodInfo !== undefined ? d.foodInfo : t.foodInfo ?? "",
+        descriptionInfo:
+          d.descriptionInfo !== undefined
+            ? d.descriptionInfo
+            : t.descriptionInfo ?? "",
         status: "active" as const,
       };
 
