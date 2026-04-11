@@ -57,8 +57,10 @@ export async function authorizeUpdate(
     }
   }
 
-  const effectiveMinMember = data.minMember ?? tournament.minMember;
-  const effectiveMaxMember = data.maxMember ?? tournament.maxMember;
+  const effectiveMinMember =
+    data.minMember !== undefined ? data.minMember : tournament.minMember;
+  const effectiveMaxMember =
+    data.maxMember !== undefined ? data.maxMember : tournament.maxMember;
   if (
     effectiveMinMember != null &&
     effectiveMaxMember != null &&
