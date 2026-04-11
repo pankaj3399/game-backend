@@ -12,6 +12,7 @@ import adminRoutes from './routes/admin.routes';
 import clubRoutes from './routes/club.routes';
 import tournamentRoutes from './routes/tournament.routes';
 import sponsorRoutes from './routes/sponsor.routes';
+import scheduleRoutes from './routes/schedule.routes';
 
 const PORT = process.env.PORT || 4000;
 const REQUEST_ORIGIN = process.env.REQUEST_ORIGIN?.trim();
@@ -67,6 +68,7 @@ async function start() {
 		app.use('/api/admin', adminRoutes);
 		app.use('/api/clubs', clubRoutes);
 		app.use('/api/tournaments', tournamentRoutes);
+		app.use('/api/schedule', scheduleRoutes);
 		app.use('/api/sponsors', sponsorRoutes);
 
 		app.listen(PORT, () => {

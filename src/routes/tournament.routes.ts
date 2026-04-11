@@ -6,8 +6,7 @@ import {
 	joinTournament,
 	leaveTournament,
 	createTournament,
-	updateTournament,
-	publishTournament
+	updateTournament
 } from '../controllers/tournament/controller';
 import { requireOrganiserOrAbove, requirePlayerOrAbove } from '../middlewares/rbac';
 import { createAuthedRouter } from './authedRouter';
@@ -22,6 +21,5 @@ authed.post('/:id/join', requirePlayerOrAbove, joinTournament);
 authed.post('/:id/leave', requirePlayerOrAbove, leaveTournament);
 authed.post('/', requireOrganiserOrAbove, createTournament);
 authed.patch('/:id', requireOrganiserOrAbove, updateTournament);
-authed.post('/:id/publish', requireOrganiserOrAbove, publishTournament);
 
 export default router;
