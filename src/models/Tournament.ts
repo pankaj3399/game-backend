@@ -163,7 +163,7 @@ tournamentSchema.post('save', async function (doc) {
 	const schedule = await Schedule.findOneAndUpdate(
 		{ tournament: doc._id },
 		{ $setOnInsert: { tournament: doc._id, currentRound: 0 } },
-		{ upsert: true, new: true, setDefaultsOnInsert: true }
+		{ upsert: true, new: true, setDefaultsOnInsert: true, runValidators: true }
 	)
 		.select('_id')
 		.lean()
