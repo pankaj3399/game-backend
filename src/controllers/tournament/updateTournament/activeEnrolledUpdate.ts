@@ -19,10 +19,11 @@ function nullableStringEqual(
 }
 
 /**
- * When a tournament is active and has enrolled participants, blocks schedule
- * changes and ensures capacity stays consistent with enrollment. Applies even
- * when the payload sets status to draft/inactive so mixed updates cannot bypass
- * these checks.
+ * When a tournament is active and has enrolled participants, blocks changing
+ * date/times and ensures maxMember is not below current enrollment. minMember
+ * may exceed enrollment until a single-day schedule is committed (see
+ * scheduleActivationEnrollment). Applies even when the payload sets status to
+ * draft/inactive so mixed updates cannot bypass these checks.
  */
 export function validateActiveTournamentEnrolledUpdate(
   tournament: TournamentForUpdateAuth,
@@ -64,8 +65,6 @@ export function validateActiveTournamentEnrolledUpdate(
     );
   }
 
-  const effectiveMin =
-    data.minMember !== undefined ? data.minMember : tournament.minMember;
   const effectiveMax =
     data.maxMember !== undefined ? data.maxMember : tournament.maxMember;
 
@@ -73,13 +72,6 @@ export function validateActiveTournamentEnrolledUpdate(
     return error(
       400,
       `maxMember must be at least ${enrolledCount} (current enrollment) while participants are registered`
-    );
-  }
-
-  if (effectiveMin != null && effectiveMin > enrolledCount) {
-    return error(
-      400,
-      `minMember cannot exceed ${enrolledCount} (current enrollment) while participants are registered`
     );
   }
 

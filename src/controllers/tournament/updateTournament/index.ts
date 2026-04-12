@@ -9,6 +9,7 @@ import { fetchTournamentForUpdate } from "./queries";
 import { updateTournamentFlow } from "./handler";
 import { computeEffectiveSponsor } from "./computeEffectiveSponsor";
 import { validateActiveTournamentEnrolledUpdate } from "./activeEnrolledUpdate";
+import { validateScheduleActivationEnrollment } from "./scheduleActivationEnrollment";
 import { publishSchema } from "../../../validation/tournament.schemas";
 import { getClubCourtIds } from "../createTournament/queries";
 
@@ -48,6 +49,17 @@ export async function updateTournament(req: AuthenticatedRequest ,res: Response)
     );
     if (!enrolledGuard.ok) {
       res.status(enrolledGuard.status).json(buildErrorPayload(enrolledGuard.message));
+      return;
+    }
+
+    const scheduleEnrollmentGuard = validateScheduleActivationEnrollment(
+      tournament.data,
+      bodyParse.data
+    );
+    if (!scheduleEnrollmentGuard.ok) {
+      res
+        .status(scheduleEnrollmentGuard.status)
+        .json(buildErrorPayload(scheduleEnrollmentGuard.message));
       return;
     }
 
