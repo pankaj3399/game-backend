@@ -98,12 +98,15 @@ export function mapTournamentMatchesResponse(
           )
         : 0
       : matches.reduce((max, match) => Math.max(max, match.round), 0);
-  const currentRound =
-    schedule && Number.isFinite(schedule.currentRound) && schedule.currentRound >= 1
-      ? Math.trunc(schedule.currentRound)
-      : totalRounds > 0
-        ? 1
-        : 0;
+  const hasValidScheduleCurrentRound =
+    schedule != null &&
+    Number.isFinite(schedule.currentRound) &&
+    schedule.currentRound >= 0;
+  const currentRound = hasValidScheduleCurrentRound
+    ? Math.trunc(schedule.currentRound)
+    : totalRounds > 0
+      ? 1
+      : 0;
 
   return {
     schedule: {

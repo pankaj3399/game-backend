@@ -1,4 +1,5 @@
 import mongoose, { Document, Schema } from 'mongoose';
+import { LogError } from '../lib/logger';
 import {
 	TOURNAMENT_MODES,
 	TOURNAMENT_PLAY_MODES,
@@ -160,17 +161,21 @@ tournamentSchema.pre('validate', function () {
 tournamentSchema.post('save', async function (doc) {
 	if (doc.schedule) return;
 
-	const schedule = await Schedule.findOneAndUpdate(
-		{ tournament: doc._id },
-		{ $setOnInsert: { tournament: doc._id, currentRound: 0 } },
-		{ upsert: true, new: true, setDefaultsOnInsert: true, runValidators: true }
-	)
-		.select('_id')
-		.lean()
-		.exec();
+	try {
+		const schedule = await Schedule.findOneAndUpdate(
+			{ tournament: doc._id },
+			{ $setOnInsert: { tournament: doc._id, currentRound: 0 } },
+			{ upsert: true, new: true, setDefaultsOnInsert: true, runValidators: true }
+		)
+			.select('_id')
+			.lean()
+			.exec();
 
-	if (schedule?._id) {
-		await doc.updateOne({ schedule: schedule._id }).exec();
+		if (schedule?._id) {
+			await doc.updateOne({ schedule: schedule._id }).exec();
+		}
+	} catch (err) {
+		LogError('Tournament', 'save', 'post(save)/schedule-link', err);
 	}
 });
 

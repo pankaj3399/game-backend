@@ -40,7 +40,10 @@ export async function getTournamentMatches(req: AuthenticatedRequest, res: Respo
       tournament.schedule ?? null
     );
 
-    const games = await fetchGamesForScheduleRounds(schedule?.rounds ?? []);
+    const games = await fetchGamesForScheduleRounds(
+      schedule?._id ?? null,
+      schedule?.rounds ?? []
+    );
     const payload = mapTournamentMatchesResponse(schedule, games);
 
     res.status(200).json(payload);

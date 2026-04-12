@@ -1,3 +1,4 @@
+import type { Types } from "mongoose";
 import Game from "../../../models/Game";
 import Schedule from "../../../models/Schedule";
 import type { DbIdLike } from "../../../types/domain/common";
@@ -22,15 +23,19 @@ export async function fetchScheduleForTournament(
 }
 
 export async function fetchGamesForScheduleRounds(
+  scheduleId: Types.ObjectId | string | null | undefined,
   rounds: ScheduleRoundDoc[]
 ): Promise<GameForMatchesDoc[]> {
   if (rounds.length === 0) {
     return [];
   }
+  if (scheduleId == null) {
+    return [];
+  }
 
   const gameIds = [...new Set(rounds.map((entry) => entry.game.toString()))];
 
-  return Game.find({ _id: { $in: gameIds } })
+  return Game.find({ _id: { $in: gameIds }, schedule: scheduleId })
     .select("_id playerOne playerTwo court status startTime")
     .populate("playerOne", "name alias")
     .populate("playerTwo", "name alias")
