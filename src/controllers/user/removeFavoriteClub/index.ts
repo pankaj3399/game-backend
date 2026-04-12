@@ -1,16 +1,13 @@
-import type { Request, Response } from 'express';
+import type { Response } from 'express';
 import { logger } from '../../../lib/logger';
 import { buildErrorPayload } from '../../../shared/errors';
 import { parseRouteObjectId } from '../../../shared/validation';
+import type { AuthenticatedRequest } from '../../../shared/authContext';
 import { removeFavoriteClubFlow } from './handler';
 
-export async function removeFavoriteClub(req: Request, res: Response){
+export async function removeFavoriteClub(req: AuthenticatedRequest, res: Response){
 	try {
 		const session = req.user;
-		if (!session?._id) {
-			res.status(401).json(buildErrorPayload('Not authenticated'));
-			return;
-		}
 
 		const clubIdResult = parseRouteObjectId(req.params.clubId, 'club ID');
 		if (clubIdResult.status !== 200) {

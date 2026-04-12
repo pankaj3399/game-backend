@@ -1,15 +1,12 @@
-import type { Request, Response } from 'express';
+import type { Response } from 'express';
 import { logger } from '../../../lib/logger';
 import { buildErrorPayload } from '../../../shared/errors';
+import type { AuthenticatedRequest } from '../../../shared/authContext';
 import { getFavoriteClubsFlow } from './handler';
 
-export async function getFavoriteClubs(req: Request, res: Response): Promise<void> {
+export async function getFavoriteClubs(req: AuthenticatedRequest, res: Response): Promise<void> {
 	try {
 		const session = req.user;
-		if (!session?._id) {
-			res.status(401).json(buildErrorPayload('Not authenticated'));
-			return;
-		}
 
 		const result = await getFavoriteClubsFlow(session._id.toString());
 		if (result.status !== 200) {

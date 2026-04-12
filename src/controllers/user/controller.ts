@@ -6,3 +6,4 @@ export { removeFavoriteClub } from './removeFavoriteClub/index';
 export { setHomeClub } from './setHomeClub/index';
 export { getAdminClubs } from './getAdminClubs/index';
 export { searchUsers } from './searchUsers/index';
+export { getMyScore } from './getMyScore/index';
