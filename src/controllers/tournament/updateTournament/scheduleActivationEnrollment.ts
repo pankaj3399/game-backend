@@ -81,18 +81,20 @@ export function validateScheduleActivationEnrollment(
   const wasScheduled = isFullyScheduledSingleDay(before);
   const willBeScheduled = isFullyScheduledSingleDay(after);
 
-  if (wasScheduled || !willBeScheduled) {
+  if (wasScheduled === willBeScheduled) {
     return ok(undefined, { status: 200, message: "OK" });
   }
 
-  const effectiveMin =
-    data.minMember !== undefined ? data.minMember : tournament.minMember ?? 1;
+  if (!wasScheduled && willBeScheduled) {
+    const effectiveMin =
+      data.minMember !== undefined ? data.minMember : tournament.minMember ?? 1;
 
-  if (effectiveMin != null && enrolledCount < effectiveMin) {
-    return error(
-      400,
-      `At least ${effectiveMin} registered participants are required to schedule this tournament (currently ${enrolledCount})`
-    );
+    if (effectiveMin != null && enrolledCount < effectiveMin) {
+      return error(
+        400,
+        `At least ${effectiveMin} registered participants are required to schedule this tournament (currently ${enrolledCount})`
+      );
+    }
   }
 
   return ok(undefined, { status: 200, message: "OK" });
