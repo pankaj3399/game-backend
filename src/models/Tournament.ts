@@ -162,17 +162,24 @@ tournamentSchema.post('save', async function (doc) {
 	if (doc.schedule) return;
 
 	try {
+		const session = doc.$session?.();
 		const schedule = await Schedule.findOneAndUpdate(
 			{ tournament: doc._id },
 			{ $setOnInsert: { tournament: doc._id, currentRound: 0 } },
-			{ upsert: true, new: true, setDefaultsOnInsert: true, runValidators: true }
+			{
+				upsert: true,
+				new: true,
+				setDefaultsOnInsert: true,
+				runValidators: true,
+				...(session ? { session } : {})
+			}
 		)
 			.select('_id')
 			.lean()
 			.exec();
 
 		if (schedule?._id) {
-			await doc.updateOne({ schedule: schedule._id }).exec();
+			await doc.updateOne({ schedule: schedule._id }, session ? { session } : undefined).exec();
 		}
 	} catch (err) {
 		LogError('Tournament', 'save', 'post(save)/schedule-link', err);

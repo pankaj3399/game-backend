@@ -55,6 +55,11 @@ function validateScheduleRoundsInvariants(
 }
 
 function updateTouchesRoundsOrCurrentRound(update: Record<string, unknown>) {
+	const hasTopLevelReplacementField = Object.keys(update).some((key) => !key.startsWith('$'));
+	if (hasTopLevelReplacementField && ('rounds' in update || 'currentRound' in update)) {
+		return true;
+	}
+
 	const set = update.$set;
 	if (set && typeof set === 'object') {
 		const s = set as Record<string, unknown>;
@@ -73,6 +78,22 @@ function updateTouchesRoundsOrCurrentRound(update: Record<string, unknown>) {
 	if (push && typeof push === 'object' && 'rounds' in (push as Record<string, unknown>)) {
 		return true;
 	}
+	const addToSet = update.$addToSet;
+	if (addToSet && typeof addToSet === 'object' && 'rounds' in (addToSet as Record<string, unknown>)) {
+		return true;
+	}
+	const pull = update.$pull;
+	if (pull && typeof pull === 'object' && 'rounds' in (pull as Record<string, unknown>)) {
+		return true;
+	}
+	const unset = update.$unset;
+	if (unset && typeof unset === 'object' && 'currentRound' in (unset as Record<string, unknown>)) {
+		return true;
+	}
+	const inc = update.$inc;
+	if (inc && typeof inc === 'object' && 'currentRound' in (inc as Record<string, unknown>)) {
+		return true;
+	}
 	return false;
 }
 
@@ -80,6 +101,42 @@ function simulateScheduleAfterFindOneAndUpdate(
 	existing: Pick<ISchedule, 'rounds' | 'currentRound'> | null,
 	update: UpdateQuery<ISchedule>
 ): { rounds: RoundLike[]; currentRound: number } {
+	const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+		typeof value === 'object' && value !== null && !Array.isArray(value);
+
+	const deepEqual = (a: unknown, b: unknown): boolean => {
+		if (a === b) {
+			return true;
+		}
+		if (Array.isArray(a) && Array.isArray(b)) {
+			if (a.length !== b.length) {
+				return false;
+			}
+			return a.every((item, index) => deepEqual(item, b[index]));
+		}
+		if (isPlainObject(a) && isPlainObject(b)) {
+			const aKeys = Object.keys(a);
+			const bKeys = Object.keys(b);
+			if (aKeys.length !== bKeys.length) {
+				return false;
+			}
+			return aKeys.every((key) => deepEqual(a[key], b[key]));
+		}
+		return false;
+	};
+
+	const matchesPullCriteria = (entry: RoundLike, criteria: unknown): boolean => {
+		if (isPlainObject(criteria)) {
+			if ('$in' in criteria && Array.isArray(criteria.$in)) {
+				return criteria.$in.some((candidate) => deepEqual(entry, candidate));
+			}
+			return Object.entries(criteria).every(([key, value]) =>
+				deepEqual((entry as Record<string, unknown>)[key], value)
+			);
+		}
+		return deepEqual(entry, criteria);
+	};
+
 	const applySet = (
 		target: { rounds: RoundLike[]; currentRound: number },
 		obj: Record<string, unknown> | undefined
@@ -109,6 +166,64 @@ function simulateScheduleAfterFindOneAndUpdate(
 		}
 	};
 
+	const addToSetRounds = (update as { $addToSet?: { rounds?: unknown } }).$addToSet?.rounds;
+	const applyAddToSet = (target: { rounds: RoundLike[] }) => {
+		if (addToSetRounds === undefined) {
+			return;
+		}
+		const candidate =
+			isPlainObject(addToSetRounds) && '$each' in addToSetRounds
+				? (addToSetRounds.$each as unknown[])
+				: [addToSetRounds];
+		for (const item of candidate) {
+			if (!target.rounds.some((entry) => deepEqual(entry, item))) {
+				target.rounds = [...target.rounds, item as RoundLike];
+			}
+		}
+	};
+
+	const pullRounds = (update as { $pull?: { rounds?: unknown } }).$pull?.rounds;
+	const applyPull = (target: { rounds: RoundLike[] }) => {
+		if (pullRounds === undefined) {
+			return;
+		}
+		target.rounds = target.rounds.filter((entry) => !matchesPullCriteria(entry, pullRounds));
+	};
+
+	const unset = update.$unset as Record<string, unknown> | undefined;
+	const applyUnset = (target: { currentRound: number }) => {
+		if (!unset) {
+			return;
+		}
+		if (Object.prototype.hasOwnProperty.call(unset, 'currentRound')) {
+			target.currentRound = 0;
+		}
+	};
+
+	const inc = update.$inc as Record<string, unknown> | undefined;
+	const applyInc = (target: { currentRound: number }) => {
+		if (!inc || !Object.prototype.hasOwnProperty.call(inc, 'currentRound')) {
+			return;
+		}
+		const incrementBy = inc.currentRound;
+		if (typeof incrementBy === 'number') {
+			target.currentRound += incrementBy;
+		}
+	};
+
+	const hasTopLevelReplacementField = Object.keys(update).some((key) => !key.startsWith('$'));
+	const applyReplacement = () => {
+		const replacement = update as Record<string, unknown>;
+		return {
+			rounds: Array.isArray(replacement.rounds) ? (replacement.rounds as RoundLike[]).map((x) => ({ ...x })) : [],
+			currentRound: typeof replacement.currentRound === 'number' ? replacement.currentRound : 0
+		};
+	};
+
+	if (hasTopLevelReplacementField) {
+		return applyReplacement();
+	}
+
 	if (existing) {
 		const state = {
 			rounds: Array.isArray(existing.rounds) ? existing.rounds.map((x) => ({ ...x })) : [],
@@ -116,6 +231,10 @@ function simulateScheduleAfterFindOneAndUpdate(
 		};
 		applySet(state, update.$set as Record<string, unknown> | undefined);
 		applyPush(state);
+		applyAddToSet(state);
+		applyPull(state);
+		applyUnset(state);
+		applyInc(state);
 		return state;
 	}
 
@@ -126,6 +245,10 @@ function simulateScheduleAfterFindOneAndUpdate(
 	applySet(state, update.$setOnInsert as Record<string, unknown> | undefined);
 	applySet(state, update.$set as Record<string, unknown> | undefined);
 	applyPush(state);
+	applyAddToSet(state);
+	applyPull(state);
+	applyUnset(state);
+	applyInc(state);
 	return state;
 }
 
