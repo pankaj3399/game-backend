@@ -1,4 +1,5 @@
 import mongoose, { Document, Schema } from 'mongoose';
+import { LogError } from '../lib/logger';
 import {
 	TOURNAMENT_MODES,
 	TOURNAMENT_PLAY_MODES,
@@ -7,6 +8,7 @@ import {
 	type TournamentPlayMode,
 	type TournamentStatus
 } from '../types/domain/tournament';
+import Schedule from './Schedule';
 
 // Define the ITournament interface
 export interface ITournament extends Document {
@@ -156,12 +158,33 @@ tournamentSchema.pre('validate', function () {
 	}
 });
 
-// tournamentSchema.pre('save', async function () {
-// 	if (!this.schedule) {
-// 		const _schedule = await mongoose.model('Schedule').create({ tournament: this._id, currentRound: 0 });
-// 		this.schedule = _schedule._id;
-// 	}
-// });
+tournamentSchema.post('save', async function (doc) {
+	if (doc.schedule) return;
+
+	try {
+		const session = doc.$session?.();
+		const schedule = await Schedule.findOneAndUpdate(
+			{ tournament: doc._id },
+			{ $setOnInsert: { tournament: doc._id, currentRound: 0 } },
+			{
+				upsert: true,
+				new: true,
+				setDefaultsOnInsert: true,
+				runValidators: true,
+				...(session ? { session } : {})
+			}
+		)
+			.select('_id')
+			.lean()
+			.exec();
+
+		if (schedule?._id) {
+			await doc.updateOne({ schedule: schedule._id }, session ? { session } : undefined).exec();
+		}
+	} catch (err) {
+		LogError('Tournament', 'save', 'post(save)/schedule-link', err);
+	}
+});
 
 const Tournament = mongoose.model<ITournament>('Tournament', tournamentSchema);
 

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
 	getTournaments,
 	getTournamentById,
+	getTournamentMatches,
 	joinTournament,
 	leaveTournament,
 	createTournament,
@@ -16,6 +17,7 @@ const authed = createAuthedRouter(router);
 
 authed.get('/', requirePlayerOrAbove, getTournaments);
 authed.get('/:id', requirePlayerOrAbove, getTournamentById);
+authed.get('/:id/matches', requirePlayerOrAbove, getTournamentMatches);
 authed.post('/:id/join', requirePlayerOrAbove, joinTournament);
 authed.post('/:id/leave', requirePlayerOrAbove, leaveTournament);
 authed.post('/', requireOrganiserOrAbove, createTournament);
