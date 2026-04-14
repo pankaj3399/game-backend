@@ -357,9 +357,12 @@ scheduleSchema.pre('findOneAndUpdate', async function () {
 		existingQuery = existingQuery.session(session);
 	}
 	const existing = await existingQuery
-		.select('rounds currentRound')
-		.lean<Pick<ISchedule, 'rounds' | 'currentRound'> | null>()
+		.select('rounds currentRound __v')
+		.lean<(Pick<ISchedule, 'rounds' | 'currentRound'> & { __v: number }) | null>()
 		.exec();
+	if (existing) {
+		this.setQuery({ ...this.getFilter(), __v: existing.__v });
+	}
 
 	const { rounds, currentRound } = simulateScheduleAfterFindOneAndUpdate(
 		existing,

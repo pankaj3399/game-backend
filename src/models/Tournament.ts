@@ -158,14 +158,14 @@ tournamentSchema.pre('validate', function () {
 	}
 });
 
-tournamentSchema.post('save', async function (doc) {
-	if (doc.schedule) return;
+tournamentSchema.pre('save', async function () {
+	if (this.schedule) return;
 
 	try {
-		const session = doc.$session?.();
+		const session = this.$session?.();
 		const schedule = await Schedule.findOneAndUpdate(
-			{ tournament: doc._id },
-			{ $setOnInsert: { tournament: doc._id, currentRound: 0 } },
+			{ tournament: this._id },
+			{ $setOnInsert: { tournament: this._id, currentRound: 0 } },
 			{
 				upsert: true,
 				new: true,
@@ -179,10 +179,11 @@ tournamentSchema.post('save', async function (doc) {
 			.exec();
 
 		if (schedule?._id) {
-			await doc.updateOne({ schedule: schedule._id }, session ? { session } : undefined).exec();
+			this.schedule = schedule._id;
 		}
 	} catch (err) {
-		LogError('Tournament', 'save', 'post(save)/schedule-link', err);
+		LogError('Tournament', 'save', 'pre(save)/schedule-link', err);
+		throw err;
 	}
 });
 

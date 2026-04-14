@@ -120,6 +120,7 @@ export function buildSinglesRoundPairs(
 ): Array<{ playerOneId: Types.ObjectId; playerTwoId: Types.ObjectId }> {
   const pairs: Array<{ playerOneId: Types.ObjectId; playerTwoId: Types.ObjectId }> = [];
 
+  // Odd participant counts intentionally leave the final participant unpaired for this round.
   for (let index = 0; index + 1 < participants.length; index += 2) {
     pairs.push({
       playerOneId: participants[index]._id,
@@ -140,9 +141,18 @@ export function computeMatchStartTime(
   const now = new Date();
   const dateRef = baseDate ? new Date(baseDate) : new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
+  if (!/^\d{1,2}:\d{1,2}$/.test(startTime)) {
+    throw new Error(`Invalid startTime format: expected "HH:MM", got "${startTime}"`);
+  }
+
   const [hourText, minuteText] = startTime.split(":");
   const hour = Number.parseInt(hourText, 10);
   const minute = Number.parseInt(minuteText, 10);
+  const validHour = Number.isInteger(hour) && hour >= 0 && hour <= 23;
+  const validMinute = Number.isInteger(minute) && minute >= 0 && minute <= 59;
+  if (!validHour || !validMinute) {
+    throw new Error(`Invalid startTime values: hour=${hourText}, minute=${minuteText}`);
+  }
 
   dateRef.setHours(hour, minute, 0, 0);
 

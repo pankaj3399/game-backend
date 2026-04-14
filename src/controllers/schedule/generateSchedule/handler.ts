@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import Game from "../../../models/Game";
 import Schedule from "../../../models/Schedule";
 import Tournament from "../../../models/Tournament";
@@ -29,100 +30,124 @@ export async function persistSinglesScheduleRound(
     throw new Error("At least two participants are required to generate schedule");
   }
 
-  let scheduleDoc = tournament.schedule ? await Schedule.findById(tournament.schedule).exec() : null;
+  const session = await mongoose.startSession();
+  let result:
+    | { scheduleId: import("mongoose").Types.ObjectId; currentRound: number; generatedMatches: number }
+    | null = null;
 
-  if (!scheduleDoc) {
-    scheduleDoc = await Schedule.findOneAndUpdate(
-      { tournament: tournament._id },
-      {
-        $setOnInsert: {
-          tournament: tournament._id,
-          currentRound: 0,
-          rounds: [],
-          status: "draft",
-        },
-      },
-      {
-        upsert: true,
-        new: true,
-        setDefaultsOnInsert: true,
+  try {
+    await session.withTransaction(async () => {
+      let scheduleDoc = tournament.schedule
+        ? await Schedule.findById(tournament.schedule).session(session).exec()
+        : null;
+
+      if (!scheduleDoc) {
+        scheduleDoc = await Schedule.findOneAndUpdate(
+          { tournament: tournament._id },
+          {
+            $setOnInsert: {
+              tournament: tournament._id,
+              currentRound: 0,
+              rounds: [],
+              status: "draft",
+            },
+          },
+          {
+            upsert: true,
+            new: true,
+            setDefaultsOnInsert: true,
+            runValidators: true,
+            session,
+          }
+        ).exec();
       }
-    ).exec();
-  }
 
-  if (!scheduleDoc) {
-    throw new Error("Unable to initialize tournament schedule");
-  }
+      if (!scheduleDoc) {
+        throw new Error("Unable to initialize tournament schedule");
+      }
 
-  const targetRound = body.round;
-  const existingRoundEntries = scheduleDoc.rounds.filter((entry) => entry.round === targetRound);
+      const targetRound = body.round;
+      const existingRoundEntries = scheduleDoc.rounds.filter((entry) => entry.round === targetRound);
 
-  if (existingRoundEntries.length > 0) {
-    await Game.deleteMany({
-      _id: { $in: existingRoundEntries.map((entry) => entry.game) },
-      schedule: scheduleDoc._id,
-    }).exec();
+      if (existingRoundEntries.length > 0) {
+        await Game.deleteMany({
+          _id: { $in: existingRoundEntries.map((entry) => entry.game) },
+          schedule: scheduleDoc._id,
+        })
+          .session(session)
+          .exec();
 
-    scheduleDoc.rounds = scheduleDoc.rounds.filter((entry) => entry.round !== targetRound);
-  }
+        scheduleDoc.rounds = scheduleDoc.rounds.filter((entry) => entry.round !== targetRound);
+      }
 
-  const gameDocs = singlesPairs.map((pair, index) => ({
-    playerOne: pair.playerOneId,
-    playerTwo: pair.playerTwoId,
-    court: selectedCourtIds[index % selectedCourtIds.length],
-    tournament: tournament._id,
-    schedule: scheduleDoc._id,
-    score: {
-      playerOneScores: [],
-      playerTwoScores: [],
-    },
-    startTime: computeMatchStartTime(
-      tournament.date,
-      body.startTime,
-      index,
-      selectedCourtIds.length,
-      body
-    ),
-    status: "draft" as const,
-    gameMode: "tournament" as const,
-    playMode: tournament.playMode,
-  }));
-
-  const createdGames = await Game.insertMany(gameDocs, { ordered: true });
-
-  const newRoundEntries = createdGames.map((game, index) => ({
-    game: game._id,
-    slot: index + 1,
-    round: targetRound,
-  }));
-
-  scheduleDoc.rounds.push(...newRoundEntries);
-  scheduleDoc.rounds.sort((a, b) => {
-    if (a.round !== b.round) {
-      return a.round - b.round;
-    }
-    return a.slot - b.slot;
-  });
-
-  scheduleDoc.currentRound = Math.max(scheduleDoc.currentRound, targetRound);
-  scheduleDoc.status = "active";
-  await scheduleDoc.save();
-
-  await Tournament.updateOne(
-    { _id: tournament._id },
-    {
-      $set: {
+      const gameDocs = singlesPairs.map((pair, index) => ({
+        playerOne: pair.playerOneId,
+        playerTwo: pair.playerTwoId,
+        court: new mongoose.Types.ObjectId(selectedCourtIds[index % selectedCourtIds.length]),
+        tournament: tournament._id,
         schedule: scheduleDoc._id,
-        duration: `${body.matchDurationMinutes} min`,
-        breakDuration: `${body.breakTimeMinutes} min`,
-        startTime: body.startTime,
-      },
-    }
-  ).exec();
+        score: {
+          playerOneScores: [],
+          playerTwoScores: [],
+        },
+        startTime: computeMatchStartTime(
+          tournament.date,
+          body.startTime,
+          index,
+          selectedCourtIds.length,
+          body
+        ),
+        status: "draft" as const,
+        gameMode: "tournament" as const,
+        playMode: tournament.playMode,
+      }));
 
-  return {
-    scheduleId: scheduleDoc._id,
-    currentRound: scheduleDoc.currentRound,
-    generatedMatches: createdGames.length,
-  };
+      const createdGames = await Game.insertMany(gameDocs, { ordered: true, session });
+
+      const newRoundEntries = createdGames.map((game, index) => ({
+        game: game._id,
+        slot: index + 1,
+        round: targetRound,
+      }));
+
+      scheduleDoc.rounds.push(...newRoundEntries);
+      scheduleDoc.rounds.sort((a, b) => {
+        if (a.round !== b.round) {
+          return a.round - b.round;
+        }
+        return a.slot - b.slot;
+      });
+
+      scheduleDoc.currentRound = Math.max(scheduleDoc.currentRound, targetRound);
+      scheduleDoc.status = "active";
+      await scheduleDoc.save({ session });
+
+      await Tournament.updateOne(
+        { _id: tournament._id },
+        {
+          $set: {
+            schedule: scheduleDoc._id,
+            duration: `${body.matchDurationMinutes} min`,
+            breakDuration: `${body.breakTimeMinutes} min`,
+            startTime: body.startTime,
+          },
+        },
+        { session }
+      ).exec();
+
+      result = {
+        scheduleId: scheduleDoc._id,
+        currentRound: scheduleDoc.currentRound,
+        generatedMatches: createdGames.length,
+      };
+    });
+  } finally {
+    await session.endSession();
+  }
+
+  if (!result) {
+    throw new Error("Failed to persist tournament schedule round");
+  }
+
+  return result;
 }

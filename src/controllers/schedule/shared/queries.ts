@@ -122,7 +122,7 @@ export async function fetchScheduleForTournament(
   scheduleId: DbIdLike | null
 ) {
   const query = scheduleId
-    ? Schedule.findById(scheduleId)
+    ? Schedule.findOne({ _id: scheduleId, tournament: tournamentId })
     : Schedule.findOne({ tournament: tournamentId });
 
   return query

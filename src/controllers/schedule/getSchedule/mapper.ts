@@ -16,7 +16,7 @@ export function mapScheduleViewResponse(
       name: participantDisplayName(participant, `Player ${index + 1}`),
       alias: participant.alias,
       skillLabel: "glicko2",
-      rating: participant.elo.rating ?? 1500,
+      rating: participant.elo?.rating ?? 1500,
       order: index + 1,
     })),
     scheduleSummary,
