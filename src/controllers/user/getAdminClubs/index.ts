@@ -1,8 +1,9 @@
-import type { Request, Response } from 'express';
+import type { Response } from 'express';
 import { z } from 'zod';
 import { logger } from '../../../lib/logger';
 import { buildErrorPayload } from '../../../shared/errors';
 import { parseQueryWithSchema } from '../../../shared/validation';
+import type { AuthenticatedRequest } from '../../../shared/authContext';
 import { getAdminClubsFlow } from './handler';
 
 const getAdminClubsQuerySchema = z.object({
@@ -11,13 +12,9 @@ const getAdminClubsQuerySchema = z.object({
 	page: z.coerce.number().int().min(1).optional()
 });
 
-export async function getAdminClubs(req: Request, res: Response){
+export async function getAdminClubs(req: AuthenticatedRequest, res: Response){
 	try {
 		const session = req.user;
-		if (!session?._id) {
-			res.status(401).json(buildErrorPayload('Not authenticated'));
-			return;
-		}
 
 		const parsedQuery = parseQueryWithSchema(getAdminClubsQuerySchema, req.query);
 		if (parsedQuery.status !== 200) {

@@ -1,4 +1,4 @@
-import express from 'express';
+import { Router } from 'express';
 import {
 	updateProfile,
 	deleteAccount,
@@ -8,22 +8,25 @@ import {
 	setHomeClub,
 	getAdminClubs,
 	searchUsers,
+	getMyScore,
 } from '../controllers/user/controller';
-import authenticate from '../middlewares/auth';
-import {  requireOrganiserOrAbove } from '../middlewares';
+import { requireOrganiserOrAbove, requirePlayerOrAbove } from '../middlewares';
+import { createAuthedRouter } from './authedRouter';
 
-const router = express.Router();
+const router = Router();
+const authed = createAuthedRouter(router);
 
 // Public routes
 
 // Protected routes (require authenticated session)
-router.patch('/update-profile', authenticate, updateProfile);
-router.delete('/delete-account', authenticate, deleteAccount);
-router.get('/favorite-clubs', authenticate, getFavoriteClubs);
-router.get('/admin-clubs', authenticate, getAdminClubs);
-router.get('/search', authenticate, requireOrganiserOrAbove, searchUsers);
-router.post('/favorite-clubs', authenticate, addFavoriteClub);
-router.delete('/favorite-clubs/:clubId', authenticate, removeFavoriteClub);
-router.patch('/home-club', authenticate, setHomeClub);
+authed.patch('/update-profile', updateProfile);
+authed.delete('/delete-account', deleteAccount);
+authed.get('/favorite-clubs', getFavoriteClubs);
+authed.get('/admin-clubs', getAdminClubs);
+authed.get('/my-score', requirePlayerOrAbove, getMyScore);
+authed.get('/search', requireOrganiserOrAbove, searchUsers);
+authed.post('/favorite-clubs', addFavoriteClub);
+authed.delete('/favorite-clubs/:clubId', removeFavoriteClub);
+authed.patch('/home-club', setHomeClub);
 
 export default router;

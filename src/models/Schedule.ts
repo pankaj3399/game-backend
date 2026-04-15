@@ -28,8 +28,9 @@ function validateScheduleRoundsInvariants(
 	const usedPairs = new Set<string>();
 	const seenGames = new Set<string>();
 
-	for (const entry of rounds) {
-		const gameKey = entry.game != null ? String(entry.game) : '';
+	for (let index = 0; index < rounds.length; index += 1) {
+		const entry = rounds[index];
+		const gameKey = entry.game != null ? String(entry.game) : `__MISSING__:${index}`;
 		if (seenGames.has(gameKey)) {
 			invalidate('rounds', `Duplicate game reference ${entry.game} in rounds`);
 			return;
@@ -362,6 +363,7 @@ scheduleSchema.pre('findOneAndUpdate', async function () {
 		.exec();
 	if (existing) {
 		this.setQuery({ ...this.getFilter(), __v: existing.__v });
+		this.setOptions({ ...this.getOptions(), _expectsVersionMatch: true });
 	}
 
 	const { rounds, currentRound } = simulateScheduleAfterFindOneAndUpdate(
@@ -372,6 +374,13 @@ scheduleSchema.pre('findOneAndUpdate', async function () {
 	validateScheduleRoundsInvariants(rounds, currentRound, (path, message) =>
 		throwScheduleInvariantValidationError(path, message)
 	);
+});
+
+scheduleSchema.post('findOneAndUpdate', function (result) {
+	const expectsVersionMatch = this.getOptions()._expectsVersionMatch === true;
+	if (expectsVersionMatch && result == null) {
+		throw new Error('Concurrent modification detected - please retry');
+	}
 });
 
 const Schedule = mongoose.model<ISchedule>('Schedule', scheduleSchema);
