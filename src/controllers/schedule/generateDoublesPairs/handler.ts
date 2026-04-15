@@ -20,7 +20,7 @@ export function generateDoublesPairsFlow(
         name: participantDisplayName(player, `Player ${index + 1}`),
         alias: player.alias,
         skillLabel: "glicko2",
-        rating: player.elo.rating ?? 1500,
+        rating: player.elo?.rating ?? 1500,
       })),
     })),
     unpaired: pairs.unpaired.map((participant, index) => ({
@@ -28,7 +28,7 @@ export function generateDoublesPairsFlow(
       name: participantDisplayName(participant, `Player ${index + 1}`),
       alias: participant.alias,
       skillLabel: "glicko2",
-      rating: participant.elo.rating ?? 1500,
+      rating: participant.elo?.rating ?? 1500,
     })),
   };
 }

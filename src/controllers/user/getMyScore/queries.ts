@@ -34,6 +34,10 @@ interface UserRatingSnapshot {
 }
 
 export async function fetchCompletedTournamentGamesForUser(userId: string): Promise<MyScoreGameDoc[]> {
+	if (!Types.ObjectId.isValid(userId)) {
+		return [];
+	}
+
 	const userObjectId = new Types.ObjectId(userId);
 
 	return Game.find({
