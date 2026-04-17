@@ -54,6 +54,7 @@ export interface TournamentForUpdateAuth {
   name?: string;
   minMember?: number;
   maxMember?: number;
+  totalRounds?: number;
   participants?: mongoose.Types.ObjectId[];
   date?: Date | null;
   startTime?: string | null;
@@ -63,6 +64,7 @@ export interface TournamentForUpdateAuth {
   entryFee?: number;
   duration?: string | null;
   breakDuration?: string | null;
+  matchesPerPlayer?: number;
   foodInfo?: string | null;
   descriptionInfo?: string | null;
 }
@@ -88,6 +90,14 @@ export type TournamentPopulated = Omit<
 		name?: string | null;
 		alias?: string | null;
 	}>;
+  schedule?:
+    | mongoose.Types.ObjectId
+    | {
+        _id?: mongoose.Types.ObjectId;
+        currentRound?: number;
+        rounds?: Array<{ round?: number }>;
+      }
+    | null;
 };
 
 

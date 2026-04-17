@@ -9,7 +9,9 @@ import { mapTournamentMatchesResponse } from "./mapper";
 import {
   fetchGamesForScheduleRounds,
   fetchScheduleForTournament,
+  updateGameStatuses,
 } from "./queries";
+import { parseDurationMinutes, resolveTimedGameStatus } from "../../../shared/matchTiming";
 
 /**
  * GET /api/tournaments/:id/matches
@@ -44,7 +46,39 @@ export async function getTournamentMatches(req: AuthenticatedRequest, res: Respo
       schedule?._id ?? null,
       schedule?.rounds ?? []
     );
-    const payload = mapTournamentMatchesResponse(schedule, games);
+
+    const matchDurationMinutes =
+      typeof schedule?.matchDurationMinutes === "number"
+        ? schedule.matchDurationMinutes
+        : parseDurationMinutes(tournament.duration ?? null);
+    const now = new Date();
+    const statusUpdates: Array<{
+      id: typeof games[number]["_id"];
+      status: typeof games[number]["status"];
+    }> = [];
+
+    for (const game of games) {
+      const nextStatus = resolveTimedGameStatus({
+        persistedStatus: game.status,
+        startTime: game.startTime ?? null,
+        matchDurationMinutes,
+        now,
+      });
+
+      if (nextStatus !== game.status) {
+        statusUpdates.push({
+          id: game._id,
+          status: nextStatus,
+        });
+        game.status = nextStatus;
+      }
+    }
+
+    if (statusUpdates.length > 0) {
+      await updateGameStatuses(statusUpdates);
+    }
+
+    const payload = mapTournamentMatchesResponse(schedule, games, tournament.totalRounds);
 
     res.status(200).json(payload);
   } catch (err) {

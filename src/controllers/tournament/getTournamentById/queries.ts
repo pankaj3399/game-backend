@@ -18,6 +18,10 @@ export async function fetchTournamentById(
         select: "name type placement",
       },
     })
+    .populate({
+      path: "schedule",
+      select: "currentRound rounds.round",
+    })
     .populate("sponsor", "name logoUrl link")
     .populate("participants", "name alias")
     .lean<TournamentPopulated>()
