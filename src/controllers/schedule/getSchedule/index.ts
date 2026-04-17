@@ -35,12 +35,24 @@ export async function getSchedule(req: AuthenticatedRequest, res: Response) {
     }
 
     const schedule = await fetchScheduleForTournament(idResult.data, tournament.schedule);
-    const totalRounds = (schedule?.rounds ?? []).reduce(
-      (maxRound, entry) => Math.max(maxRound, entry.round),
-      0
-    );
+    const totalRounds = tournament.totalRounds;
 
-    const payload = mapScheduleViewResponse(tournament, {
+    const responseContext =
+      tournament.tournamentMode === "singleDay"
+        ? {
+            ...tournament,
+            duration:
+              typeof schedule?.matchDurationMinutes === "number"
+                ? `${Math.trunc(schedule.matchDurationMinutes)} min`
+                : tournament.duration,
+            breakDuration:
+              typeof schedule?.breakTimeMinutes === "number"
+                ? `${Math.trunc(schedule.breakTimeMinutes)} min`
+                : tournament.breakDuration,
+          }
+        : tournament;
+
+    const payload = mapScheduleViewResponse(responseContext, {
       currentRound: schedule?.currentRound ?? 0,
       totalRounds,
     });

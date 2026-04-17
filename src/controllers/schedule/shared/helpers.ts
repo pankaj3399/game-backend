@@ -7,10 +7,10 @@ import type {
 
 const DEFAULT_MATCH_DURATION_MINUTES = 60;
 const DEFAULT_BREAK_TIME_MINUTES = 5;
-const DEFAULT_GAMES_PER_PLAYER = 5;
+const DEFAULT_MATCHES_PER_PLAYER = 1;
 const DEFAULT_START_TIME = "13:40";
 
-function parseMinutesFromText(value: string | null, fallback: number): number {
+function parseMinutesFromText(value: string | null, fallback: number, allowZero = false): number {
   if (!value) {
     return fallback;
   }
@@ -21,23 +21,24 @@ function parseMinutesFromText(value: string | null, fallback: number): number {
   }
 
   const parsed = Number.parseInt(match[1], 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+  if (allowZero && parsed >= 0) {
+    return parsed;
+  }
+  return parsed > 0 ? parsed : fallback;
 }
 
 export function getDefaultScheduleInput(tournament: TournamentScheduleContext) {
   const courts = tournament.club?.courts ?? [];
   const selectedDefault = new Set(courts.slice(0, Math.min(2, courts.length)).map((court) => court._id.toString()));
 
-  return {
-    matchDurationMinutes: parseMinutesFromText(
-      tournament.duration,
-      DEFAULT_MATCH_DURATION_MINUTES
-    ),
-    breakTimeMinutes: parseMinutesFromText(
-      tournament.breakDuration,
-      DEFAULT_BREAK_TIME_MINUTES
-    ),
-    gamesPerPlayer: DEFAULT_GAMES_PER_PLAYER,
+  const base = {
+    matchesPerPlayer:
+      Number.isFinite(tournament.matchesPerPlayer) && tournament.matchesPerPlayer >= 1
+        ? Math.trunc(tournament.matchesPerPlayer)
+        : DEFAULT_MATCHES_PER_PLAYER,
     startTime: tournament.startTime ?? DEFAULT_START_TIME,
     mode: "singles" as const,
     availableCourts: courts.map((court) => ({
@@ -45,6 +46,23 @@ export function getDefaultScheduleInput(tournament: TournamentScheduleContext) {
       name: court.name,
       selected: selectedDefault.has(court._id.toString()),
     })),
+  };
+
+  if (tournament.tournamentMode !== "singleDay") {
+    return base;
+  }
+
+  return {
+    ...base,
+    matchDurationMinutes: parseMinutesFromText(
+      tournament.duration,
+      DEFAULT_MATCH_DURATION_MINUTES
+    ),
+    breakTimeMinutes: parseMinutesFromText(
+      tournament.breakDuration,
+      DEFAULT_BREAK_TIME_MINUTES,
+      true
+    ),
   };
 }
 
@@ -84,16 +102,25 @@ export function getParticipantOrder(
     seen.add(id);
   }
 
-  for (const participant of participants) {
-    const id = participant._id.toString();
-    if (seen.has(id)) {
-      continue;
-    }
-    ordered.push(participant);
-    seen.add(id);
-  }
-
   return ordered;
+}
+
+export function sortParticipantsForScheduling(participants: ScheduleParticipantInfo[]) {
+  return [...participants].sort((left, right) => {
+    const leftRating = typeof left.elo?.rating === "number" ? left.elo.rating : 1500;
+    const rightRating = typeof right.elo?.rating === "number" ? right.elo.rating : 1500;
+    if (leftRating !== rightRating) {
+      return rightRating - leftRating;
+    }
+
+    const leftName = participantDisplayName(left, "").toLocaleLowerCase();
+    const rightName = participantDisplayName(right, "").toLocaleLowerCase();
+    if (leftName !== rightName) {
+      return leftName.localeCompare(rightName);
+    }
+
+    return left._id.toString().localeCompare(right._id.toString());
+  });
 }
 
 export function buildDoublesPairs(
@@ -134,9 +161,8 @@ export function buildSinglesRoundPairs(
 export function computeMatchStartTime(
   baseDate: Date | null,
   startTime: string,
-  slotIndex: number,
-  selectedCourtsCount: number,
-  body: Pick<GenerateScheduleBody, "matchDurationMinutes" | "breakTimeMinutes">
+  slotNumber: number,
+  body: { matchDurationMinutes: number; breakTimeMinutes: number }
 ): Date {
   const now = new Date();
   const dateRef = baseDate ? new Date(baseDate) : new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -157,7 +183,9 @@ export function computeMatchStartTime(
   dateRef.setHours(hour, minute, 0, 0);
 
   const timeBlock = body.matchDurationMinutes + body.breakTimeMinutes;
-  const wave = Math.floor(slotIndex / Math.max(1, selectedCourtsCount));
+  const normalizedSlot =
+    Number.isFinite(slotNumber) && slotNumber >= 1 ? Math.trunc(slotNumber) : 1;
+  const wave = Math.max(0, normalizedSlot - 1);
   dateRef.setMinutes(dateRef.getMinutes() + wave * timeBlock);
 
   return dateRef;

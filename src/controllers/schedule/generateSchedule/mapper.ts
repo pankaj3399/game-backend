@@ -1,7 +1,5 @@
-import type { Types } from "mongoose";
-
 export function mapGenerateScheduleResponse(
-  scheduleId: Types.ObjectId,
+  scheduleId: { toString: () => string },
   targetRound: number,
   currentRound: number,
   generatedMatches: number

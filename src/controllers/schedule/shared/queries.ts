@@ -79,10 +79,24 @@ function normalizeScheduleContext(raw: TournamentScheduleContextRaw): Tournament
   return {
     _id: tournamentId,
     name: raw.name?.trim() || "Tournament",
+    minMember:
+      typeof raw.minMember === "number" && Number.isFinite(raw.minMember)
+        ? Math.max(1, Math.trunc(raw.minMember))
+        : 1,
+    firstRoundScheduledAt: raw.firstRoundScheduledAt ?? null,
+    tournamentMode: raw.tournamentMode ?? "singleDay",
     date: raw.date ?? null,
     startTime: raw.startTime ?? null,
     duration: raw.duration ?? null,
     breakDuration: raw.breakDuration ?? null,
+    matchesPerPlayer:
+      typeof raw.matchesPerPlayer === "number" && Number.isFinite(raw.matchesPerPlayer)
+        ? Math.max(1, Math.min(20, Math.trunc(raw.matchesPerPlayer)))
+        : 1,
+    totalRounds:
+      typeof raw.totalRounds === "number" && Number.isFinite(raw.totalRounds)
+        ? Math.max(1, Math.min(100, Math.trunc(raw.totalRounds)))
+        : 1,
     playMode: raw.playMode ?? "TieBreak10",
     createdBy,
     club,
@@ -96,7 +110,7 @@ export async function fetchTournamentScheduleContext(
 ): Promise<TournamentScheduleContext | null> {
   const raw = await Tournament.findById(tournamentId)
     .select(
-      "_id name date startTime duration breakDuration playMode createdBy club participants schedule"
+      "_id name minMember firstRoundScheduledAt tournamentMode date startTime duration breakDuration matchesPerPlayer totalRounds playMode createdBy club participants schedule"
     )
     .populate({
       path: "club",
@@ -126,11 +140,13 @@ export async function fetchScheduleForTournament(
     : Schedule.findOne({ tournament: tournamentId });
 
   return query
-    .select("_id status currentRound rounds")
+    .select("_id status currentRound matchDurationMinutes breakTimeMinutes rounds")
     .lean<{
       _id: Types.ObjectId;
       status: "draft" | "active" | "finished";
       currentRound: number;
+      matchDurationMinutes?: number | null;
+      breakTimeMinutes?: number | null;
       rounds: Array<{ game: Types.ObjectId; slot: number; round: number }>;
     }>()
     .exec();

@@ -3,15 +3,20 @@ import {
 	GAME_MODES,
 	GAME_PLAY_MODES,
 	GAME_STATUSES,
+	MATCH_TYPES,
 	type GameMode,
 	type GamePlayMode,
+	type MatchType,
 	type GameStatus
 } from '../types/domain/game';
 
+export interface IGameTeam {
+	players: mongoose.Types.ObjectId[];
+}
+
 // Define the IGame interface
 export interface IGame extends Document {
-	playerOne: mongoose.Types.ObjectId;
-	playerTwo: mongoose.Types.ObjectId;
+	teams: [IGameTeam, IGameTeam];
 	court?: mongoose.Types.ObjectId;
 	tournament?: mongoose.Types.ObjectId;
 	schedule?: mongoose.Types.ObjectId;
@@ -23,16 +28,34 @@ export interface IGame extends Document {
 	endTime?: Date;
 	status: GameStatus;
 	gameMode: GameMode;
+	matchType: MatchType;
 	playMode: GamePlayMode;
 	createdAt?: Date;
 	updatedAt?: Date;
 }
 
+const gameTeamSchema = new mongoose.Schema<IGameTeam>(
+	{
+		players: {
+			type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }],
+			required: true,
+			default: []
+		}
+	},
+	{ _id: false }
+);
+
 // Define the Game schema
 const gameSchema = new mongoose.Schema<IGame>(
 	{
-		playerOne: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-		playerTwo: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+		teams: {
+			type: [gameTeamSchema],
+			required: true,
+			validate: {
+				validator: (value: IGameTeam[]) => Array.isArray(value) && value.length === 2,
+				message: 'teams must contain exactly two teams'
+			}
+		},
 		court: { type: mongoose.Schema.Types.ObjectId, ref: 'Court' },
 		tournament: { type: mongoose.Schema.Types.ObjectId, ref: 'Tournament' },
 		schedule: { type: mongoose.Schema.Types.ObjectId, ref: 'Schedule' },
@@ -76,6 +99,15 @@ const gameSchema = new mongoose.Schema<IGame>(
 			default: 'tournament',
 			required: true
 		},
+		matchType: {
+			type: String,
+			enum: {
+				values: MATCH_TYPES,
+				message: '{VALUE} is not supported'
+			},
+			default: 'singles',
+			required: true
+		},
 		playMode: {
 			type: String,
 			enum: {
@@ -92,8 +124,32 @@ const gameSchema = new mongoose.Schema<IGame>(
 );
 
 gameSchema.pre('validate', function () {
-	if (this.playerOne && this.playerTwo && this.playerOne.equals(this.playerTwo)) {
-		this.invalidate('playerTwo', 'playerOne and playerTwo must be different');
+	if (!Array.isArray(this.teams) || this.teams.length !== 2) {
+		this.invalidate('teams', 'teams must contain exactly two teams');
+		return;
+	}
+
+ 	const expectedTeamSize = this.matchType === 'doubles' ? 2 : 1;
+	const allPlayers: string[] = [];
+
+	for (let teamIndex = 0; teamIndex < this.teams.length; teamIndex += 1) {
+		const team = this.teams[teamIndex];
+		const players = Array.isArray(team?.players) ? team.players : [];
+
+		if (players.length !== expectedTeamSize) {
+			this.invalidate(
+				`teams.${teamIndex}.players`,
+				`Each team must contain exactly ${expectedTeamSize} player${expectedTeamSize === 1 ? '' : 's'} for ${this.matchType}`
+			);
+		}
+
+		for (const player of players) {
+			allPlayers.push(player.toString());
+		}
+	}
+
+	if (new Set(allPlayers).size !== allPlayers.length) {
+		this.invalidate('teams', 'all match participants must be unique across both teams');
 	}
 
 	if (this.gameMode === 'tournament' && !this.tournament) {
@@ -107,7 +163,8 @@ gameSchema.pre('validate', function () {
 
 gameSchema.index({ tournament: 1, status: 1, createdAt: -1 });
 gameSchema.index({ schedule: 1, status: 1, createdAt: -1 });
-gameSchema.index({ playerOne: 1, playerTwo: 1, createdAt: -1 });
+gameSchema.index({ 'teams.players': 1, createdAt: -1 });
+gameSchema.index({ matchType: 1, status: 1, createdAt: -1 });
 
 const Game = mongoose.model<IGame>('Game', gameSchema);
 

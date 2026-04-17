@@ -9,14 +9,22 @@ export const generateScheduleSchema = z
   .object({
     round: z.number().int().min(1),
     mode: scheduleModeSchema,
-    matchDurationMinutes: z.number().int().min(5).max(240),
-    breakTimeMinutes: z.number().int().min(0).max(120),
-    gamesPerPlayer: z.number().int().min(1).max(20),
+    matchDurationMinutes: z.number().int().min(5).max(240).optional(),
+    breakTimeMinutes: z.number().int().min(0).max(120).optional(),
+    matchesPerPlayer: z.number().int().min(1).max(20).optional(),
     startTime: z.string().regex(timeRegex, "Invalid start time (expected HH:mm)"),
     courtIds: z.array(objectId).min(1),
     participantOrder: z.array(objectId).min(2),
   })
-  .strict();
+  .strict()
+  .transform((value) => ({
+    ...value,
+    matchesPerPlayer: value.matchesPerPlayer ?? 1,
+  }))
+  .refine((value) => value.matchesPerPlayer >= 1 && value.matchesPerPlayer <= 20, {
+    message: "matchesPerPlayer must be between 1 and 20",
+    path: ["matchesPerPlayer"],
+  });
 
 export const generatePairsSchema = z
   .object({

@@ -28,18 +28,23 @@ export async function generateSchedule(req: AuthenticatedRequest, res: Response)
       return;
     }
 
-    if (bodyResult.data.mode === "doubles") {
-      res.status(400).json(
-        buildErrorPayload(
-          "Doubles schedule generation is not supported with the current game model. Generate doubles pairs only."
-        )
-      );
-      return;
-    }
-
     const tournament = await fetchTournamentScheduleContext(idResult.data);
     if (!tournament) {
       res.status(404).json(buildErrorPayload("Tournament not found"));
+      return;
+    }
+
+    const enrolledParticipants = tournament.participants.length;
+    const minimumRequiredParticipants = Math.max(1, tournament.minMember);
+    const isBeforeFirstRoundScheduling = tournament.firstRoundScheduledAt == null;
+    if (isBeforeFirstRoundScheduling && enrolledParticipants < minimumRequiredParticipants) {
+      res
+        .status(400)
+        .json(
+          buildErrorPayload(
+            `Cannot generate schedule yet: at least ${minimumRequiredParticipants} participants are required, currently ${enrolledParticipants} enrolled`
+          )
+        );
       return;
     }
 
@@ -50,13 +55,34 @@ export async function generateSchedule(req: AuthenticatedRequest, res: Response)
     }
 
     try {
-      const result = await persistSinglesScheduleRound(tournament, bodyResult.data);
+      const resultRaw: unknown = await persistSinglesScheduleRound(tournament, bodyResult.data);
+      if (!resultRaw || typeof resultRaw !== "object") {
+        throw new Error("Failed to generate schedule");
+      }
+
+      const scheduleId = "scheduleId" in resultRaw ? resultRaw.scheduleId : null;
+      const currentRound = "currentRound" in resultRaw ? resultRaw.currentRound : null;
+      const generatedMatches = "generatedMatches" in resultRaw ? resultRaw.generatedMatches : null;
+
+      if (
+        !scheduleId ||
+        typeof scheduleId !== "object" ||
+        !("toString" in scheduleId) ||
+        typeof scheduleId.toString !== "function" ||
+        typeof currentRound !== "number" ||
+        !Number.isFinite(currentRound) ||
+        typeof generatedMatches !== "number" ||
+        !Number.isFinite(generatedMatches)
+      ) {
+        throw new Error("Failed to generate schedule");
+      }
+
       res.status(200).json(
         mapGenerateScheduleResponse(
-          result.scheduleId,
+          scheduleId,
           bodyResult.data.round,
-          result.currentRound,
-          result.generatedMatches
+          Math.trunc(currentRound),
+          Math.trunc(generatedMatches)
         )
       );
       return;

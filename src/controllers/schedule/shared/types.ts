@@ -1,5 +1,6 @@
 import type { Types } from "mongoose";
 import type { DbIdLike } from "../../../types/domain/common";
+import type { TournamentMode } from "../../../types/domain/tournament";
 import type { TournamentPlayMode } from "../../../types/domain/tournament";
 
 export type ScheduleMode = "singles" | "doubles";
@@ -45,10 +46,15 @@ export interface ScheduleParticipantInfoRaw {
 export interface TournamentScheduleContext {
   _id: Types.ObjectId;
   name: string;
+  minMember: number;
+  firstRoundScheduledAt: Date | null;
+  tournamentMode: TournamentMode;
   date: Date | null;
   startTime: string | null;
   duration: string | null;
   breakDuration: string | null;
+  matchesPerPlayer: number;
+  totalRounds: number;
   playMode: TournamentPlayMode;
   createdBy: Types.ObjectId;
   club: ScheduleClubInfo | null;
@@ -59,10 +65,15 @@ export interface TournamentScheduleContext {
 export interface TournamentScheduleContextRaw {
   _id?: DbIdLike | null;
   name?: string | null;
+  minMember?: number | null;
+  firstRoundScheduledAt?: Date | null;
+  tournamentMode?: TournamentMode | null;
   date?: Date | null;
   startTime?: string | null;
   duration?: string | null;
   breakDuration?: string | null;
+  matchesPerPlayer?: number | null;
+  totalRounds?: number | null;
   playMode?: TournamentPlayMode | null;
   createdBy?: DbIdLike | null;
   club?: ScheduleClubInfoRaw | null;
@@ -71,9 +82,9 @@ export interface TournamentScheduleContextRaw {
 }
 
 export interface ScheduleInputResponse {
-  matchDurationMinutes: number;
-  breakTimeMinutes: number;
-  gamesPerPlayer: number;
+  matchDurationMinutes?: number;
+  breakTimeMinutes?: number;
+  matchesPerPlayer: number;
   startTime: string;
   mode: ScheduleMode;
   availableCourts: Array<{
@@ -108,9 +119,9 @@ export interface TournamentScheduleResponse {
 export interface GenerateScheduleBody {
   round: number;
   mode: ScheduleMode;
-  matchDurationMinutes: number;
-  breakTimeMinutes: number;
-  gamesPerPlayer: number;
+  matchDurationMinutes?: number;
+  breakTimeMinutes?: number;
+  matchesPerPlayer: number;
   startTime: string;
   courtIds: string[];
   participantOrder: string[];
