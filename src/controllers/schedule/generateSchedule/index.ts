@@ -55,34 +55,14 @@ export async function generateSchedule(req: AuthenticatedRequest, res: Response)
     }
 
     try {
-      const resultRaw: unknown = await persistSinglesScheduleRound(tournament, bodyResult.data);
-      if (!resultRaw || typeof resultRaw !== "object") {
-        throw new Error("Failed to generate schedule");
-      }
-
-      const scheduleId = "scheduleId" in resultRaw ? resultRaw.scheduleId : null;
-      const currentRound = "currentRound" in resultRaw ? resultRaw.currentRound : null;
-      const generatedMatches = "generatedMatches" in resultRaw ? resultRaw.generatedMatches : null;
-
-      if (
-        !scheduleId ||
-        typeof scheduleId !== "object" ||
-        !("toString" in scheduleId) ||
-        typeof scheduleId.toString !== "function" ||
-        typeof currentRound !== "number" ||
-        !Number.isFinite(currentRound) ||
-        typeof generatedMatches !== "number" ||
-        !Number.isFinite(generatedMatches)
-      ) {
-        throw new Error("Failed to generate schedule");
-      }
+      const result = await persistSinglesScheduleRound(tournament, bodyResult.data);
 
       res.status(200).json(
         mapGenerateScheduleResponse(
-          scheduleId,
+          result.scheduleId,
           bodyResult.data.round,
-          Math.trunc(currentRound),
-          Math.trunc(generatedMatches)
+          result.currentRound,
+          result.generatedMatches
         )
       );
       return;
