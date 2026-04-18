@@ -36,7 +36,14 @@ function normalizeScheduleContext(raw: TournamentScheduleContextRaw): Tournament
     throw new Error("Invalid tournament schedule context: missing createdBy");
   }
 
-  const scheduleId = toObjectId(raw.schedule);
+  const rawSchedule = raw.schedule;
+  const scheduleId = toObjectId(
+    rawSchedule != null &&
+      typeof rawSchedule === "object" &&
+      "_id" in rawSchedule
+      ? (rawSchedule as { _id: DbIdLike })._id
+      : rawSchedule
+  );
 
   const courts: ScheduleCourtInfo[] = [];
   const rawCourts = raw.club?.courts ?? [];

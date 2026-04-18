@@ -529,7 +529,6 @@ export async function persistSinglesScheduleRound(
         schedule: scheduleDoc._id,
         startTime: body.startTime,
         matchesPerPlayer: body.matchesPerPlayer,
-        firstRoundScheduledAt: targetRound >= 1 ? new Date() : null,
         completedAt: null,
       };
 
@@ -545,6 +544,20 @@ export async function persistSinglesScheduleRound(
         },
         { session }
       ).exec();
+
+      if (targetRound === 1) {
+        await Tournament.updateOne(
+          {
+            _id: tournament._id,
+            $or: [
+              { firstRoundScheduledAt: { $exists: false } },
+              { firstRoundScheduledAt: null },
+            ],
+          },
+          { $set: { firstRoundScheduledAt: new Date() } },
+          { session }
+        ).exec();
+      }
 
       result = {
         scheduleId: scheduleDoc._id,

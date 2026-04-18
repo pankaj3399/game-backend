@@ -9,7 +9,11 @@ import { mapTournamentMatchesResponse } from "./mapper";
 import {
   fetchGamesForScheduleRounds,
   fetchScheduleForTournament,
+  updateGameStatuses,
 } from "./queries";
+import { parseDurationMinutes, resolveTimedGameStatus } from "../../../shared/matchTiming";
+
+const STATUS_UPDATE_CHUNK_SIZE = 100;
 
 /**
  * GET /api/tournaments/:id/matches
@@ -44,7 +48,51 @@ export async function getTournamentMatches(req: AuthenticatedRequest, res: Respo
       schedule?._id ?? null,
       schedule?.rounds ?? []
     );
-    const payload = mapTournamentMatchesResponse(schedule, games);
+
+    const matchDurationMinutes =
+      typeof schedule?.matchDurationMinutes === "number"
+        ? schedule.matchDurationMinutes
+        : parseDurationMinutes(tournament.duration ?? null);
+    const now = new Date();
+    const statusUpdates: Array<{
+      id: typeof games[number]["_id"];
+      status: typeof games[number]["status"];
+    }> = [];
+
+    for (const game of games) {
+      const nextStatus = resolveTimedGameStatus({
+        persistedStatus: game.status,
+        startTime: game.startTime ?? null,
+        matchDurationMinutes,
+        now,
+      });
+
+      if (nextStatus !== game.status) {
+        statusUpdates.push({
+          id: game._id,
+          status: nextStatus,
+        });
+      }
+    }
+
+    if (statusUpdates.length > 0) {
+      for (let i = 0; i < statusUpdates.length; i += STATUS_UPDATE_CHUNK_SIZE) {
+        const chunk = statusUpdates.slice(i, i + STATUS_UPDATE_CHUNK_SIZE);
+        await updateGameStatuses(chunk);
+      }
+
+      const statusById = new Map(
+        statusUpdates.map((u) => [u.id.toString(), u.status])
+      );
+      for (const game of games) {
+        const persisted = statusById.get(game._id.toString());
+        if (persisted !== undefined) {
+          game.status = persisted;
+        }
+      }
+    }
+
+    const payload = mapTournamentMatchesResponse(schedule, games, tournament.totalRounds);
 
     res.status(200).json(payload);
   } catch (err) {

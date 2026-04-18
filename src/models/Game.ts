@@ -163,7 +163,8 @@ gameSchema.pre('validate', function () {
 
 gameSchema.index({ tournament: 1, status: 1, createdAt: -1 });
 gameSchema.index({ schedule: 1, status: 1, createdAt: -1 });
-gameSchema.index({ 'teams.players': 1, createdAt: -1 });
+gameSchema.index({ gameMode: 1, status: 1, 'teams.players': 1, createdAt: -1 });
+gameSchema.index({ gameMode: 1, status: 1, 'teams.players': 1, startTime: 1 });
 gameSchema.index({ matchType: 1, status: 1, createdAt: -1 });
 
 const Game = mongoose.model<IGame>('Game', gameSchema);

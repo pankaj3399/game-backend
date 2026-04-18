@@ -1,6 +1,6 @@
 import { Types } from 'mongoose';
 import type { MyScoreEntry, MyScoreMatchMode } from './types';
-import type { MyScoreGameDoc, PopulatedPlayer } from './queries';
+import type { MyScoreGameDoc } from './queries';
 
 interface ScoreBreakdown {
 	total: number | null;
@@ -19,7 +19,21 @@ function toIdString(value: Types.ObjectId | { _id: Types.ObjectId } | null | und
 	return value._id.toString();
 }
 
-function resolveName(player: PopulatedPlayer | Types.ObjectId | null | undefined, fallback: string): string {
+type MyScorePlayer = MyScoreGameDoc['teams'][number]['players'][number] | null | undefined;
+
+function toPlayerId(player: MyScorePlayer): string | null {
+	if (!player) {
+		return null;
+	}
+
+	if (player instanceof Types.ObjectId) {
+		return player.toString();
+	}
+
+	return player._id.toString();
+}
+
+function resolveName(player: MyScorePlayer, fallback: string): string {
 	if (!player || player instanceof Types.ObjectId) {
 		return fallback;
 	}
@@ -35,6 +49,17 @@ function resolveName(player: PopulatedPlayer | Types.ObjectId | null | undefined
 	}
 
 	return fallback;
+}
+
+function getTeamIds(players: MyScorePlayer[]): string[] {
+	const ids: string[] = [];
+	for (const player of players) {
+		const id = toPlayerId(player);
+		if (id) {
+			ids.push(id);
+		}
+	}
+	return ids;
 }
 
 function resolveTournamentName(game: MyScoreGameDoc): string {
@@ -115,6 +140,107 @@ function resolveMatchMode(playMode: string | null | undefined): MyScoreMatchMode
 	return 'singles';
 }
 
+function resolveMatchModeFromType(
+	matchType: string | null | undefined,
+	playMode: string | null | undefined
+): MyScoreMatchMode {
+	if (matchType === 'doubles') {
+		return 'doubles';
+	}
+
+	if (matchType === 'singles') {
+		return 'singles';
+	}
+
+	return resolveMatchMode(playMode);
+}
+
+function resolveTeamName(players: MyScorePlayer[], isDoubles: boolean, fallback: string): string {
+	if (!isDoubles) {
+		return resolveName(players[0], fallback);
+	}
+
+	const names = players
+		.slice(0, 2)
+		.map((player, index) => resolveName(player, `${fallback} ${index + 1}`))
+		.filter((name) => name.trim().length > 0);
+
+	if (names.length === 0) {
+		return fallback;
+	}
+
+	if (names.length === 1) {
+		return names[0];
+	}
+
+	if (names[0] === names[1]) {
+		return names[0];
+	}
+
+	return `${names[0]} & ${names[1]}`;
+}
+
+export function mapGameToMyScoreEntry(game: MyScoreGameDoc, userId: string): MyScoreEntry | null {
+	if (!Array.isArray(game.teams) || game.teams.length < 2) {
+		return null;
+	}
+
+	const resolvedMode = resolveMatchModeFromType(game.matchType, game.playMode);
+	const isDoubles = resolvedMode === 'doubles';
+	const teamOnePlayers = Array.isArray(game.teams[0]?.players) ? game.teams[0].players : [];
+	const teamTwoPlayers = Array.isArray(game.teams[1]?.players) ? game.teams[1].players : [];
+	if (teamOnePlayers.length === 0 || teamTwoPlayers.length === 0) {
+		return null;
+	}
+
+	const teamOneIds = getTeamIds(teamOnePlayers);
+	const teamTwoIds = getTeamIds(teamTwoPlayers);
+	if (teamOneIds.length === 0 || teamTwoIds.length === 0) {
+		return null;
+	}
+
+	const userInTeamOne = teamOneIds.includes(userId);
+	const userInTeamTwo = teamTwoIds.includes(userId);
+
+	if (!userInTeamOne && !userInTeamTwo) {
+		return null;
+	}
+
+	const opponentName = userInTeamOne
+		? resolveTeamName(teamTwoPlayers, isDoubles, 'Unknown opponent')
+		: resolveTeamName(teamOnePlayers, isDoubles, 'Unknown opponent');
+
+	const opponentId = userInTeamOne
+		? isDoubles
+			? teamTwoIds.join(':')
+			: teamTwoIds[0]
+		: isDoubles
+			? teamOneIds.join(':')
+			: teamOneIds[0];
+
+	const playerOneScores = toScoreBreakdown(game.score?.playerOneScores);
+	const playerTwoScores = toScoreBreakdown(game.score?.playerTwoScores);
+	const myScore = userInTeamOne ? playerOneScores : playerTwoScores;
+	const opponentScore = userInTeamOne ? playerTwoScores : playerOneScores;
+
+	return {
+		id: game._id.toString(),
+		playedAt: resolvePlayedAt(game).toISOString(),
+		tournament: {
+			id: toIdString(game.tournament),
+			name: resolveTournamentName(game),
+		},
+		opponent: {
+			id: opponentId ?? '',
+			name: opponentName,
+		},
+		mode: resolvedMode,
+		myScore: myScore.total,
+		opponentScore: opponentScore.total,
+		didWin: resolveDidWin(myScore, opponentScore),
+	};
+}
+
 function resolveDidWin(myScore: ScoreBreakdown, opponentScore: ScoreBreakdown): boolean | null {
 	if (myScore.hasWalkover && !opponentScore.hasWalkover) {
 		return false;
@@ -133,75 +259,4 @@ function resolveDidWin(myScore: ScoreBreakdown, opponentScore: ScoreBreakdown): 
 	}
 
 	return myScore.total > opponentScore.total;
-}
-
-export function mapGameToMyScoreEntry(game: MyScoreGameDoc, userId: string): MyScoreEntry | null {
-	const teams = game.teams;
-	if (!teams || teams.length !== 2) {
-		return null;
-	}
-
-	let userTeamIndex: 0 | 1 | null = null;
-	for (let i = 0; i < 2; i += 1) {
-		const teamPlayers = teams[i]?.players;
-		if (!Array.isArray(teamPlayers)) {
-			continue;
-		}
-		for (const p of teamPlayers) {
-			const pid = toIdString(p as PopulatedPlayer | Types.ObjectId);
-			if (pid === userId) {
-				userTeamIndex = i as 0 | 1;
-				break;
-			}
-		}
-		if (userTeamIndex !== null) {
-			break;
-		}
-	}
-
-	if (userTeamIndex === null) {
-		return null;
-	}
-
-	const userIsPlayerOne = userTeamIndex === 0;
-	const opponentTeam = teams[1 - userTeamIndex];
-	const opponentPlayers = opponentTeam?.players;
-	if (!Array.isArray(opponentPlayers) || opponentPlayers.length === 0) {
-		return null;
-	}
-
-	const firstOpponent = opponentPlayers[0];
-	const opponentId = toIdString(firstOpponent as PopulatedPlayer | Types.ObjectId);
-	if (!opponentId) {
-		return null;
-	}
-
-	const opponentName =
-		opponentPlayers.length === 1
-			? resolveName(firstOpponent as PopulatedPlayer | Types.ObjectId, 'Unknown opponent')
-			: opponentPlayers
-					.map((p) => resolveName(p as PopulatedPlayer | Types.ObjectId, 'Unknown'))
-					.join(' / ');
-
-	const playerOneScores = toScoreBreakdown(game.score?.playerOneScores);
-	const playerTwoScores = toScoreBreakdown(game.score?.playerTwoScores);
-	const myScore = userIsPlayerOne ? playerOneScores : playerTwoScores;
-	const opponentScore = userIsPlayerOne ? playerTwoScores : playerOneScores;
-
-	return {
-		id: game._id.toString(),
-		playedAt: resolvePlayedAt(game).toISOString(),
-		tournament: {
-			id: toIdString(game.tournament),
-			name: resolveTournamentName(game),
-		},
-		opponent: {
-			id: opponentId,
-			name: opponentName,
-		},
-		mode: resolveMatchMode(game.playMode),
-		myScore: myScore.total,
-		opponentScore: opponentScore.total,
-		didWin: resolveDidWin(myScore, opponentScore),
-	};
 }

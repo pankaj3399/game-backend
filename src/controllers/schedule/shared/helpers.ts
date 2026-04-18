@@ -66,16 +66,19 @@ export function getDefaultScheduleInput(tournament: TournamentScheduleContext) {
   };
 }
 
+/** Prefer trimmed alias, then trimmed name (same precedence as getMyScore resolveName). */
 export function participantDisplayName(
   participant: Pick<ScheduleParticipantInfo, "name" | "alias">,
   fallback: string
 ): string {
-  if (participant.name && participant.name.trim().length > 0) {
-    return participant.name;
+  const alias = participant.alias?.trim();
+  if (alias) {
+    return alias;
   }
 
-  if (participant.alias && participant.alias.trim().length > 0) {
-    return participant.alias;
+  const name = participant.name?.trim();
+  if (name) {
+    return name;
   }
 
   return fallback;

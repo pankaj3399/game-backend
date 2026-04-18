@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import Tournament from "../../../models/Tournament";
 import type { CreateTournamentInput } from "./validation";
 import { authorizeCreate, type AuthenticatedSession } from "./authorize";
@@ -31,18 +32,27 @@ export async function createTournamentFlow(
     createdBy: session._id,
   };
 
+  const mongoSession = await mongoose.startSession();
   try {
-    const tournament = await Tournament.create(payload);
-    return ok({
-      tournament: {
-        id: tournament._id,
-        name: tournament.name,
-        club: tournament.club,
-        status: tournament.status,
-        date: tournament.date,
-        createdAt: tournament.createdAt,
-      },
-    }, { status: 200, message: "Tournament created successfully" });
+    const flowResult = await mongoSession.withTransaction(async () => {
+      const [tournament] = await Tournament.create([payload], {
+        session: mongoSession,
+      });
+      return ok(
+        {
+          tournament: {
+            id: tournament._id,
+            name: tournament.name,
+            club: tournament.club,
+            status: tournament.status,
+            date: tournament.date,
+            createdAt: tournament.createdAt,
+          },
+        },
+        { status: 200, message: "Tournament created successfully" }
+      );
+    });
+    return flowResult;
   } catch (err: unknown) {
     const mongoErr = err as {
       code?: number;
@@ -62,5 +72,7 @@ export async function createTournamentFlow(
 
     logger.error("Failed to create tournament", { err });
     return error(500, "Failed to create tournament");
+  } finally {
+    await mongoSession.endSession();
   }
 }

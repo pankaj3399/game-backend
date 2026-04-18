@@ -34,6 +34,12 @@ export async function generateSchedule(req: AuthenticatedRequest, res: Response)
       return;
     }
 
+    const authResult = await authorizeScheduleAccess(tournament, req.user);
+    if (authResult.status !== 200) {
+      res.status(authResult.status).json(buildErrorPayload(authResult.message));
+      return;
+    }
+
     const enrolledParticipants = tournament.participants.length;
     const minimumRequiredParticipants = Math.max(1, tournament.minMember);
     const isBeforeFirstRoundScheduling = tournament.firstRoundScheduledAt == null;
@@ -45,12 +51,6 @@ export async function generateSchedule(req: AuthenticatedRequest, res: Response)
             `Cannot generate schedule yet: at least ${minimumRequiredParticipants} participants are required, currently ${enrolledParticipants} enrolled`
           )
         );
-      return;
-    }
-
-    const authResult = await authorizeScheduleAccess(tournament, req.user);
-    if (authResult.status !== 200) {
-      res.status(authResult.status).json(buildErrorPayload(authResult.message));
       return;
     }
 

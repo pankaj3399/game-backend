@@ -7,10 +7,11 @@ export async function authorizeScheduleAccess(
   tournament: TournamentScheduleContext,
   session: AuthenticatedSession
 ) {
-  const clubId = tournament.club?._id.toString();
-  if (!clubId) {
+  if (!tournament.club || tournament.club._id == null) {
     return error(400, "Tournament has no club");
   }
+
+  const clubId = tournament.club._id.toString();
 
   if (isOwnerOrSuperAdmin(session, tournament.createdBy)) {
     return ok({ clubId }, { status: 200, message: "Authorized" });

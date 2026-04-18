@@ -27,12 +27,16 @@ export interface ITournament extends Document {
 	maxMember: number;
 	duration: string;
 	breakDuration: string;
+	totalRounds: number;
 	foodInfo?: string;
 	descriptionInfo?: string;
 	status: TournamentStatus;
 	createdAt?: Date;
 	updatedAt?: Date;
 	participants: mongoose.Types.ObjectId[];
+	matchesPerPlayer: number;
+	firstRoundScheduledAt?: Date | null;
+	completedAt?: Date | null;
 }
 
 // Define the Tournament schema
@@ -112,6 +116,17 @@ const tournamentSchema = new mongoose.Schema<ITournament>(
 			type: String,
 			required: true
 		},
+		totalRounds: {
+			type: Number,
+			required: true,
+			min: [1, 'totalRounds must be at least 1'],
+			max: [100, 'totalRounds cannot be greater than 100'],
+			default: 1,
+			validate: {
+				validator: (v: unknown) => typeof v === 'number' && Number.isInteger(v),
+				message: 'totalRounds must be an integer'
+			}
+		},
 		foodInfo: {
 			type: String,
 			required: false,
@@ -141,6 +156,25 @@ const tournamentSchema = new mongoose.Schema<ITournament>(
 				}
 			],
 			default: []
+		},
+		matchesPerPlayer: {
+			type: Number,
+			required: true,
+			min: [1, 'matchesPerPlayer must be at least 1'],
+			max: [20, 'matchesPerPlayer cannot be greater than 20'],
+			default: 1,
+			validate: {
+				validator: (v: unknown) => typeof v === 'number' && Number.isInteger(v),
+				message: 'matchesPerPlayer must be an integer'
+			}
+		},
+		firstRoundScheduledAt: {
+			type: Date,
+			default: null
+		},
+		completedAt: {
+			type: Date,
+			default: null
 		}
 	},
 	{

@@ -25,6 +25,7 @@ export interface MyScoreGameDoc {
 		playerOneScores?: unknown[];
 		playerTwoScores?: unknown[];
 	} | null;
+	matchType?: 'singles' | 'doubles' | null;
 	playMode?: string | null;
 	startTime?: Date | null;
 	endTime?: Date | null;
@@ -48,7 +49,7 @@ export async function fetchCompletedTournamentGamesForUser(userId: string): Prom
 		status: 'finished',
 		'teams.players': userObjectId,
 	})
-		.select('_id teams tournament score playMode startTime endTime createdAt')
+		.select('_id teams tournament score matchType playMode startTime endTime createdAt')
 		.populate('teams.players', 'name alias')
 		.populate('tournament', 'name')
 		.sort({ endTime: -1, startTime: -1, createdAt: -1 })
