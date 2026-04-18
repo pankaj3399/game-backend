@@ -73,27 +73,18 @@ function resolveTournamentName(game: MyScoreGameDoc): string {
 	return 'Tournament match';
 }
 
-function toDate(value: unknown): Date | null {
-	if (value instanceof Date && Number.isFinite(value.getTime())) {
-		return value;
-	}
-
-	if (typeof value === 'string') {
-		const parsed = new Date(value);
-		if (Number.isFinite(parsed.getTime())) {
-			return parsed;
+function resolvePlayedAt(game: MyScoreGameDoc): Date {
+	for (const value of [game.endTime, game.startTime, game.createdAt]) {
+		if (value instanceof Date && Number.isFinite(value.getTime())) {
+			return value;
+		}
+		if (typeof value === 'string') {
+			const parsed = new Date(value);
+			if (Number.isFinite(parsed.getTime())) {
+				return parsed;
+			}
 		}
 	}
-
-	return null;
-}
-
-function resolvePlayedAt(game: MyScoreGameDoc): Date {
-	const preferredDate = toDate(game.endTime) ?? toDate(game.startTime) ?? toDate(game.createdAt);
-	if (preferredDate) {
-		return preferredDate;
-	}
-
 	return new Date(0);
 }
 

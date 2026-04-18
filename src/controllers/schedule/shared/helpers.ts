@@ -1,14 +1,11 @@
-import type { Types } from "mongoose";
-import type {
-  GenerateScheduleBody,
-  ScheduleParticipantInfo,
-  TournamentScheduleContext,
-} from "./types";
-
-const DEFAULT_MATCH_DURATION_MINUTES = 60;
-const DEFAULT_BREAK_TIME_MINUTES = 5;
-const DEFAULT_MATCHES_PER_PLAYER = 1;
-const DEFAULT_START_TIME = "13:40";
+import { parseDurationMinutes } from "../../../shared/matchTiming";
+import type { ScheduleParticipantInfo, TournamentScheduleContext } from "./types";
+import {
+  DEFAULT_BREAK_TIME_MINUTES,
+  DEFAULT_MATCH_DURATION_MINUTES,
+  DEFAULT_MATCHES_PER_PLAYER,
+  DEFAULT_SCHEDULE_START_TIME,
+} from "./constants";
 
 function parseMinutesFromText(value: string | null, fallback: number, allowZero = false): number {
   if (!value) {
@@ -39,7 +36,7 @@ export function getDefaultScheduleInput(tournament: TournamentScheduleContext) {
       Number.isFinite(tournament.matchesPerPlayer) && tournament.matchesPerPlayer >= 1
         ? Math.trunc(tournament.matchesPerPlayer)
         : DEFAULT_MATCHES_PER_PLAYER,
-    startTime: tournament.startTime ?? DEFAULT_START_TIME,
+    startTime: tournament.startTime ?? DEFAULT_SCHEDULE_START_TIME,
     mode: "singles" as const,
     availableCourts: courts.map((court) => ({
       id: court._id.toString(),
@@ -54,7 +51,7 @@ export function getDefaultScheduleInput(tournament: TournamentScheduleContext) {
 
   return {
     ...base,
-    matchDurationMinutes: parseMinutesFromText(
+    matchDurationMinutes: parseDurationMinutes(
       tournament.duration,
       DEFAULT_MATCH_DURATION_MINUTES
     ),
@@ -143,22 +140,6 @@ export function buildDoublesPairs(
 
   const unpaired = participants.length % 2 === 1 ? [participants[participants.length - 1]] : [];
   return { teams, unpaired };
-}
-
-export function buildSinglesRoundPairs(
-  participants: ScheduleParticipantInfo[]
-): Array<{ playerOneId: Types.ObjectId; playerTwoId: Types.ObjectId }> {
-  const pairs: Array<{ playerOneId: Types.ObjectId; playerTwoId: Types.ObjectId }> = [];
-
-  // Odd participant counts intentionally leave the final participant unpaired for this round.
-  for (let index = 0; index + 1 < participants.length; index += 2) {
-    pairs.push({
-      playerOneId: participants[index]._id,
-      playerTwoId: participants[index + 1]._id,
-    });
-  }
-
-  return pairs;
 }
 
 export function computeMatchStartTime(

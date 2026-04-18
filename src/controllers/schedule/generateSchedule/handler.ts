@@ -1,12 +1,13 @@
 import mongoose from "mongoose";
 import Game from "../../../models/Game";
-import Schedule from "../../../models/Schedule.js";
+import Schedule from "../../../models/Schedule";
 import Tournament from "../../../models/Tournament";
 import type { GameStatus } from "../../../types/domain/game";
+import { computeMatchStartTime, getParticipantOrder } from "../shared/helpers";
 import {
-  computeMatchStartTime,
-  getParticipantOrder,
-} from "../shared/helpers";
+  DEFAULT_BREAK_TIME_MINUTES,
+  DEFAULT_MATCH_DURATION_MINUTES,
+} from "../shared/constants";
 import { parseDurationMinutes, resolveTimedGameStatus } from "../../../shared/matchTiming";
 import type {
   GenerateScheduleBody,
@@ -34,9 +35,6 @@ type ScheduleRoundEntryLike = {
   round: number;
   mode: ScheduleMode;
 };
-
-const DEFAULT_MATCH_DURATION_MINUTES = 60;
-const DEFAULT_BREAK_TIME_MINUTES = 5;
 
 function ensureMinimumParticipants(mode: ScheduleMode, count: number) {
   if (mode === "singles" && count < 2) {
@@ -146,7 +144,7 @@ function decrementDemand(demandById: Map<string, number>, playerId: string) {
   demandById.set(playerId, next);
 }
 
-function buildSinglesPairs(participants: ScheduleParticipantInfo[], demandById: Map<string, number>) {
+function pairSinglesFromDemand(participants: ScheduleParticipantInfo[], demandById: Map<string, number>) {
   const byId = new Map(participants.map((participant) => [participant._id.toString(), participant]));
   const participantIndex = new Map(participants.map((participant, index) => [participant._id.toString(), index]));
   const pairCounts = new Map<string, number>();
@@ -192,7 +190,7 @@ function buildSinglesPairs(participants: ScheduleParticipantInfo[], demandById: 
   return pairs;
 }
 
-function buildDoublesPairs(participants: ScheduleParticipantInfo[], demandById: Map<string, number>) {
+function pairDoublesFromDemand(participants: ScheduleParticipantInfo[], demandById: Map<string, number>) {
   const byId = new Map(participants.map((participant) => [participant._id.toString(), participant]));
   const participantIndex = new Map(participants.map((participant, index) => [participant._id.toString(), index]));
   const pairs: DoublesMatchPair[] = [];
@@ -253,8 +251,8 @@ function buildRoundPairs(
 
   const pairs =
     mode === "singles"
-      ? buildSinglesPairs(participants, demandById)
-      : buildDoublesPairs(participants, demandById);
+      ? pairSinglesFromDemand(participants, demandById)
+      : pairDoublesFromDemand(participants, demandById);
 
   return { pairs };
 }
@@ -352,14 +350,9 @@ export async function persistSinglesScheduleRound(
   ensureMinimumParticipants(body.mode, selectedParticipants.length);
 
   const session = await mongoose.startSession();
-  let result: {
-    scheduleId: mongoose.Types.ObjectId;
-    currentRound: number;
-    generatedMatches: number;
-  } | null = null;
 
   try {
-    await session.withTransaction(async () => {
+    const persisted = await session.withTransaction(async () => {
       let scheduleDoc = tournament.schedule
         ? await Schedule.findById(tournament.schedule).session(session).exec()
         : null;
@@ -574,19 +567,19 @@ export async function persistSinglesScheduleRound(
         ).exec();
       }
 
-      result = {
+      return {
         scheduleId: scheduleDoc._id,
         currentRound: scheduleDoc.currentRound,
         generatedMatches: createdGames.length,
       };
     });
+
+    if (!persisted) {
+      throw new Error("Failed to persist tournament schedule round");
+    }
+
+    return persisted;
   } finally {
     await session.endSession();
   }
-
-  if (!result) {
-    throw new Error("Failed to persist tournament schedule round");
-  }
-
-  return result;
 }

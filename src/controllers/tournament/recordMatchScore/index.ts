@@ -77,39 +77,21 @@ export async function recordMatchScore(req: AuthenticatedRequest, res: Response)
       }
     }
 
-    const resultRaw: unknown = await recordTournamentMatchScoreFlow(
+    const result = await recordTournamentMatchScoreFlow(
       tournamentIdResult.data,
       matchIdResult.data,
       parsedBody.data
     );
 
-    if (!resultRaw || typeof resultRaw !== "object") {
-      throw new Error("Failed to record match score");
-    }
-
-    const matchId = "matchId" in resultRaw ? resultRaw.matchId : null;
-    const tournamentId = "tournamentId" in resultRaw ? resultRaw.tournamentId : null;
-    const tournamentCompleted = "tournamentCompleted" in resultRaw ? resultRaw.tournamentCompleted : null;
-    const updatedRatings = "updatedRatings" in resultRaw ? resultRaw.updatedRatings : null;
-
-    if (
-      typeof matchId !== "string" ||
-      typeof tournamentId !== "string" ||
-      typeof tournamentCompleted !== "boolean" ||
-      !Array.isArray(updatedRatings)
-    ) {
-      throw new Error("Failed to record match score");
-    }
-
     res.status(200).json({
       message: "Match score recorded and ratings updated",
       match: {
-        id: matchId,
-        tournamentId,
+        id: result.matchId,
+        tournamentId: result.tournamentId,
         status: "completed",
       },
-      tournamentCompleted,
-      ratings: updatedRatings,
+      tournamentCompleted: result.tournamentCompleted,
+      ratings: result.updatedRatings,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to record match score";

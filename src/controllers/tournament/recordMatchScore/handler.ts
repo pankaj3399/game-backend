@@ -155,15 +155,9 @@ export async function recordTournamentMatchScoreFlow(
   }
 
   const session = await mongoose.startSession();
-  let result: {
-    matchId: string;
-    tournamentId: string;
-    tournamentCompleted: boolean;
-    updatedRatings: Array<{ userId: string; rating: number; rd: number; vol: number }>;
-  } | null = null;
 
   try {
-    await session.withTransaction(async () => {
+    const persisted = await session.withTransaction(async () => {
       const game = await Game.findOne({
         _id: matchId,
         tournament: tournamentId,
@@ -344,20 +338,20 @@ export async function recordTournamentMatchScoreFlow(
         }
       }
 
-      result = {
+      return {
         matchId,
         tournamentId,
         tournamentCompleted,
         updatedRatings,
       };
     });
+
+    if (!persisted) {
+      throw new Error("Failed to record tournament match score");
+    }
+
+    return persisted;
   } finally {
     await session.endSession();
   }
-
-  if (!result) {
-    throw new Error("Failed to record tournament match score");
-  }
-
-  return result;
 }
