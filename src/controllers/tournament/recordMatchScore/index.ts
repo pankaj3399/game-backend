@@ -2,30 +2,10 @@ import type { Response } from "express";
 import { logger } from "../../../lib/logger";
 import type { AuthenticatedRequest } from "../../../shared/authContext";
 import { buildErrorPayload } from "../../../shared/errors";
-import { guardIdParam } from "../../../shared/guards";
-import { authorizeScheduleAccess } from "../../schedule/shared/authorize";
+import { authorizeScheduleOrMatchParticipant } from "../../schedule/shared/authorize";
 import { fetchTournamentScheduleContext } from "../../schedule/shared/queries";
-import Game from "../../../models/Game";
 import { recordTournamentMatchScoreFlow } from "./handler";
-import { recordMatchScoreSchema } from "./validation";
-
-async function isMatchParticipant(
-  tournamentId: string,
-  matchId: string,
-  userId: string
-) {
-  const match = await Game.findOne({
-    _id: matchId,
-    tournament: tournamentId,
-    gameMode: "tournament",
-    "teams.players": userId,
-  })
-    .select("_id")
-    .lean<{ _id: unknown } | null>()
-    .exec();
-
-  return match != null;
-}
+import { recordMatchScoreParamsSchema, recordMatchScoreSchema } from "./validation";
 
 /**
  * PATCH /api/tournaments/:id/matches/:matchId/score
@@ -33,20 +13,17 @@ async function isMatchParticipant(
  */
 export async function recordMatchScore(req: AuthenticatedRequest, res: Response) {
   try {
-    const tournamentIdResult = guardIdParam(req.params, "tournament ID");
-    if (!tournamentIdResult.ok) {
-      res.status(tournamentIdResult.status).json(buildErrorPayload(tournamentIdResult.message));
+    const paramsResult = recordMatchScoreParamsSchema.safeParse({
+      id: req.params.id,
+      matchId: Array.isArray(req.params.matchId) ? req.params.matchId[0] : req.params.matchId,
+    });
+    if (!paramsResult.success) {
+      const message = paramsResult.error.issues.map((issue) => issue.message).join("; ");
+      res.status(400).json(buildErrorPayload(message));
       return;
     }
 
-    const matchIdParam = Array.isArray(req.params.matchId)
-      ? req.params.matchId[0]
-      : req.params.matchId;
-    const matchIdResult = guardIdParam({ id: matchIdParam }, "match ID");
-    if (!matchIdResult.ok) {
-      res.status(matchIdResult.status).json(buildErrorPayload(matchIdResult.message));
-      return;
-    }
+    const { id: tournamentId, matchId: matchIdParam } = paramsResult.data;
 
     const parsedBody = recordMatchScoreSchema.safeParse(req.body);
     if (!parsedBody.success) {
@@ -55,33 +32,21 @@ export async function recordMatchScore(req: AuthenticatedRequest, res: Response)
       return;
     }
 
-    const tournament = await fetchTournamentScheduleContext(tournamentIdResult.data);
+    const tournament = await fetchTournamentScheduleContext(tournamentId);
     if (!tournament) {
       res.status(404).json(buildErrorPayload("Tournament not found"));
       return;
     }
 
-    const authResult = await authorizeScheduleAccess(tournament, req.user);
+    const authResult = await authorizeScheduleOrMatchParticipant(tournament, req.user, {
+      matchId: matchIdParam,
+    });
     if (authResult.status !== 200) {
-      const participantAccess = await isMatchParticipant(
-        tournamentIdResult.data,
-        matchIdResult.data,
-        req.user._id.toString()
-      );
-
-      if (!participantAccess) {
-        res.status(403).json(
-          buildErrorPayload("You do not have permission to record score for this match")
-        );
-        return;
-      }
+      res.status(authResult.status).json(buildErrorPayload(authResult.message));
+      return;
     }
 
-    const result = await recordTournamentMatchScoreFlow(
-      tournamentIdResult.data,
-      matchIdResult.data,
-      parsedBody.data
-    );
+    const result = await recordTournamentMatchScoreFlow(tournamentId, matchIdParam, parsedBody.data);
 
     res.status(200).json({
       message: "Match score recorded and ratings updated",

@@ -32,5 +32,6 @@ export const generatePairsSchema = z
   })
   .strict();
 
-export type GenerateScheduleInput = z.infer<typeof generateScheduleSchema>;
-export type GeneratePairsInput = z.infer<typeof generatePairsSchema>;
+/** Validated POST body for schedule generation (single source of truth with Zod). */
+export type GenerateScheduleBody = z.infer<typeof generateScheduleSchema>;
+export type GeneratePairsBody = z.infer<typeof generatePairsSchema>;

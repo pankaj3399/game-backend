@@ -2,12 +2,8 @@ import { Types } from "mongoose";
 import Schedule from "../../../models/Schedule";
 import Tournament from "../../../models/Tournament";
 import type { DbIdLike } from "../../../types/domain/common";
-import type {
-  ScheduleCourtInfo,
-  ScheduleParticipantInfo,
-  TournamentScheduleContext,
-  TournamentScheduleContextRaw,
-} from "./types";
+import { parseTournamentScheduleContext, parseTournamentScheduleDocument } from "./scheduleContext.schema";
+import type { TournamentScheduleContext, TournamentScheduleContextRaw } from "./types";
 
 function toObjectId(value: DbIdLike | null | undefined): Types.ObjectId | null {
   if (!value) {
@@ -25,7 +21,7 @@ function toObjectId(value: DbIdLike | null | undefined): Types.ObjectId | null {
   return null;
 }
 
-function normalizeScheduleContext(raw: TournamentScheduleContextRaw): TournamentScheduleContext {
+function buildNormalizedScheduleContext(raw: TournamentScheduleContextRaw) {
   const tournamentId = toObjectId(raw._id);
   if (!tournamentId) {
     throw new Error("Invalid tournament schedule context: missing _id");
@@ -37,15 +33,13 @@ function normalizeScheduleContext(raw: TournamentScheduleContextRaw): Tournament
   }
 
   const rawSchedule = raw.schedule;
-  const scheduleId = toObjectId(
-    rawSchedule != null &&
-      typeof rawSchedule === "object" &&
-      "_id" in rawSchedule
+  const scheduleFieldForId =
+    rawSchedule != null && typeof rawSchedule === "object" && "_id" in rawSchedule
       ? (rawSchedule as { _id: DbIdLike })._id
-      : rawSchedule
-  );
+      : (rawSchedule as DbIdLike | null | undefined);
+  const scheduleId = toObjectId(scheduleFieldForId);
 
-  const courts: ScheduleCourtInfo[] = [];
+  const courts: Array<{ _id: Types.ObjectId; name: string }> = [];
   const rawCourts = raw.club?.courts ?? [];
   for (const court of rawCourts) {
     const courtId = toObjectId(court._id);
@@ -66,7 +60,12 @@ function normalizeScheduleContext(raw: TournamentScheduleContextRaw): Tournament
       }
     : null;
 
-  const participants: ScheduleParticipantInfo[] = [];
+  const participants: Array<{
+    _id: Types.ObjectId;
+    name: string | null;
+    alias: string | null;
+    elo: { rating: number | null };
+  }> = [];
   for (const participant of raw.participants ?? []) {
     const participantId = toObjectId(participant._id);
     if (!participantId) {
@@ -135,7 +134,7 @@ export async function fetchTournamentScheduleContext(
     return null;
   }
 
-  return normalizeScheduleContext(raw);
+  return parseTournamentScheduleContext(buildNormalizedScheduleContext(raw));
 }
 
 export async function fetchScheduleForTournament(
@@ -146,15 +145,14 @@ export async function fetchScheduleForTournament(
     ? Schedule.findOne({ _id: scheduleId, tournament: tournamentId })
     : Schedule.findOne({ tournament: tournamentId });
 
-  return query
+  const doc = await query
     .select("_id status currentRound matchDurationMinutes breakTimeMinutes rounds")
-    .lean<{
-      _id: Types.ObjectId;
-      status: "draft" | "active" | "finished";
-      currentRound: number;
-      matchDurationMinutes?: number | null;
-      breakTimeMinutes?: number | null;
-      rounds: Array<{ game: Types.ObjectId; slot: number; round: number }>;
-    }>()
+    .lean<Record<string, unknown>>()
     .exec();
+
+  if (!doc) {
+    return null;
+  }
+
+  return parseTournamentScheduleDocument(doc);
 }
