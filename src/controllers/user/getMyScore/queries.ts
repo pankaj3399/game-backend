@@ -2,7 +2,7 @@ import { Types } from 'mongoose';
 import Game from '../../../models/Game';
 import User from '../../../models/User';
 
-interface PopulatedPlayer {
+export interface PopulatedPlayer {
 	_id: Types.ObjectId;
 	name?: string | null;
 	alias?: string | null;
@@ -13,10 +13,13 @@ interface PopulatedTournament {
 	name?: string | null;
 }
 
+interface PopulatedTeam {
+	players: (PopulatedPlayer | Types.ObjectId)[];
+}
+
 export interface MyScoreGameDoc {
 	_id: Types.ObjectId;
-	playerOne: PopulatedPlayer | Types.ObjectId | null;
-	playerTwo: PopulatedPlayer | Types.ObjectId | null;
+	teams: [PopulatedTeam, PopulatedTeam];
 	tournament: PopulatedTournament | Types.ObjectId | null;
 	score?: {
 		playerOneScores?: unknown[];
@@ -43,11 +46,10 @@ export async function fetchCompletedTournamentGamesForUser(userId: string): Prom
 	return Game.find({
 		gameMode: 'tournament',
 		status: 'finished',
-		$or: [{ playerOne: userObjectId }, { playerTwo: userObjectId }],
+		'teams.players': userObjectId,
 	})
-		.select('_id playerOne playerTwo tournament score playMode startTime endTime createdAt')
-		.populate('playerOne', 'name alias')
-		.populate('playerTwo', 'name alias')
+		.select('_id teams tournament score playMode startTime endTime createdAt')
+		.populate('teams.players', 'name alias')
 		.populate('tournament', 'name')
 		.sort({ endTime: -1, startTime: -1, createdAt: -1 })
 		.limit(1000)

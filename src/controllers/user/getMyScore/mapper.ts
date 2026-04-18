@@ -1,6 +1,6 @@
 import { Types } from 'mongoose';
 import type { MyScoreEntry, MyScoreMatchMode } from './types';
-import type { MyScoreGameDoc } from './queries';
+import type { MyScoreGameDoc, PopulatedPlayer } from './queries';
 
 interface ScoreBreakdown {
 	total: number | null;
@@ -19,7 +19,7 @@ function toIdString(value: Types.ObjectId | { _id: Types.ObjectId } | null | und
 	return value._id.toString();
 }
 
-function resolveName(player: MyScoreGameDoc['playerOne'], fallback: string): string {
+function resolveName(player: PopulatedPlayer | Types.ObjectId | null | undefined, fallback: string): string {
 	if (!player || player instanceof Types.ObjectId) {
 		return fallback;
 	}
@@ -136,23 +136,52 @@ function resolveDidWin(myScore: ScoreBreakdown, opponentScore: ScoreBreakdown): 
 }
 
 export function mapGameToMyScoreEntry(game: MyScoreGameDoc, userId: string): MyScoreEntry | null {
-	const playerOneId = toIdString(game.playerOne);
-	const playerTwoId = toIdString(game.playerTwo);
-
-	if (!playerOneId || !playerTwoId) {
+	const teams = game.teams;
+	if (!teams || teams.length !== 2) {
 		return null;
 	}
 
-	const userIsPlayerOne = playerOneId === userId;
-	const userIsPlayerTwo = playerTwoId === userId;
+	let userTeamIndex: 0 | 1 | null = null;
+	for (let i = 0; i < 2; i += 1) {
+		const teamPlayers = teams[i]?.players;
+		if (!Array.isArray(teamPlayers)) {
+			continue;
+		}
+		for (const p of teamPlayers) {
+			const pid = toIdString(p as PopulatedPlayer | Types.ObjectId);
+			if (pid === userId) {
+				userTeamIndex = i as 0 | 1;
+				break;
+			}
+		}
+		if (userTeamIndex !== null) {
+			break;
+		}
+	}
 
-	if (!userIsPlayerOne && !userIsPlayerTwo) {
+	if (userTeamIndex === null) {
 		return null;
 	}
 
-	const myPlayer = userIsPlayerOne ? game.playerOne : game.playerTwo;
-	const opponentPlayer = userIsPlayerOne ? game.playerTwo : game.playerOne;
-	const opponentId = userIsPlayerOne ? playerTwoId : playerOneId;
+	const userIsPlayerOne = userTeamIndex === 0;
+	const opponentTeam = teams[1 - userTeamIndex];
+	const opponentPlayers = opponentTeam?.players;
+	if (!Array.isArray(opponentPlayers) || opponentPlayers.length === 0) {
+		return null;
+	}
+
+	const firstOpponent = opponentPlayers[0];
+	const opponentId = toIdString(firstOpponent as PopulatedPlayer | Types.ObjectId);
+	if (!opponentId) {
+		return null;
+	}
+
+	const opponentName =
+		opponentPlayers.length === 1
+			? resolveName(firstOpponent as PopulatedPlayer | Types.ObjectId, 'Unknown opponent')
+			: opponentPlayers
+					.map((p) => resolveName(p as PopulatedPlayer | Types.ObjectId, 'Unknown'))
+					.join(' / ');
 
 	const playerOneScores = toScoreBreakdown(game.score?.playerOneScores);
 	const playerTwoScores = toScoreBreakdown(game.score?.playerTwoScores);
@@ -168,7 +197,7 @@ export function mapGameToMyScoreEntry(game: MyScoreGameDoc, userId: string): MyS
 		},
 		opponent: {
 			id: opponentId,
-			name: resolveName(opponentPlayer, 'Unknown opponent'),
+			name: opponentName,
 		},
 		mode: resolveMatchMode(game.playMode),
 		myScore: myScore.total,
