@@ -112,6 +112,25 @@ const baseTournament = z.object({
         });
       }
     })
+    .superRefine((d, ctx) => {
+      if (d.status !== "active") {
+        return;
+      }
+      if (d.totalRounds === undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["totalRounds"],
+          message: "totalRounds is required when status is active",
+        });
+      }
+      if (d.matchesPerPlayer === undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["matchesPerPlayer"],
+          message: "matchesPerPlayer is required when status is active",
+        });
+      }
+    })
     .transform((d) => {
       const sponsor = d.sponsor ?? d.sponsorId ?? undefined;
       const { sponsorId, ...rest } = d;
