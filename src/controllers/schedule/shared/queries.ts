@@ -124,7 +124,7 @@ export async function fetchTournamentScheduleContext(
       select: "_id",
       populate: {
         path: "courts",
-        select: "name",
+        select: "_id name",
       },
     })
     .populate("participants", "name alias elo.rating")
