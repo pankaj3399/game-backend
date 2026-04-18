@@ -214,12 +214,20 @@ export async function getTournamentLiveMatch(req: AuthenticatedRequest, res: Res
 
       if (nextStatus !== game.status) {
         statusUpdates.push({ id: game._id, status: nextStatus });
-        game.status = nextStatus;
       }
     }
 
     if (statusUpdates.length > 0) {
       await updateGameStatuses(statusUpdates);
+      const statusById = new Map(
+        statusUpdates.map((u) => [u.id.toString(), u.status])
+      );
+      for (const game of games) {
+        const persisted = statusById.get(game._id.toString());
+        if (persisted !== undefined) {
+          game.status = persisted;
+        }
+      }
     }
 
     const liveGame = games.find((game) => game.status === "active") ?? null;

@@ -63,6 +63,9 @@ function flattenOutcomeSegments(input: RecordMatchScoreInput) {
   return outcomes;
 }
 
+/** Matches glicko2.ts SCALE — combine RD in φ-space (equal weights, e.g. 0.5 each in doubles). */
+const GLICKO_RD_SCALE = 173.7178;
+
 function averageOpponentState(states: RatingState[]) {
   const count = states.length;
   if (count === 0) {
@@ -74,21 +77,30 @@ function averageOpponentState(states: RatingState[]) {
     };
   }
 
-  const aggregate = states.reduce(
-    (acc, state) => ({
-      rating: acc.rating + state.rating,
-      rd: acc.rd + state.rd,
-      vol: acc.vol + state.vol,
-      tau: acc.tau + state.tau,
-    }),
-    { rating: 0, rd: 0, vol: 0, tau: 0 }
-  );
+  if (count === 1) {
+    const s = states[0];
+    return { ...s };
+  }
+
+  const weight = 1 / count;
+  let phiSqWeightedSum = 0;
+  let ratingSum = 0;
+  let volSum = 0;
+  let tauSum = 0;
+
+  for (const state of states) {
+    ratingSum += state.rating;
+    const phi = state.rd / GLICKO_RD_SCALE;
+    phiSqWeightedSum += weight * weight * phi * phi;
+    volSum += state.vol;
+    tauSum += state.tau;
+  }
 
   return {
-    rating: aggregate.rating / count,
-    rd: aggregate.rd / count,
-    vol: aggregate.vol / count,
-    tau: aggregate.tau / count,
+    rating: ratingSum / count,
+    rd: Math.sqrt(phiSqWeightedSum) * GLICKO_RD_SCALE,
+    vol: volSum / count,
+    tau: tauSum / count,
   };
 }
 

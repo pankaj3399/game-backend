@@ -79,8 +79,12 @@ function computeVolatility(phi: number, vol: number, delta: number, v: number, t
     upper = Math.log(delta * delta - phi * phi - v);
   } else {
     let k = 1;
-    while (f(a - k * tau) < 0) {
+    const MAX_K_STEPS = 100_000;
+    while (f(a - k * tau) < 0 && k < MAX_K_STEPS) {
       k += 1;
+    }
+    if (k >= MAX_K_STEPS) {
+      throw new Error("Glicko-2 volatility search: exceeded maximum iterations");
     }
     upper = a - k * tau;
   }

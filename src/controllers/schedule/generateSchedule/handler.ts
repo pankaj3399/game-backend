@@ -396,7 +396,7 @@ export async function persistSinglesScheduleRound(
 
       const roundMatchDurationMinutes =
         typeof scheduleDoc.matchDurationMinutes === "number" && Number.isFinite(scheduleDoc.matchDurationMinutes)
-          ? Math.max(1, Math.trunc(scheduleDoc.matchDurationMinutes))
+          ? Math.max(5, Math.trunc(scheduleDoc.matchDurationMinutes))
           : parseDurationMinutes(tournament.duration ?? null, DEFAULT_MATCH_DURATION_MINUTES);
 
       await ensurePreviousRoundFinished(

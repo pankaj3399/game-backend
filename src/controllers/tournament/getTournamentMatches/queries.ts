@@ -1,4 +1,4 @@
-import type { Types } from "mongoose";
+import type { ClientSession, Types } from "mongoose";
 import Game from "../../../models/Game";
 import Schedule from "../../../models/Schedule";
 import type { DbIdLike } from "../../../types/domain/common";
@@ -62,7 +62,8 @@ export async function fetchGamesForScheduleRounds(
 }
 
 export async function updateGameStatuses(
-  updates: Array<{ id: Types.ObjectId | string; status: GameStatus }>
+  updates: Array<{ id: Types.ObjectId | string; status: GameStatus }>,
+  session?: ClientSession
 ) {
   if (updates.length === 0) {
     return;
@@ -74,6 +75,7 @@ export async function updateGameStatuses(
         filter: { _id: entry.id },
         update: { $set: { status: entry.status } },
       },
-    }))
+    })),
+    session ? { session } : {}
   );
 }
