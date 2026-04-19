@@ -1,6 +1,7 @@
 import type { ClientSession, Types } from "mongoose";
 import Game from "../../../models/Game";
 import Schedule from "../../../models/Schedule";
+import { LogWarning } from "../../../lib/logger";
 import type { GameStatus } from "../../../types/domain/game";
 import type {
   GameForMatchesDoc,
@@ -41,6 +42,11 @@ export async function fetchGamesForScheduleRounds(
     .exec();
 }
 
+/**
+ * Applies status transitions with optimistic concurrency (`expectedStatus` in the filter).
+ * Updates that no longer match (another writer changed `status` first) are skipped silently;
+ * compare `matchedCount` to `updates.length` below to detect partial application.
+ */
 export async function updateGameStatuses(
   updates: { id: Types.ObjectId; status: GameStatus; expectedStatus: GameStatus }[],
   session?: ClientSession
@@ -49,7 +55,7 @@ export async function updateGameStatuses(
     return;
   }
 
-  await Game.bulkWrite(
+  const result = await Game.bulkWrite(
     updates.map((entry) => ({
       updateOne: {
         filter: { _id: entry.id, status: entry.expectedStatus },
@@ -58,4 +64,11 @@ export async function updateGameStatuses(
     })),
     session ? { session } : {}
   );
+
+  if (result.matchedCount < updates.length) {
+    LogWarning(
+      "updateGameStatuses",
+      `optimistic concurrency: matched ${result.matchedCount} of ${updates.length} game status updates (expected status changed concurrently)`
+    );
+  }
 }

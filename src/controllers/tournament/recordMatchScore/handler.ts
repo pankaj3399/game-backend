@@ -435,7 +435,9 @@ export async function recordTournamentMatchScoreFlow(
     });
 
     if (!persisted) {
-      throw new Error("Failed to record tournament match score");
+      throw new Error(
+        `Transaction aborted: failed to persist tournament match score (matchId=${matchId}, tournamentId=${tournamentId})`
+      );
     }
 
     return persisted;

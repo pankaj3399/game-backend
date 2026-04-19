@@ -11,6 +11,8 @@ import {
   fetchScheduleForTournament,
   updateGameStatuses,
 } from "./queries";
+import type { GameStatus } from "../../../types/domain/game";
+import type { Types } from "mongoose";
 import { resolveTimedGameStatus } from "../../../shared/matchTiming";
 
 const STATUS_UPDATE_CHUNK_SIZE = 100;
@@ -53,7 +55,11 @@ export async function getTournamentMatches(req: AuthenticatedRequest, res: Respo
     const matchDurationMinutes = schedule?.matchDurationMinutes ?? tournament.duration;
 
     const now = new Date();
-    const statusUpdates= [];
+    const statusUpdates: Array<{
+      id: Types.ObjectId;
+      status: GameStatus;
+      expectedStatus: GameStatus;
+    }> = [];
 
     for (const game of games) {
       const nextStatus = resolveTimedGameStatus({

@@ -40,6 +40,10 @@ export async function authorizeScheduleOrMatchParticipant(
     return scheduleAuth;
   }
 
+  if (scheduleAuth.status !== 403) {
+    return scheduleAuth;
+  }
+
   const match = await Game.findOne({
     _id: options.matchId,
     tournament: tournament._id,
@@ -54,9 +58,8 @@ export async function authorizeScheduleOrMatchParticipant(
     return scheduleAuth;
   }
 
-  // Schedule auth already validated `tournament.club` above; we only reach here when
-  // that failed (e.g. 403) but the user is a match participant. Re-check club before
-  // issuing OK so we never return success without a usable club id.
+  // `authorizeScheduleAccess` returned 403 (not a schedule manager). Participant path:
+  // club was already validated there before the 403. Re-check defensively before OK.
   if (!tournament.club || tournament.club._id == null) {
     return error(400, "Tournament has no club");
   }

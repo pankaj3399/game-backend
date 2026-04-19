@@ -5,7 +5,8 @@ import { resolveTimedGameStatus } from "../../../shared/matchTiming";
 import { updateGameStatuses } from "../getTournamentMatches/queries";
 import type { LiveMatchGameDoc } from "./types";
 
-const LIVE_MATCH_LOOKBACK_MS = 365 * 24 * 60 * 60 * 1000;
+/** Recent in-flight / upcoming matches only — avoids scanning a full year of games. */
+const LIVE_MATCH_LOOKBACK_MS = 30 * 24 * 60 * 60 * 1000;
 
 export async function fetchLiveMatchGames(userId: Types.ObjectId) {
   const startTimeLowerBound = new Date(Date.now() - LIVE_MATCH_LOOKBACK_MS);
