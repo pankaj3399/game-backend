@@ -19,7 +19,8 @@ interface PopulatedTeam {
 
 export interface MyScoreGameDoc {
 	_id: Types.ObjectId;
-	teams: [PopulatedTeam, PopulatedTeam];
+	side1: PopulatedTeam;
+	side2: PopulatedTeam;
 	tournament: PopulatedTournament | Types.ObjectId | null;
 	score?: {
 		playerOneScores?: unknown[];
@@ -47,10 +48,11 @@ export async function fetchCompletedTournamentGamesForUser(userId: string): Prom
 	return Game.find({
 		gameMode: 'tournament',
 		status: 'finished',
-		'teams.players': userObjectId,
+		$or: [{ 'side1.players': userObjectId }, { 'side2.players': userObjectId }],
 	})
-		.select('_id teams tournament score matchType playMode startTime endTime createdAt')
-		.populate('teams.players', 'name alias')
+		.select('_id side1 side2 tournament score matchType playMode startTime endTime createdAt')
+		.populate('side1.players', 'name alias')
+		.populate('side2.players', 'name alias')
 		.populate('tournament', 'name')
 		.sort({ endTime: -1, startTime: -1, createdAt: -1 })
 		.limit(1000)

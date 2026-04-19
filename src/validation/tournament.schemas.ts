@@ -6,8 +6,15 @@ const isValidTime = (s: string) => timeRegex.test(s);
 
 const playModeEnum = z.enum(TOURNAMENT_PLAY_MODES);
 const tournamentModeEnum = z.enum(TOURNAMENT_MODES);
-const nullableNonEmptyString = z.union([z.string().trim().min(1), z.null()]);
 
+const entryFeeSchema = z.coerce.number().min(0);
+const memberCountSchema = z.coerce.number().int().min(1);
+const totalRoundsSchema = z.coerce.number().int().min(1).max(100);
+const durationMinutesSchema = z.coerce.number().int().min(5).max(240);
+const breakMinutesSchema = z.coerce.number().int().min(0).max(120);
+
+const nullableDurationMinutes = z.union([durationMinutesSchema, z.null()]);
+const nullableBreakMinutes = z.union([breakMinutesSchema, z.null()]);
 
 const draftFields = {
 	club: objectId.optional(),
@@ -19,13 +26,12 @@ const draftFields = {
 	endTime: z.union([z.string().trim().regex(timeRegex, 'Invalid end time (expected HH:mm)'), z.null()]).optional(),
 	playMode: playModeEnum.optional(),
 	tournamentMode: tournamentModeEnum.optional(),
-	entryFee: z.number().min(0).optional(),
-	minMember: z.number().int().min(1).optional(),
-	maxMember: z.number().int().min(1).optional(),
-	totalRounds: z.number().int().min(1).max(100).optional(),
-	duration: nullableNonEmptyString.optional(),
-	breakDuration: nullableNonEmptyString.optional(),
-	matchesPerPlayer: z.number().int().min(1).max(20).optional(),
+	entryFee: entryFeeSchema.optional(),
+	minMember: memberCountSchema.optional(),
+	maxMember: memberCountSchema.optional(),
+	totalRounds: totalRoundsSchema.optional(),
+	duration: nullableDurationMinutes.optional(),
+	breakDuration: nullableBreakMinutes.optional(),
 	foodInfo: z.string().max(500).optional().nullable(),
 	descriptionInfo: z.string().max(1000).optional().nullable(),
 } satisfies z.ZodRawShape;
@@ -66,14 +72,23 @@ const publishFields = {
 	name: z.string().trim().min(1, 'Tournament name is required'),
 	playMode: playModeEnum,
 	tournamentMode: tournamentModeEnum,
-	entryFee: z.number().min(0),
-	minMember: z.number().int().min(1),
-	maxMember: z.number().int().min(1),
-	totalRounds: z.number().int().min(1).max(100),
+	entryFee: entryFeeSchema,
+	minMember: memberCountSchema,
+	maxMember: memberCountSchema,
+	totalRounds: totalRoundsSchema,
 	status: z.literal('active'),
-	duration: z.string().trim().min(1, 'Playing time is required'),
-	breakDuration: z.string().trim().min(1, 'Game pause time is required'),
-	matchesPerPlayer: z.number().int().min(1).max(20),
+	duration: z
+		.coerce
+		.number()
+		.int('Playing time must be a whole number of minutes')
+		.min(5, 'Playing time must be at least 5 minutes')
+		.max(240, 'Playing time must be at most 240 minutes'),
+	breakDuration: z
+		.coerce
+		.number()
+		.int('Game pause time must be a whole number of minutes')
+		.min(0, 'Game pause time cannot be negative')
+		.max(120, 'Game pause time must be at most 120 minutes'),
 	startTime: z.string().trim().regex(timeRegex, 'Invalid start time (expected HH:mm)').optional().nullable(),
 	endTime: z.string().trim().regex(timeRegex, 'Invalid end time (expected HH:mm)').optional().nullable()
 } satisfies z.ZodRawShape;

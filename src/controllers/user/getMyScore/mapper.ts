@@ -19,7 +19,7 @@ function toIdString(value: Types.ObjectId | { _id: Types.ObjectId } | null | und
 	return value._id.toString();
 }
 
-type MyScorePlayer = MyScoreGameDoc['teams'][number]['players'][number] | null | undefined;
+type MyScorePlayer = MyScoreGameDoc['side1']['players'][number] | null | undefined;
 
 function toPlayerId(player: MyScorePlayer): string | null {
 	if (!player) {
@@ -73,27 +73,18 @@ function resolveTournamentName(game: MyScoreGameDoc): string {
 	return 'Tournament match';
 }
 
-function toDate(value: unknown): Date | null {
-	if (value instanceof Date && Number.isFinite(value.getTime())) {
-		return value;
-	}
-
-	if (typeof value === 'string') {
-		const parsed = new Date(value);
-		if (Number.isFinite(parsed.getTime())) {
-			return parsed;
+function resolvePlayedAt(game: MyScoreGameDoc): Date {
+	for (const value of [game.endTime, game.startTime, game.createdAt]) {
+		if (value instanceof Date && Number.isFinite(value.getTime())) {
+			return value;
+		}
+		if (typeof value === 'string') {
+			const parsed = new Date(value);
+			if (Number.isFinite(parsed.getTime())) {
+				return parsed;
+			}
 		}
 	}
-
-	return null;
-}
-
-function resolvePlayedAt(game: MyScoreGameDoc): Date {
-	const preferredDate = toDate(game.endTime) ?? toDate(game.startTime) ?? toDate(game.createdAt);
-	if (preferredDate) {
-		return preferredDate;
-	}
-
 	return new Date(0);
 }
 
@@ -181,14 +172,14 @@ function resolveTeamName(players: MyScorePlayer[], isDoubles: boolean, fallback:
 }
 
 export function mapGameToMyScoreEntry(game: MyScoreGameDoc, userId: string): MyScoreEntry | null {
-	if (!Array.isArray(game.teams) || game.teams.length < 2) {
+	if (!game.side1 || !game.side2) {
 		return null;
 	}
 
 	const resolvedMode = resolveMatchModeFromType(game.matchType, game.playMode);
 	const isDoubles = resolvedMode === 'doubles';
-	const teamOnePlayers = Array.isArray(game.teams[0]?.players) ? game.teams[0].players : [];
-	const teamTwoPlayers = Array.isArray(game.teams[1]?.players) ? game.teams[1].players : [];
+	const teamOnePlayers = Array.isArray(game.side1?.players) ? game.side1.players : [];
+	const teamTwoPlayers = Array.isArray(game.side2?.players) ? game.side2.players : [];
 	if (teamOnePlayers.length === 0 || teamTwoPlayers.length === 0) {
 		return null;
 	}

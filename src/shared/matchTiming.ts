@@ -1,7 +1,5 @@
 import type { GameStatus } from "../types/domain/game";
 
-const DEFAULT_MATCH_DURATION_MINUTES = 60;
-
 function normalizeDurationMinutes(value: number | null | undefined): number | null {
   if (typeof value !== "number" || !Number.isFinite(value)) {
     return null;
@@ -15,33 +13,19 @@ function normalizeDurationMinutes(value: number | null | undefined): number | nu
   return normalized;
 }
 
-export function parseDurationMinutes(
-  durationText: string | null | undefined,
-  fallback: number = DEFAULT_MATCH_DURATION_MINUTES
-): number {
-  const fallbackMinutes = normalizeDurationMinutes(fallback) ?? DEFAULT_MATCH_DURATION_MINUTES;
-  if (!durationText) {
-    return fallbackMinutes;
-  }
-
-  const match = durationText.match(/(\d+)/);
-  if (!match) {
-    return fallbackMinutes;
-  }
-
-  const parsed = Number.parseInt(match[1], 10);
-  return normalizeDurationMinutes(parsed) ?? fallbackMinutes;
-}
-
 interface ResolveTimedGameStatusInput {
   persistedStatus: GameStatus;
   startTime: Date | null | undefined;
   matchDurationMinutes: number | null | undefined;
-  now?: Date;
+  now: Date;
 }
 
-export function resolveTimedGameStatus(input: ResolveTimedGameStatusInput): GameStatus {
-  if (input.persistedStatus === "cancelled" || input.persistedStatus === "finished") {
+export function resolveTimedGameStatus(input: ResolveTimedGameStatusInput) {
+  if (
+    input.persistedStatus === "cancelled" ||
+    input.persistedStatus === "finished" ||
+    input.persistedStatus === "pendingScore"
+  ) {
     return input.persistedStatus;
   }
 
@@ -59,8 +43,7 @@ export function resolveTimedGameStatus(input: ResolveTimedGameStatusInput): Game
     return input.persistedStatus;
   }
 
-  const currentTime = input.now ?? new Date();
-  const nowTimestamp = currentTime.getTime();
+  const nowTimestamp = input.now.getTime();
 
   if (nowTimestamp < startTimestamp) {
     return "draft";
@@ -68,7 +51,7 @@ export function resolveTimedGameStatus(input: ResolveTimedGameStatusInput): Game
 
   const endTimestamp = startTimestamp + durationMinutes * 60_000;
   if (nowTimestamp >= endTimestamp) {
-    return "finished";
+    return "pendingScore";
   }
 
   return "active";

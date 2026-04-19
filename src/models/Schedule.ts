@@ -14,6 +14,7 @@ export interface IScheduleRound {
 export interface ISchedule {
 	tournament: mongoose.Types.ObjectId;
 	currentRound: number;
+	matchesPerPlayer: number;
 	matchDurationMinutes?: number | null;
 	breakTimeMinutes?: number | null;
 	rounds: IScheduleRound[];
@@ -65,6 +66,17 @@ const scheduleSchema = new Schema<ISchedule>(
 			required: true,
 			default: 0,
 			min: [0, 'currentRound must be at least 0']
+		},
+		matchesPerPlayer: {
+			type: Number,
+			required: true,
+			min: [1, 'matchesPerPlayer must be at least 1'],
+			max: [20, 'matchesPerPlayer cannot be greater than 20'],
+			default: 1,
+			validate: {
+				validator: (v: unknown) => typeof v === 'number' && Number.isInteger(v),
+				message: 'matchesPerPlayer must be an integer'
+			}
 		},
 		matchDurationMinutes: {
 			type: Number,

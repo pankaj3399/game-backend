@@ -1,4 +1,12 @@
 import { z } from "zod";
+import { objectId } from "../../../validation/base-helpers";
+
+export const recordMatchScoreParamsSchema = z
+  .object({
+    id: objectId,
+    matchId: objectId,
+  })
+  .strict();
 
 const numericScore = z.number().int().min(0).max(99);
 const scoreValue = z.union([numericScore, z.literal("wo")]);

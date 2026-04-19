@@ -25,8 +25,8 @@ export interface ITournament extends Document {
 	entryFee: number;
 	minMember: number;
 	maxMember: number;
-	duration: string;
-	breakDuration: string;
+	duration: number;
+	breakDuration: number;
 	totalRounds: number;
 	foodInfo?: string;
 	descriptionInfo?: string;
@@ -34,7 +34,6 @@ export interface ITournament extends Document {
 	createdAt?: Date;
 	updatedAt?: Date;
 	participants: mongoose.Types.ObjectId[];
-	matchesPerPlayer: number;
 	firstRoundScheduledAt?: Date | null;
 	completedAt?: Date | null;
 }
@@ -109,12 +108,24 @@ const tournamentSchema = new mongoose.Schema<ITournament>(
 			default: 1
 		},
 		duration: {
-			type: String,
-			required: true
+			type: Number,
+			required: true,
+			min: [5, 'duration must be at least 5 minutes'],
+			max: [240, 'duration must be at most 240 minutes'],
+			validate: {
+				validator: (v: unknown) => typeof v === 'number' && Number.isInteger(v),
+				message: 'duration must be an integer number of minutes'
+			}
 		},
 		breakDuration: {
-			type: String,
-			required: true
+			type: Number,
+			required: true,
+			min: [0, 'breakDuration must be at least 0 minutes'],
+			max: [120, 'breakDuration must be at most 120 minutes'],
+			validate: {
+				validator: (v: unknown) => typeof v === 'number' && Number.isInteger(v),
+				message: 'breakDuration must be an integer number of minutes'
+			}
 		},
 		totalRounds: {
 			type: Number,
@@ -156,17 +167,6 @@ const tournamentSchema = new mongoose.Schema<ITournament>(
 				}
 			],
 			default: []
-		},
-		matchesPerPlayer: {
-			type: Number,
-			required: true,
-			min: [1, 'matchesPerPlayer must be at least 1'],
-			max: [20, 'matchesPerPlayer cannot be greater than 20'],
-			default: 1,
-			validate: {
-				validator: (v: unknown) => typeof v === 'number' && Number.isInteger(v),
-				message: 'matchesPerPlayer must be an integer'
-			}
 		},
 		firstRoundScheduledAt: {
 			type: Date,

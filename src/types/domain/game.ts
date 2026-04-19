@@ -1,4 +1,4 @@
-export const GAME_STATUSES = ['active', 'draft', 'inactive', 'cancelled', 'finished'] as const;
+export const GAME_STATUSES = ['active', 'draft', 'inactive', 'pendingScore', 'cancelled', 'finished'] as const;
 export type GameStatus = (typeof GAME_STATUSES)[number];
 
 export const GAME_MODES = ['standalone', 'tournament'] as const;

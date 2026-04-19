@@ -16,7 +16,8 @@ export interface IGameTeam {
 
 // Define the IGame interface
 export interface IGame extends Document {
-	teams: [IGameTeam, IGameTeam];
+	side1: IGameTeam;
+	side2: IGameTeam;
 	court?: mongoose.Types.ObjectId;
 	tournament?: mongoose.Types.ObjectId;
 	schedule?: mongoose.Types.ObjectId;
@@ -48,14 +49,8 @@ const gameTeamSchema = new mongoose.Schema<IGameTeam>(
 // Define the Game schema
 const gameSchema = new mongoose.Schema<IGame>(
 	{
-		teams: {
-			type: [gameTeamSchema],
-			required: true,
-			validate: {
-				validator: (value: IGameTeam[]) => Array.isArray(value) && value.length === 2,
-				message: 'teams must contain exactly two teams'
-			}
-		},
+		side1: { type: gameTeamSchema, required: true },
+		side2: { type: gameTeamSchema, required: true },
 		court: { type: mongoose.Schema.Types.ObjectId, ref: 'Court' },
 		tournament: { type: mongoose.Schema.Types.ObjectId, ref: 'Tournament' },
 		schedule: { type: mongoose.Schema.Types.ObjectId, ref: 'Schedule' },
@@ -124,22 +119,26 @@ const gameSchema = new mongoose.Schema<IGame>(
 );
 
 gameSchema.pre('validate', function () {
-	if (!Array.isArray(this.teams) || this.teams.length !== 2) {
-		this.invalidate('teams', 'teams must contain exactly two teams');
+	if (!this.side1 || !this.side2) {
+		this.invalidate('side1', 'both side1 and side2 are required');
+		this.invalidate('side2', 'both side1 and side2 are required');
 		return;
 	}
 
- 	const expectedTeamSize = this.matchType === 'doubles' ? 2 : 1;
+	const expectedSideSize = this.matchType === 'doubles' ? 2 : 1;
 	const allPlayers: string[] = [];
+	const sides: Array<{ key: 'side1' | 'side2'; value: IGameTeam | undefined }> = [
+		{ key: 'side1', value: this.side1 },
+		{ key: 'side2', value: this.side2 },
+	];
 
-	for (let teamIndex = 0; teamIndex < this.teams.length; teamIndex += 1) {
-		const team = this.teams[teamIndex];
-		const players = Array.isArray(team?.players) ? team.players : [];
+	for (const side of sides) {
+		const players = Array.isArray(side.value?.players) ? side.value.players : [];
 
-		if (players.length !== expectedTeamSize) {
+		if (players.length !== expectedSideSize) {
 			this.invalidate(
-				`teams.${teamIndex}.players`,
-				`Each team must contain exactly ${expectedTeamSize} player${expectedTeamSize === 1 ? '' : 's'} for ${this.matchType}`
+				`${side.key}.players`,
+				`Each side must contain exactly ${expectedSideSize} player${expectedSideSize === 1 ? '' : 's'} for ${this.matchType}`
 			);
 		}
 
@@ -149,7 +148,8 @@ gameSchema.pre('validate', function () {
 	}
 
 	if (new Set(allPlayers).size !== allPlayers.length) {
-		this.invalidate('teams', 'all match participants must be unique across both teams');
+		this.invalidate('side1', 'all match participants must be unique across both sides');
+		this.invalidate('side2', 'all match participants must be unique across both sides');
 	}
 
 	if (this.gameMode === 'tournament' && !this.tournament) {
@@ -163,8 +163,10 @@ gameSchema.pre('validate', function () {
 
 gameSchema.index({ tournament: 1, status: 1, createdAt: -1 });
 gameSchema.index({ schedule: 1, status: 1, createdAt: -1 });
-gameSchema.index({ gameMode: 1, status: 1, 'teams.players': 1, createdAt: -1 });
-gameSchema.index({ gameMode: 1, status: 1, 'teams.players': 1, startTime: 1 });
+gameSchema.index({ gameMode: 1, status: 1, 'side1.players': 1, createdAt: -1 });
+gameSchema.index({ gameMode: 1, status: 1, 'side2.players': 1, createdAt: -1 });
+gameSchema.index({ gameMode: 1, status: 1, 'side1.players': 1, startTime: 1 });
+gameSchema.index({ gameMode: 1, status: 1, 'side2.players': 1, startTime: 1 });
 gameSchema.index({ matchType: 1, status: 1, createdAt: -1 });
 
 const Game = mongoose.model<IGame>('Game', gameSchema);
