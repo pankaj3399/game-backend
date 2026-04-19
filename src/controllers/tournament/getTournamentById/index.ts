@@ -3,13 +3,14 @@ import { logger } from "../../../lib/logger";
 import { AuthenticatedRequest, type AuthenticatedSession } from "../../../shared/authContext";
 import { guardIdParam } from "../../../shared/guards";
 import { buildErrorPayload } from "../../../shared/errors";
-import { authorizeGetById } from "./authorize";
-import { fetchTournamentById, getClubSponsors } from "./queries";
+import { authorizeGetById } from "../shared/authorizeGetById";
+import { fetchTournamentById } from "../shared/fetchTournamentById";
+import { getClubSponsors } from "./queries";
 import { mapTournamentDetail } from "./mapper";
 
 /**
  * GET /api/tournaments/:id
- * Get tournament details. Non-managers can only view active tournaments.
+ * Get tournament details. Drafts are only visible to super admins, the creator, or club managers.
  */
 export async function getTournamentById(req: AuthenticatedRequest, res: Response) {
   try {

@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
-import Tournament from "../../../models/Tournament";
 import type { AuthenticatedSession } from "../../../shared";
 import { error, ok } from "../../../shared/helpers";
+import { addParticipantIfCapacityAllows } from "./queries";
 
 /**
  * Atomically adds the user to the tournament participants if capacity allows.
@@ -11,24 +11,7 @@ export async function joinTournamentFlow(
   tournamentId: string,
   session: AuthenticatedSession
 ) {
-  const returnedDoc = await Tournament.findOneAndUpdate(
-    {
-      _id: tournamentId,
-      status: "active",
-      firstRoundScheduledAt: null,
-      $expr: {
-        $lt: [
-          { $size: { $ifNull: ["$participants", []] } },
-          { $ifNull: ["$maxMember", 1] },
-        ],
-      },
-    },
-    { $addToSet: { participants: session._id } },
-    { new: true }
-  )
-    .select("participants maxMember")
-    .lean()
-    .exec();
+  const returnedDoc = await addParticipantIfCapacityAllows(tournamentId, session._id);
 
   if (!returnedDoc) {
     return error(400, "This tournament is either full or no longer accepting participants");

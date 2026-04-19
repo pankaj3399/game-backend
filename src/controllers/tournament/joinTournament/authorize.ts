@@ -41,14 +41,6 @@ export async function authorizeJoin(
     return error(400, "Tournament join is closed because the first round has already been scheduled");
   }
 
-  const hasScheduledFirstRound = await Schedule.exists({
-    tournament: tournament._id,
-    rounds: { $elemMatch: { round: 1 } },
-  });
-  if (hasScheduledFirstRound) {
-    return error(400, "Tournament join is closed because the first round has already been scheduled");
-  }
-
   // Capacity must match mapTournamentDetail `permissions.canJoin` (hasAvailableSpots).
   const spotsFilled = (tournament.participants ?? []).length;
   const spotsTotal = computeSpotsTotal(tournament.maxMember);

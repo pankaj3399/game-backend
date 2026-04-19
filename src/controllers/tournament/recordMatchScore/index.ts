@@ -2,51 +2,28 @@ import type { Response } from "express";
 import { logger } from "../../../lib/logger";
 import type { AuthenticatedRequest } from "../../../shared/authContext";
 import { buildErrorPayload } from "../../../shared/errors";
-import { guardIdParam } from "../../../shared/guards";
-import { authorizeScheduleAccess } from "../../schedule/shared/authorize";
+import { authorizeScheduleOrMatchParticipant } from "../../schedule/shared/authorize";
 import { fetchTournamentScheduleContext } from "../../schedule/shared/queries";
-import Game from "../../../models/Game";
 import { recordTournamentMatchScoreFlow } from "./handler";
-import { recordMatchScoreSchema } from "./validation";
-
-async function isMatchParticipant(
-  tournamentId: string,
-  matchId: string,
-  userId: string
-) {
-  const match = await Game.findOne({
-    _id: matchId,
-    tournament: tournamentId,
-    gameMode: "tournament",
-    $or: [{ "side1.players": userId }, { "side2.players": userId }],
-  })
-    .select("_id")
-    .lean<{ _id: unknown } | null>()
-    .exec();
-
-  return match != null;
-}
+import { recordMatchScoreParamsSchema, recordMatchScoreSchema } from "./validation";
 
 /**
  * PATCH /api/tournaments/:id/matches/:matchId/score
- * Records score, closes the match, and immediately applies Glicko2 updates.
+ * Records score. If the winner is decided, closes the match and applies Glicko2 updates.
  */
 export async function recordMatchScore(req: AuthenticatedRequest, res: Response) {
   try {
-    const tournamentIdResult = guardIdParam(req.params, "tournament ID");
-    if (!tournamentIdResult.ok) {
-      res.status(tournamentIdResult.status).json(buildErrorPayload(tournamentIdResult.message));
+    const paramsResult = recordMatchScoreParamsSchema.safeParse({
+      id: req.params.id,
+      matchId: Array.isArray(req.params.matchId) ? req.params.matchId[0] : req.params.matchId,
+    });
+    if (!paramsResult.success) {
+      const message = paramsResult.error.issues.map((issue) => issue.message).join("; ");
+      res.status(400).json(buildErrorPayload(message));
       return;
     }
 
-    const matchIdParam = Array.isArray(req.params.matchId)
-      ? req.params.matchId[0]
-      : req.params.matchId;
-    const matchIdResult = guardIdParam({ id: matchIdParam }, "match ID");
-    if (!matchIdResult.ok) {
-      res.status(matchIdResult.status).json(buildErrorPayload(matchIdResult.message));
-      return;
-    }
+    const { id: tournamentId, matchId: matchIdParam } = paramsResult.data;
 
     const parsedBody = recordMatchScoreSchema.safeParse(req.body);
     if (!parsedBody.success) {
@@ -55,61 +32,36 @@ export async function recordMatchScore(req: AuthenticatedRequest, res: Response)
       return;
     }
 
-    const tournament = await fetchTournamentScheduleContext(tournamentIdResult.data);
+    const tournament = await fetchTournamentScheduleContext(tournamentId);
     if (!tournament) {
       res.status(404).json(buildErrorPayload("Tournament not found"));
       return;
     }
 
-    const authResult = await authorizeScheduleAccess(tournament, req.user);
+    const authResult = await authorizeScheduleOrMatchParticipant(tournament, req.user, {
+      matchId: matchIdParam,
+    });
     if (authResult.status !== 200) {
-      const participantAccess = await isMatchParticipant(
-        tournamentIdResult.data,
-        matchIdResult.data,
-        req.user._id.toString()
-      );
-
-      if (!participantAccess) {
-        res.status(403).json(
-          buildErrorPayload("You do not have permission to record score for this match")
-        );
-        return;
-      }
+      res.status(authResult.status).json(buildErrorPayload(authResult.message));
+      return;
     }
 
-    const resultRaw: unknown = await recordTournamentMatchScoreFlow(
-      tournamentIdResult.data,
-      matchIdResult.data,
-      parsedBody.data
-    );
+    const result = await recordTournamentMatchScoreFlow(tournamentId, matchIdParam, parsedBody.data);
 
-    if (!resultRaw || typeof resultRaw !== "object") {
-      throw new Error("Failed to record match score");
-    }
-
-    const matchId = "matchId" in resultRaw ? resultRaw.matchId : null;
-    const tournamentId = "tournamentId" in resultRaw ? resultRaw.tournamentId : null;
-    const tournamentCompleted = "tournamentCompleted" in resultRaw ? resultRaw.tournamentCompleted : null;
-    const updatedRatings = "updatedRatings" in resultRaw ? resultRaw.updatedRatings : null;
-
-    if (
-      typeof matchId !== "string" ||
-      typeof tournamentId !== "string" ||
-      typeof tournamentCompleted !== "boolean" ||
-      !Array.isArray(updatedRatings)
-    ) {
-      throw new Error("Failed to record match score");
-    }
+    const responseMessage =
+      result.matchStatus === "completed"
+        ? "Match score recorded and ratings updated"
+        : "Partial score recorded; winner is still pending";
 
     res.status(200).json({
-      message: "Match score recorded and ratings updated",
+      message: responseMessage,
       match: {
-        id: matchId,
-        tournamentId,
-        status: "completed",
+        id: result.matchId,
+        tournamentId: result.tournamentId,
+        status: result.matchStatus,
       },
-      tournamentCompleted,
-      ratings: updatedRatings,
+      tournamentCompleted: result.tournamentCompleted,
+      ratings: result.updatedRatings,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to record match score";

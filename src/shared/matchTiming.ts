@@ -40,7 +40,7 @@ interface ResolveTimedGameStatusInput {
   persistedStatus: GameStatus;
   startTime: Date | null | undefined;
   matchDurationMinutes: number | null | undefined;
-  now?: Date;
+  now: Date;
 }
 
 export function resolveTimedGameStatus(input: ResolveTimedGameStatusInput): GameStatus {
@@ -66,8 +66,7 @@ export function resolveTimedGameStatus(input: ResolveTimedGameStatusInput): Game
     return input.persistedStatus;
   }
 
-  const currentTime = input.now ?? new Date();
-  const nowTimestamp = currentTime.getTime();
+  const nowTimestamp = input.now.getTime();
 
   if (nowTimestamp < startTimestamp) {
     return "draft";
@@ -75,7 +74,7 @@ export function resolveTimedGameStatus(input: ResolveTimedGameStatusInput): Game
 
   const endTimestamp = startTimestamp + durationMinutes * 60_000;
   if (nowTimestamp >= endTimestamp) {
-    return "finished";
+    return "pendingScore";
   }
 
   return "active";

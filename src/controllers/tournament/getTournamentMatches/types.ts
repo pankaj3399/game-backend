@@ -1,6 +1,9 @@
 import type { Types } from "mongoose";
-import type { GameStatus, MatchType } from "../../../types/domain/game";
+import type { GamePlayMode, GameStatus, MatchType } from "../../../types/domain/game";
+import type { MatchPlayerResponse, MatchStatusResponse } from "../../../types/domain/match";
 import type { ScheduleStatus } from "../../../types/domain/schedule";
+
+export type { MatchPlayerResponse, MatchStatusResponse };
 
 export interface ScheduleRoundDoc {
   game: Types.ObjectId;
@@ -22,6 +25,14 @@ export interface PopulatedMatchPlayerDoc {
   alias?: string | null;
 }
 
+/**
+ * One roster slot on a team for `getTournamentMatches` / `GameForMatchesDoc`.
+ * `fetchGamesForScheduleRounds` always populates side players, so each
+ * non-null slot is a populated player subdocument — not a bare ObjectId.
+ * `null` is an empty slot on the roster.
+ */
+export type GameMatchPlayerSlot = PopulatedMatchPlayerDoc | null;
+
 export interface PopulatedMatchCourtDoc {
   _id: Types.ObjectId;
   name?: string | null;
@@ -29,8 +40,8 @@ export interface PopulatedMatchCourtDoc {
 
 export interface GameForMatchesDoc {
   _id: Types.ObjectId;
-  side1?: { players: Array<PopulatedMatchPlayerDoc | Types.ObjectId | null> };
-  side2?: { players: Array<PopulatedMatchPlayerDoc | Types.ObjectId | null> };
+  side1: { players: GameMatchPlayerSlot[] };
+  side2: { players: GameMatchPlayerSlot[] };
   court?: PopulatedMatchCourtDoc | null;
   score?: {
     playerOneScores?: Array<number | "wo">;
@@ -38,6 +49,7 @@ export interface GameForMatchesDoc {
   };
   status: GameStatus;
   matchType: MatchType;
+  playMode: GamePlayMode;
   startTime?: Date | null;
 }
 
@@ -46,19 +58,6 @@ export type MatchScoreValueResponse = number | "wo";
 export interface MatchScoreResponse {
   playerOneScores: MatchScoreValueResponse[];
   playerTwoScores: MatchScoreValueResponse[];
-}
-
-export type MatchStatusResponse =
-  | "completed"
-  | "inProgress"
-  | "scheduled"
-  | "cancelled"
-  | "pendingScore";
-
-export interface MatchPlayerResponse {
-  id: string;
-  name: string | null;
-  alias: string | null;
 }
 
 export interface MatchCourtResponse {
@@ -71,15 +70,14 @@ export interface TournamentMatchResponse {
   round: number;
   slot: number;
   mode: MatchType;
+  playMode: GamePlayMode;
   status: MatchStatusResponse;
   startTime: string | null;
   score: MatchScoreResponse;
   court: MatchCourtResponse;
   players: [MatchPlayerResponse, MatchPlayerResponse];
-  teams?: [
-    [MatchPlayerResponse, MatchPlayerResponse | null],
-    [MatchPlayerResponse, MatchPlayerResponse | null]
-  ];
+  side1: [MatchPlayerResponse, MatchPlayerResponse | null];
+  side2: [MatchPlayerResponse, MatchPlayerResponse | null];
 }
 
 export interface TournamentMatchesResponse {
