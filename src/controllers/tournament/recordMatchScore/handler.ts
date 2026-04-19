@@ -182,6 +182,7 @@ function requiredSetCount(playMode: GamePlayMode): number {
 
 function isWinnerDecided(playMode: GamePlayMode, input: RecordMatchScoreInput): boolean {
   const setsToEvaluate = requiredSetCount(playMode);
+  const majority = Math.floor(setsToEvaluate / 2) + 1;
   let playerOneSetWins = 0;
   let playerTwoSetWins = 0;
 
@@ -190,7 +191,7 @@ function isWinnerDecided(playMode: GamePlayMode, input: RecordMatchScoreInput): 
     const playerTwoScore = input.playerTwoScores[index];
 
     if (playerOneScore === undefined || playerTwoScore === undefined) {
-      return false;
+      continue;
     }
 
     const setResult = compareSetScore(playerOneScore, playerTwoScore);
@@ -199,9 +200,13 @@ function isWinnerDecided(playMode: GamePlayMode, input: RecordMatchScoreInput): 
     } else if (setResult < 0) {
       playerTwoSetWins += 1;
     }
+
+    if (playerOneSetWins >= majority || playerTwoSetWins >= majority) {
+      return true;
+    }
   }
 
-  return playerOneSetWins !== playerTwoSetWins;
+  return false;
 }
 
 export async function recordTournamentMatchScoreFlow(
@@ -234,7 +239,9 @@ export async function recordTournamentMatchScoreFlow(
 
       const setsRequired = requiredSetCount(game.playMode);
       if (input.playerOneScores.length > setsRequired || input.playerTwoScores.length > setsRequired) {
-        throw new Error(`This ${game.playMode} match requires at most ${setsRequired} set scores`);
+        throw new Error(
+          `At most ${setsRequired} set scores are required for this ${game.playMode} match (required)`
+        );
       }
 
       const winnerDecided = isWinnerDecided(game.playMode, input);

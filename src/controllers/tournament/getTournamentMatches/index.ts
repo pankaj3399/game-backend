@@ -67,6 +67,7 @@ export async function getTournamentMatches(req: AuthenticatedRequest, res: Respo
         statusUpdates.push({
           id: game._id,
           status: nextStatus,
+          expectedStatus: game.status,
         });
       }
     }

@@ -43,7 +43,7 @@ interface ResolveTimedGameStatusInput {
   now: Date;
 }
 
-export function resolveTimedGameStatus(input: ResolveTimedGameStatusInput) {
+export function resolveTimedGameStatus(input: ResolveTimedGameStatusInput): GameStatus {
   if (
     input.persistedStatus === "cancelled" ||
     input.persistedStatus === "finished" ||

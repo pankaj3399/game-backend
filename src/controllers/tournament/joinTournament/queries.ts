@@ -8,7 +8,7 @@ export interface JoinTournamentLeanDoc {
 
 export async function getTournamentById(tournamentId: string) {
   return Tournament.findById(tournamentId)
-    .select("_id name status minMember maxMember participants firstRoundScheduledAt")
+    .select("_id club name status minMember maxMember participants firstRoundScheduledAt")
     .populate("club")
     .lean()
     .exec();

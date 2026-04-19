@@ -1,18 +1,8 @@
 import type { Types } from "mongoose";
 import type { GameStatus, MatchType } from "../../../types/domain/game";
+import type { MatchPlayerResponse, MatchStatusResponse } from "../../../types/domain/match";
 
-export type MatchStatusResponse =
-  | "completed"
-  | "inProgress"
-  | "pendingScore"
-  | "scheduled"
-  | "cancelled";
-
-export interface MatchPlayerResponse {
-  id: string;
-  name: string | null;
-  alias: string | null;
-}
+export type { MatchPlayerResponse, MatchStatusResponse };
 
 export interface LiveMatchResponseItem {
   id: string;

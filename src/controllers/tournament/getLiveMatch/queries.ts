@@ -34,7 +34,11 @@ export async function applyResolvedTimedStatuses(
   games: LiveMatchGameDoc[],
   now: Date
 ): Promise<void> {
-  const statusUpdates: Array<{ id: Types.ObjectId; status: GameStatus }> = [];
+  const statusUpdates: Array<{
+    id: Types.ObjectId;
+    status: GameStatus;
+    expectedStatus: GameStatus;
+  }> = [];
 
   for (const game of games) {
     const durationMinutes = game.schedule?.matchDurationMinutes ?? game.tournament?.duration ?? 60;
@@ -47,7 +51,11 @@ export async function applyResolvedTimedStatuses(
     });
 
     if (nextStatus !== game.status) {
-      statusUpdates.push({ id: game._id, status: nextStatus });
+      statusUpdates.push({
+        id: game._id,
+        status: nextStatus,
+        expectedStatus: game.status,
+      });
     }
   }
 

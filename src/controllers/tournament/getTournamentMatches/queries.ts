@@ -42,7 +42,7 @@ export async function fetchGamesForScheduleRounds(
 }
 
 export async function updateGameStatuses(
-  updates: { id: Types.ObjectId; status: GameStatus }[],
+  updates: { id: Types.ObjectId; status: GameStatus; expectedStatus: GameStatus }[],
   session?: ClientSession
 ) {
   if (updates.length === 0) {
@@ -52,7 +52,7 @@ export async function updateGameStatuses(
   await Game.bulkWrite(
     updates.map((entry) => ({
       updateOne: {
-        filter: { _id: entry.id },
+        filter: { _id: entry.id, status: entry.expectedStatus },
         update: { $set: { status: entry.status } },
       },
     })),

@@ -1,6 +1,9 @@
 import type { Types } from "mongoose";
 import type { GamePlayMode, GameStatus, MatchType } from "../../../types/domain/game";
+import type { MatchPlayerResponse, MatchStatusResponse } from "../../../types/domain/match";
 import type { ScheduleStatus } from "../../../types/domain/schedule";
+
+export type { MatchPlayerResponse, MatchStatusResponse };
 
 export interface ScheduleRoundDoc {
   game: Types.ObjectId;
@@ -55,19 +58,6 @@ export type MatchScoreValueResponse = number | "wo";
 export interface MatchScoreResponse {
   playerOneScores: MatchScoreValueResponse[];
   playerTwoScores: MatchScoreValueResponse[];
-}
-
-export type MatchStatusResponse =
-  | "completed"
-  | "inProgress"
-  | "pendingScore"
-  | "scheduled"
-  | "cancelled";
-
-export interface MatchPlayerResponse {
-  id: string;
-  name: string | null;
-  alias: string | null;
 }
 
 export interface MatchCourtResponse {

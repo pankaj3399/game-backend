@@ -54,6 +54,9 @@ export async function authorizeScheduleOrMatchParticipant(
     return scheduleAuth;
   }
 
+  // Schedule auth already validated `tournament.club` above; we only reach here when
+  // that failed (e.g. 403) but the user is a match participant. Re-check club before
+  // issuing OK so we never return success without a usable club id.
   if (!tournament.club || tournament.club._id == null) {
     return error(400, "Tournament has no club");
   }
