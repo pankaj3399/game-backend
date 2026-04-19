@@ -1,25 +1,14 @@
 import mongoose from "mongoose";
-import type { Types } from "mongoose";
-import Tournament from "../../../models/Tournament";
-import Schedule from "../../../models/Schedule";
-import type { TournamentPopulated } from "../../../types/api/tournament";
 import type { AuthenticatedSession } from "../../../shared";
 import { error, ok } from "../../../shared/helpers";
 import { isTournamentSchedulingLocked } from "../schedulingLock";
-
+import {
+  findTournamentForLeave,
+  findTournamentForLeaveConflictCheck,
+  pullTournamentParticipantIfNotScheduled,
+  scheduleHasProgressBlockingLeave,
+} from "./queries";
 const LEAVE_SCHEDULE_LOCKED = "LEAVE_SCHEDULE_LOCKED";
-
-function getScheduleIdForLockCheck(
-  schedule: TournamentPopulated["schedule"]
-): Types.ObjectId | null {
-  if (schedule == null) {
-    return null;
-  }
-  if (typeof schedule === "object" && "_id" in schedule && schedule._id != null) {
-    return schedule._id as Types.ObjectId;
-  }
-  return schedule as Types.ObjectId;
-}
 
 /**
  * Atomically removes the user from tournament participants.
@@ -28,14 +17,7 @@ export async function leaveTournamentFlow(
   tournamentId: string,
   authSession: AuthenticatedSession
 ) {
-  const tournament = await Tournament.findById(tournamentId)
-    .select("participants firstRoundScheduledAt schedule")
-    .populate({
-      path: "schedule",
-      select: "currentRound rounds.round",
-    })
-    .lean<TournamentPopulated>()
-    .exec();
+  const tournament = await findTournamentForLeave(tournamentId);
 
   if (!tournament) {
     return error(404, "Tournament not found");
@@ -43,7 +25,7 @@ export async function leaveTournamentFlow(
 
   const participantIds = tournament.participants ?? [];
   const userIsParticipant = participantIds.some(
-    (id) => id.toString() === authSession._id.toString()
+    (id) => id._id?.equals(authSession._id)
   );
 
   if (!userIsParticipant) {
@@ -58,22 +40,16 @@ export async function leaveTournamentFlow(
   }
 
   const mongoSession = await mongoose.startSession();
-  let returnedDoc: {
-    participants?: Array<{ toString: () => string }>;
-    maxMember?: number;
-  } | null = null;
+  let returnedDoc = null;
 
   try {
     returnedDoc = await mongoSession.withTransaction(async () => {
-      const scheduleId = getScheduleIdForLockCheck(tournament.schedule);
+      const scheduleId = tournament.schedule?._id ?? null;
       if (scheduleId != null) {
-        const scheduleHasProgress = await Schedule.exists({
-          _id: scheduleId,
-          $or: [
-            { currentRound: { $gte: 1 } },
-            { rounds: { $elemMatch: { round: { $gte: 1 } } } },
-          ],
-        }).session(mongoSession);
+        const scheduleHasProgress = await scheduleHasProgressBlockingLeave(
+          scheduleId,
+          mongoSession
+        );
 
         if (scheduleHasProgress) {
           const err = new Error(LEAVE_SCHEDULE_LOCKED);
@@ -82,21 +58,11 @@ export async function leaveTournamentFlow(
         }
       }
 
-      return await Tournament.findOneAndUpdate(
-        {
-          _id: tournamentId,
-          participants: authSession._id,
-          $or: [
-            { firstRoundScheduledAt: { $exists: false } },
-            { firstRoundScheduledAt: null },
-          ],
-        },
-        { $pull: { participants: authSession._id } },
-        { new: true, session: mongoSession }
-      )
-        .select("participants maxMember")
-        .lean()
-        .exec();
+      return pullTournamentParticipantIfNotScheduled(
+        tournamentId,
+        authSession._id,
+        mongoSession
+      );
     });
   } catch (err: unknown) {
     if (
@@ -114,14 +80,7 @@ export async function leaveTournamentFlow(
   }
 
   if (!returnedDoc) {
-    const fresh = await Tournament.findById(tournamentId)
-      .select("participants firstRoundScheduledAt")
-      .populate({
-        path: "schedule",
-        select: "currentRound rounds.round",
-      })
-      .lean<TournamentPopulated>()
-      .exec();
+    const fresh = await findTournamentForLeaveConflictCheck(tournamentId);
 
     if (!fresh) {
       return error(404, "Tournament not found");

@@ -4,6 +4,7 @@ import Game from "../../../models/Game";
 import Schedule from "../../../models/Schedule";
 import Tournament from "../../../models/Tournament";
 import User from "../../../models/User";
+import type { GamePlayMode } from "../../../types/domain/game";
 import type { RecordMatchScoreInput } from "./validation";
 
 type ScoreValue = number | "wo";
@@ -128,14 +129,17 @@ function getStateOrThrow(states: Map<string, RatingState>, id: string) {
   return state;
 }
 
-function getTeamPlayerIds(game: { teams?: Array<{ players?: unknown[] }> }, teamIndex: number) {
-  const team = Array.isArray(game.teams) ? game.teams[teamIndex] : null;
-  if (!team || !Array.isArray(team.players)) {
+function getSidePlayerIds(
+  game: { side1?: { players?: unknown[] }; side2?: { players?: unknown[] } },
+  side: "side1" | "side2"
+) {
+  const entry = game[side];
+  if (!entry || !Array.isArray(entry.players)) {
     return [] as string[];
   }
 
   const ids: string[] = [];
-  for (const player of team.players) {
+  for (const player of entry.players) {
     if (isObjectId(player)) {
       ids.push(player.toString());
     }
@@ -144,26 +148,71 @@ function getTeamPlayerIds(game: { teams?: Array<{ players?: unknown[] }> }, team
   return ids;
 }
 
+function compareSetScore(playerOneScore: ScoreValue, playerTwoScore: ScoreValue): number {
+  if (playerOneScore === "wo" && playerTwoScore === "wo") {
+    return 0;
+  }
+
+  if (playerOneScore === "wo") {
+    return -1;
+  }
+
+  if (playerTwoScore === "wo") {
+    return 1;
+  }
+
+  if (playerOneScore === playerTwoScore) {
+    return 0;
+  }
+
+  return playerOneScore > playerTwoScore ? 1 : -1;
+}
+
+function requiredSetCount(playMode: GamePlayMode): number {
+  if (playMode === "5set") {
+    return 5;
+  }
+
+  if (playMode === "3set" || playMode === "3setTieBreak10") {
+    return 3;
+  }
+
+  return 1;
+}
+
+function isWinnerDecided(playMode: GamePlayMode, input: RecordMatchScoreInput): boolean {
+  const setsToEvaluate = requiredSetCount(playMode);
+  let playerOneSetWins = 0;
+  let playerTwoSetWins = 0;
+
+  for (let index = 0; index < setsToEvaluate; index += 1) {
+    const playerOneScore = input.playerOneScores[index];
+    const playerTwoScore = input.playerTwoScores[index];
+
+    if (playerOneScore === undefined || playerTwoScore === undefined) {
+      return false;
+    }
+
+    const setResult = compareSetScore(playerOneScore, playerTwoScore);
+    if (setResult > 0) {
+      playerOneSetWins += 1;
+    } else if (setResult < 0) {
+      playerTwoSetWins += 1;
+    }
+  }
+
+  return playerOneSetWins !== playerTwoSetWins;
+}
+
 export async function recordTournamentMatchScoreFlow(
   tournamentId: string,
   matchId: string,
   input: RecordMatchScoreInput
 ) {
-  const outcomes = flattenOutcomeSegments(input);
-  if (outcomes.length === 0) {
-    throw new Error("At least one score outcome is required");
-  }
-
   const session = await mongoose.startSession();
-  let result: {
-    matchId: string;
-    tournamentId: string;
-    tournamentCompleted: boolean;
-    updatedRatings: Array<{ userId: string; rating: number; rd: number; vol: number }>;
-  } | null = null;
 
   try {
-    await session.withTransaction(async () => {
+    const persisted = await session.withTransaction(async () => {
       const game = await Game.findOne({
         _id: matchId,
         tournament: tournamentId,
@@ -176,11 +225,46 @@ export async function recordTournamentMatchScoreFlow(
         throw new Error("Tournament match not found");
       }
 
-      const participantIds = Array.isArray(game.teams)
-        ? game.teams.flatMap((team) =>
-            Array.isArray(team.players) ? team.players.filter(isObjectId) : []
-          )
-        : [];
+      const now = new Date();
+      game.score = {
+        playerOneScores: [...input.playerOneScores],
+        playerTwoScores: [...input.playerTwoScores],
+      };
+      game.startTime = game.startTime ?? now;
+
+      const setsRequired = requiredSetCount(game.playMode);
+      if (input.playerOneScores.length > setsRequired || input.playerTwoScores.length > setsRequired) {
+        throw new Error(`This ${game.playMode} match requires at most ${setsRequired} set scores`);
+      }
+
+      const winnerDecided = isWinnerDecided(game.playMode, input);
+      if (!winnerDecided) {
+        game.status = "pendingScore";
+        game.endTime = undefined;
+        await game.save({ session });
+
+        return {
+          matchId,
+          tournamentId,
+          matchStatus: "pendingScore" as const,
+          tournamentCompleted: false,
+          updatedRatings: [] as Array<{ userId: string; rating: number; rd: number; vol: number }>,
+        };
+      }
+
+      const outcomes = flattenOutcomeSegments(input);
+      if (outcomes.length === 0) {
+        throw new Error("At least one score outcome is required");
+      }
+
+      game.status = "finished";
+      game.endTime = now;
+      await game.save({ session });
+
+      const participantIds = [
+        ...(Array.isArray(game.side1?.players) ? game.side1.players.filter(isObjectId) : []),
+        ...(Array.isArray(game.side2?.players) ? game.side2.players.filter(isObjectId) : []),
+      ];
 
       const uniqueParticipantIds = [...new Set(participantIds.map((id) => id.toString()))];
       if (uniqueParticipantIds.length < 2) {
@@ -208,8 +292,8 @@ export async function recordTournamentMatchScoreFlow(
         states.set(participantId, toRatingState(user));
       }
 
-      const teamOneIds = getTeamPlayerIds(game, 0);
-      const teamTwoIds = getTeamPlayerIds(game, 1);
+      const teamOneIds = getSidePlayerIds(game, "side1");
+      const teamTwoIds = getSidePlayerIds(game, "side2");
 
       if (game.matchType === "singles") {
         if (teamOneIds.length !== 1 || teamTwoIds.length !== 1) {
@@ -264,16 +348,6 @@ export async function recordTournamentMatchScoreFlow(
           }
         }
       }
-
-      const now = new Date();
-      game.score = {
-        playerOneScores: [...input.playerOneScores],
-        playerTwoScores: [...input.playerTwoScores],
-      };
-      game.status = "finished";
-      game.startTime = game.startTime ?? now;
-      game.endTime = now;
-      await game.save({ session });
 
       const updatedRatings: Array<{ userId: string; rating: number; rd: number; vol: number }> = [];
       for (const participantId of uniqueParticipantIds) {
@@ -344,20 +418,21 @@ export async function recordTournamentMatchScoreFlow(
         }
       }
 
-      result = {
+      return {
         matchId,
         tournamentId,
+        matchStatus: "completed" as const,
         tournamentCompleted,
         updatedRatings,
       };
     });
+
+    if (!persisted) {
+      throw new Error("Failed to record tournament match score");
+    }
+
+    return persisted;
   } finally {
     await session.endSession();
   }
-
-  if (!result) {
-    throw new Error("Failed to record tournament match score");
-  }
-
-  return result;
 }

@@ -1,6 +1,6 @@
 import type { TournamentPopulated } from "../../../types/api/tournament";
 import { ROLES } from "../../../constants/roles";
-import type { DetailViewContext } from "./authorize";
+import type { DetailViewContext } from "../shared/authorizeGetById";
 import { computeSpotsTotal } from "../computeSpotsTotal";
 import { isTournamentSchedulingLocked } from "../schedulingLock";
 
@@ -76,8 +76,8 @@ export interface TournamentDetailResponse {
   minMember: number;
   maxMember: number;
   totalRounds: number;
-  duration: string | null;
-  breakDuration: string | null;
+  duration: number | null;
+  breakDuration: number | null;
   courts: CourtInfo[];
   foodInfo: string;
   descriptionInfo: string;
