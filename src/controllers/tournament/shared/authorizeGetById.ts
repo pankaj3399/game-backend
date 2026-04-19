@@ -1,4 +1,4 @@
-import { isOwnerOrSuperAdmin, userCanManageClub } from "../../../lib/permissions";
+import { userCanManageClub } from "../../../lib/permissions";
 import { ROLES, type Role } from "../../../constants/roles";
 import type { TournamentPopulated } from "../../../types/api/tournament";
 import { buildPermissionContext, type AuthenticatedSession } from "../../../shared/authContext";
@@ -13,7 +13,9 @@ export interface DetailViewContext {
 
 /**
  * Verifies the user can view the tournament.
- * Non-managers can only view active tournaments.
+ * Aligns with GET /tournaments list rules: any authenticated user may open
+ * published (non-draft) tournaments; drafts are limited to super admins,
+ * the creator, or club managers.
  */
 export async function authorizeGetById(
   tournament: TournamentPopulated,
@@ -27,11 +29,11 @@ export async function authorizeGetById(
 
   const ctx = buildPermissionContext(session);
   const isManager = await userCanManageClub(ctx, clubIdStr);
-  const isCreator = String(tournament.createdBy) === session._id.toString();
-  const hasOwnerOrAdminAccess = isOwnerOrSuperAdmin(session, tournament.createdBy ?? null);
+  const isCreator = tournament.createdBy?.equals?.(session._id);
+  const isSuperAdmin = session.role === ROLES.SUPER_ADMIN;
 
-  // Non-managers/non-creators can only view active tournaments.
-  if (tournament.status !== "active" && !isManager && !hasOwnerOrAdminAccess) {
+  const isDraft = tournament.status === "draft";
+  if (isDraft && !isSuperAdmin && !isCreator && !isManager) {
     return error(403, "You do not have permission to view this tournament");
   }
 

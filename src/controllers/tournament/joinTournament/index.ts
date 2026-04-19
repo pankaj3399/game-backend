@@ -6,6 +6,7 @@ import { buildErrorPayload } from "../../../shared/errors";
 import { AuthenticatedRequest, type AuthenticatedSession } from "../../../shared/authContext";
 import { authorizeJoin } from "./authorize";
 import { joinTournamentFlow } from "./handler";
+import { getTournamentById } from "./queries";
 
 /**
  * POST /api/tournaments/:id/join
@@ -20,12 +21,7 @@ export async function joinTournament(req:AuthenticatedRequest, res: Response) {
       return;
     }
 
-    const tournament = await Tournament.findById(idResult.data)
-      .select("_id name status minMember maxMember participants firstRoundScheduledAt")
-      .populate("club")
-      .lean()
-      .exec();
-
+    const tournament = await getTournamentById(idResult.data);
     if (!tournament) {
       res.status(404).json(buildErrorPayload("Tournament not found"));
       return;

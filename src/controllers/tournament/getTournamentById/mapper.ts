@@ -1,11 +1,11 @@
 import mongoose from "mongoose";
 import type { TournamentPopulated } from "../../../types/api/tournament";
 import { ROLES } from "../../../constants/roles";
-import type { DetailViewContext } from "./authorize";
+import type { DetailViewContext } from "../shared/authorizeGetById";
 import { computeSpotsTotal } from "../computeSpotsTotal";
 import { isTournamentSchedulingLocked } from "../schedulingLock";
 
-function apiMinutesString(value: unknown): string | null {
+function apiMinutesNumber(value: unknown): number | null {
   if (value == null) {
     return null;
   }
@@ -13,7 +13,7 @@ function apiMinutesString(value: unknown): string | null {
   if (!Number.isFinite(parsed)) {
     return null;
   }
-  return String(Math.trunc(parsed));
+  return Math.trunc(parsed);
 }
 
 /* =========================
@@ -88,8 +88,8 @@ export interface TournamentDetailResponse {
   minMember: number;
   maxMember: number;
   totalRounds: number;
-  duration: string | null;
-  breakDuration: string | null;
+  duration: number | null;
+  breakDuration: number | null;
   courts: CourtInfo[];
   foodInfo: string;
   descriptionInfo: string;
@@ -298,8 +298,8 @@ export function mapTournamentDetail(
       Number.isFinite(Number(tournament.totalRounds)) && Math.trunc(Number(tournament.totalRounds)) >= 1
         ? Math.trunc(Number(tournament.totalRounds))
         : 1,
-    duration: apiMinutesString(tournament.duration),
-    breakDuration: apiMinutesString(tournament.breakDuration),
+    duration: apiMinutesNumber(tournament.duration),
+    breakDuration: apiMinutesNumber(tournament.breakDuration),
     courts,
     foodInfo: tournament.foodInfo ?? "",
     descriptionInfo: tournament.descriptionInfo ?? "",

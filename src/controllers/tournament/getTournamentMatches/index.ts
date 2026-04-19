@@ -3,15 +3,15 @@ import { logger } from "../../../lib/logger";
 import { buildErrorPayload } from "../../../shared/errors";
 import type { AuthenticatedRequest } from "../../../shared/authContext";
 import { guardIdParam } from "../../../shared/guards";
-import { authorizeGetById } from "../getTournamentById/authorize";
-import { fetchTournamentById } from "../getTournamentById/queries";
+import { authorizeGetById } from "../shared/authorizeGetById";
+import { fetchTournamentById } from "../shared/fetchTournamentById";
 import { mapTournamentMatchesResponse } from "./mapper";
 import {
   fetchGamesForScheduleRounds,
   fetchScheduleForTournament,
   updateGameStatuses,
 } from "./queries";
-import { parseDurationMinutes, resolveTimedGameStatus } from "../../../shared/matchTiming";
+import { resolveTimedGameStatus } from "../../../shared/matchTiming";
 
 const STATUS_UPDATE_CHUNK_SIZE = 100;
 
@@ -21,6 +21,8 @@ const STATUS_UPDATE_CHUNK_SIZE = 100;
  */
 export async function getTournamentMatches(req: AuthenticatedRequest, res: Response) {
   try {
+
+    
     const idResult = guardIdParam(req.params, "tournament ID");
     if (!idResult.ok) {
       res.status(idResult.status).json(buildErrorPayload(idResult.message));
@@ -39,25 +41,19 @@ export async function getTournamentMatches(req: AuthenticatedRequest, res: Respo
       return;
     }
 
-    const schedule = await fetchScheduleForTournament(
-      idResult.data,
-      tournament.schedule ?? null
-    );
+    const scheduleId = tournament.schedule?._id ?? null;
+    const schedule = await fetchScheduleForTournament(scheduleId);
 
     const games = await fetchGamesForScheduleRounds(
-      schedule?._id ?? null,
+      scheduleId,
       schedule?.rounds ?? []
     );
 
-    const matchDurationMinutes =
-      typeof schedule?.matchDurationMinutes === "number"
-        ? schedule.matchDurationMinutes
-        : parseDurationMinutes(tournament.duration ?? null);
+    // Schedule may override minutes; otherwise use tournament.duration minutes.
+    const matchDurationMinutes = schedule?.matchDurationMinutes ?? tournament.duration;
+
     const now = new Date();
-    const statusUpdates: Array<{
-      id: typeof games[number]["_id"];
-      status: typeof games[number]["status"];
-    }> = [];
+    const statusUpdates= [];
 
     for (const game of games) {
       const nextStatus = resolveTimedGameStatus({

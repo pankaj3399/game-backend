@@ -1,228 +1,171 @@
-import { Types } from "mongoose";
-import type { DbIdLike } from "../../../types/domain/common";
 import type { GameStatus } from "../../../types/domain/game";
-import { getGameSides } from "../../../shared/gameSides";
 import type {
   GameForMatchesDoc,
+  GameMatchPlayerSlot,
   MatchPlayerResponse,
   MatchScoreValueResponse,
   MatchStatusResponse,
   ScheduleForMatchesDoc,
+  ScheduleRoundDoc,
   TournamentMatchResponse,
-  TournamentMatchesResponse,
 } from "./types";
 
-function toIdString(id: DbIdLike | null | undefined): string | null {
-  if (id == null) {
-    return null;
-  }
-  return typeof id === "string" ? id : id.toString();
-}
-
 function mapStatus(status: GameStatus): MatchStatusResponse {
-  if (status === "finished") {
-    return "completed";
+  switch (status) {
+    case "finished":
+      return "completed";
+    case "pendingScore":
+      return "pendingScore";
+    case "active":
+      return "inProgress";
+    case "cancelled":
+      return "cancelled";
+    case "draft":
+    case "inactive":
+    default:
+      return "scheduled";
   }
-
-  if (status === "active") {
-    return "inProgress";
-  }
-
-  if (status === "cancelled") {
-    return "cancelled";
-  }
-
-  if (status === "pendingScore") {
-    return "pendingScore";
-  }
-
-  return "scheduled";
 }
 
-function asPositiveInt(value: number | undefined, fallback: number): number {
-  if (value == null || !Number.isFinite(value)) {
-    return fallback;
-  }
-
-  return Math.max(1, Math.trunc(value));
-}
-
-const EMPTY_PLAYER: MatchPlayerResponse = {
-  id: "",
-  name: null,
-  alias: null,
-};
-
-function hasPopulatedPlayerShape(
-  value: unknown
-): value is { _id: DbIdLike; name?: string | null; alias?: string | null } {
-  return typeof value === "object" && value !== null && "_id" in value;
-}
-
-function mapPlayer(player: { _id: DbIdLike; name?: string | null; alias?: string | null } | DbIdLike | null | undefined): MatchPlayerResponse | null {
-  if (player === null) {
-    return null;
-  }
-
-  if (player === undefined) {
-    return EMPTY_PLAYER;
-  }
-
-  if (hasPopulatedPlayerShape(player)) {
-    return {
-      id: player._id.toString(),
-      name: player.name ?? null,
-      alias: player.alias ?? null,
-    };
-  }
-
-  if (typeof player === "string") {
-    return {
-      id: player,
-      name: null,
-      alias: null,
-    };
-  }
-
-  if (player instanceof Types.ObjectId) {
-    return {
-      id: player.toString(),
-      name: null,
-      alias: null,
-    };
-  }
-
-  return EMPTY_PLAYER;
-}
-
-function mapTeamPlayers(
-  team: {
-    players?: Array<
-      { _id: DbIdLike; name?: string | null; alias?: string | null } | DbIdLike | null
-    >;
-  } | undefined
-) {
-  if (!team || !Array.isArray(team.players)) {
-    return [] as (MatchPlayerResponse | null)[];
-  }
-
-  return team.players.map((player) => mapPlayer(player));
-}
-
-function hasAtLeastOneFilledPlayer(slots: (MatchPlayerResponse | null)[]) {
-  return slots.some((p) => p != null && p.id.length > 0);
-}
-
-function normalizeScoreValues(values: unknown): MatchScoreValueResponse[] {
-  if (!Array.isArray(values)) {
+function normalizeScores(values: Array<number | "wo"> | undefined) {
+  if (values == null) {
     return [];
   }
 
-  const normalized: MatchScoreValueResponse[] = [];
-  for (const value of values) {
-    if (value === "wo") {
-      normalized.push("wo");
+  const out: MatchScoreValueResponse[] = [];
+  for (const v of values) {
+    if (v === "wo") {
+      out.push("wo");
       continue;
     }
-
-    if (typeof value === "number" && Number.isFinite(value)) {
-      normalized.push(value);
+    if (typeof v === "number" && Number.isFinite(v)) {
+      out.push(v);
     }
   }
+  return out;
+}
 
-  return normalized;
+function mapPlayer(player: GameMatchPlayerSlot) {
+  if (player == null) {
+    return null;
+  }
+
+  return {
+    id: player._id.toString(),
+    name: player.name ?? null,
+    alias: player.alias ?? null,
+  };
+}
+
+function mapTeam(team: GameForMatchesDoc["side1"] | GameForMatchesDoc["side2"]) {
+  if (!team?.players || !Array.isArray(team.players)) {
+    return [];
+  }
+
+  const out: MatchPlayerResponse[] = [];
+  for (const player of team.players) {
+    const mapped = mapPlayer(player);
+    if (mapped != null) {
+      out.push(mapped);
+    }
+  }
+  return out;
+}
+
+function mapGameToMatch(
+  game: GameForMatchesDoc | undefined,
+  entry: ScheduleRoundDoc
+) {
+  if (!game?.side1 || !game.side2) {
+    return null;
+  }
+
+  const team1 = mapTeam(game.side1);
+  const team2 = mapTeam(game.side2);
+
+  if (!team1.length || !team2.length) {
+    return null;
+  }
+
+  const playerOne = team1[0];
+  const playerTwo = team2[0];
+  if (playerOne === undefined || playerTwo === undefined) {
+    return null;
+  }
+
+  const players = [
+    playerOne,
+    playerTwo,
+  ];
+  const side1 = [
+    playerOne,
+    team1[1] ?? null,
+  ];
+  const side2 = [
+    playerTwo,
+    team2[1] ?? null,
+  ];
+
+  const base = {
+    id: game._id.toString(),
+    round: Math.max(1, Math.trunc(entry.round)),
+    slot: Math.max(1, Math.trunc(entry.slot)),
+    mode: game.matchType,
+    playMode: game.playMode,
+    status: mapStatus(game.status),
+    startTime: game.startTime?.toISOString() ?? null,
+    score: {
+      playerOneScores: normalizeScores(game.score?.playerOneScores),
+      playerTwoScores: normalizeScores(game.score?.playerTwoScores),
+    },
+    court: {
+      id: game.court?._id?.toString() ?? null,
+      name: game.court?.name ?? null,
+    },
+    players,
+    side1,
+    side2,
+  };
+
+  return {
+    ...base,
+  };
 }
 
 export function mapTournamentMatchesResponse(
   schedule: ScheduleForMatchesDoc | null,
   games: GameForMatchesDoc[],
-  configuredTotalRounds: number
-): TournamentMatchesResponse {
-  const gamesById = new Map(games.map((game) => [game._id.toString(), game]));
-  const rounds = schedule?.rounds ?? [];
-
-  const matches: TournamentMatchResponse[] = [];
-  for (const entry of rounds) {
-    const gameId = entry.game.toString();
-    const game = gamesById.get(gameId);
-    if (!game) {
-      continue;
-    }
-    const sides = getGameSides(game);
-    if (!sides) {
-      continue;
-    }
-
-    const teamOnePlayers = mapTeamPlayers(sides[0]);
-    const teamTwoPlayers = mapTeamPlayers(sides[1]);
-    if (!hasAtLeastOneFilledPlayer(teamOnePlayers) || !hasAtLeastOneFilledPlayer(teamTwoPlayers)) {
-      continue;
-    }
-
-    const playerOne = teamOnePlayers.find((p) => p != null && p.id.length > 0) ?? EMPTY_PLAYER;
-    const playerTwo = teamTwoPlayers.find((p) => p != null && p.id.length > 0) ?? EMPTY_PLAYER;
-    const teamOnePair: [MatchPlayerResponse, MatchPlayerResponse | null] = [
-      teamOnePlayers[0] ?? EMPTY_PLAYER,
-      teamOnePlayers[1] ?? null,
-    ];
-    const teamTwoPair: [MatchPlayerResponse, MatchPlayerResponse | null] = [
-      teamTwoPlayers[0] ?? EMPTY_PLAYER,
-      teamTwoPlayers[1] ?? null,
-    ];
-
-    matches.push({
-      id: gameId,
-      round: asPositiveInt(entry.round, 1),
-      slot: asPositiveInt(entry.slot, 1),
-      mode: game.matchType,
-      status: mapStatus(game.status),
-      startTime: game.startTime ? game.startTime.toISOString() : null,
-      score: {
-        playerOneScores: normalizeScoreValues(game.score?.playerOneScores),
-        playerTwoScores: normalizeScoreValues(game.score?.playerTwoScores),
-      },
-      court: {
-        id: toIdString(game.court?._id),
-        name: game.court?.name ?? null,
-      },
-      players: [playerOne, playerTwo],
-      ...(game.matchType === "doubles"
-        ? {
-            teams: [
-              teamOnePair,
-              teamTwoPair,
-            ],
-          }
-        : {}),
-    });
+  totalRoundsInput: number
+) {
+  const gamesById = new Map<string, GameForMatchesDoc>();
+  for (const g of games) {
+    gamesById.set(g._id.toString(), g);
   }
 
-  matches.sort((a, b) => {
-    if (a.round !== b.round) {
-      return a.round - b.round;
+  const matches = [];
+  for (const entry of schedule?.rounds ?? []) {
+    const mapped = mapGameToMatch(gamesById.get(entry.game.toString()), entry);
+    if (mapped != null) {
+      matches.push(mapped);
     }
-    if (a.slot !== b.slot) {
-      return a.slot - b.slot;
-    }
-    return a.id.localeCompare(b.id);
-  });
+  }
 
-  const totalRounds = asPositiveInt(configuredTotalRounds, 1);
-  const hasValidScheduleCurrentRound =
-    schedule != null &&
-    Number.isFinite(schedule.currentRound) &&
-    schedule.currentRound >= 0;
-  const currentRound = hasValidScheduleCurrentRound
-    ? Math.trunc(schedule.currentRound)
-    : totalRounds > 0
-      ? 1
-      : 0;
+  matches.sort((a, b) =>
+    a.round !== b.round
+      ? a.round - b.round
+      : a.slot !== b.slot
+        ? a.slot - b.slot
+        : a.id.localeCompare(b.id)
+  );
+
+  const totalRounds = Math.max(1, Math.trunc(totalRoundsInput || 1));
 
   return {
     schedule: {
-      id: toIdString(schedule?._id),
+      id: schedule?._id?.toString() ?? null,
       status: schedule?.status ?? null,
-      currentRound,
+      currentRound:
+        schedule?.currentRound != null ? Math.trunc(schedule.currentRound) : 1,
       totalRounds,
     },
     matches,
