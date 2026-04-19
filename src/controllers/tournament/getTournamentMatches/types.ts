@@ -31,10 +31,6 @@ export interface GameForMatchesDoc {
   _id: Types.ObjectId;
   side1?: { players: Array<PopulatedMatchPlayerDoc | Types.ObjectId | null> };
   side2?: { players: Array<PopulatedMatchPlayerDoc | Types.ObjectId | null> };
-  teams?: [
-    { players: Array<PopulatedMatchPlayerDoc | Types.ObjectId | null> },
-    { players: Array<PopulatedMatchPlayerDoc | Types.ObjectId | null> }
-  ];
   court?: PopulatedMatchCourtDoc | null;
   score?: {
     playerOneScores?: Array<number | "wo">;

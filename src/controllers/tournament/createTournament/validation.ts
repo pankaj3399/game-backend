@@ -11,7 +11,7 @@ export const playModeEnum = z.enum([
 
 export const statusEnum = z.enum(["draft", "active"]);
 
-const entryFeeSchema = z.coerce.number().min(0).nonnegative().default(0);
+const entryFeeSchema = z.coerce.number().min(0).default(0);
 const memberCountSchema = z.coerce.number().int().min(1);
 const totalRoundsSchema = z.coerce.number().int().min(1).max(100);
 const durationMinutesSchema = z.coerce.number().int().min(5).max(240);

@@ -43,11 +43,11 @@ export async function getSchedule(req: AuthenticatedRequest, res: Response) {
             ...tournament,
             duration:
               typeof schedule?.matchDurationMinutes === "number"
-                ? `${Math.trunc(schedule.matchDurationMinutes)} min`
+                ? Math.trunc(schedule.matchDurationMinutes)
                 : tournament.duration,
             breakDuration:
               typeof schedule?.breakTimeMinutes === "number"
-                ? `${Math.trunc(schedule.breakTimeMinutes)} min`
+                ? Math.trunc(schedule.breakTimeMinutes)
                 : tournament.breakDuration,
           }
         : tournament;

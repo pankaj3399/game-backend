@@ -54,10 +54,9 @@ export async function fetchGamesForScheduleRounds(
   const gameIds = [...new Set(rounds.map((entry) => entry.game.toString()))];
 
   return Game.find({ _id: { $in: gameIds }, schedule: scheduleId })
-    .select("_id side1 side2 teams court status matchType startTime score")
+    .select("_id side1 side2 court status matchType startTime score")
     .populate("side1.players", "name alias")
     .populate("side2.players", "name alias")
-    .populate("teams.players", "name alias")
     .populate("court", "name")
     .lean<GameForMatchesDoc[]>()
     .exec();

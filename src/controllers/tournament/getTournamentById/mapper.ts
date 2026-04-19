@@ -1,8 +1,20 @@
+import mongoose from "mongoose";
 import type { TournamentPopulated } from "../../../types/api/tournament";
 import { ROLES } from "../../../constants/roles";
 import type { DetailViewContext } from "./authorize";
 import { computeSpotsTotal } from "../computeSpotsTotal";
 import { isTournamentSchedulingLocked } from "../schedulingLock";
+
+function apiMinutesString(value: unknown): string | null {
+  if (value == null) {
+    return null;
+  }
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return null;
+  }
+  return String(Math.trunc(parsed));
+}
 
 /* =========================
    Response Types
@@ -133,13 +145,16 @@ export function mapTournamentDetail(
   const participantsRaw = tournament.participants ?? [];
   const participantItems: ParticipantInfo[] = [];
   for (const p of participantsRaw) {
-    const id = toSafeStringId(p._id);
+    const id =
+      p instanceof mongoose.Types.ObjectId
+        ? p.toString()
+        : toSafeStringId(p._id);
     if (!id) continue;
 
     participantItems.push({
       id,
-      name: p.name ?? null,
-      alias: p.alias ?? null,
+      name: p instanceof mongoose.Types.ObjectId ? null : (p.name ?? null),
+      alias: p instanceof mongoose.Types.ObjectId ? null : (p.alias ?? null),
     });
   }
 
@@ -283,14 +298,8 @@ export function mapTournamentDetail(
       Number.isFinite(Number(tournament.totalRounds)) && Math.trunc(Number(tournament.totalRounds)) >= 1
         ? Math.trunc(Number(tournament.totalRounds))
         : 1,
-    duration:
-      tournament.duration == null
-        ? null
-        : String(Math.trunc(Number(tournament.duration))),
-    breakDuration:
-      tournament.breakDuration == null
-        ? null
-        : String(Math.trunc(Number(tournament.breakDuration))),
+    duration: apiMinutesString(tournament.duration),
+    breakDuration: apiMinutesString(tournament.breakDuration),
     courts,
     foodInfo: tournament.foodInfo ?? "",
     descriptionInfo: tournament.descriptionInfo ?? "",

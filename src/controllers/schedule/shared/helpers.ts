@@ -10,8 +10,20 @@ const DEFAULT_BREAK_TIME_MINUTES = 5;
 const DEFAULT_MATCHES_PER_PLAYER = 1;
 const DEFAULT_START_TIME = "13:40";
 
-function parseMinutesFromText(value: string | null, fallback: number, allowZero = false): number {
-  if (!value) {
+function parseMinutesFromText(
+  value: string | number | null | undefined,
+  fallback: number,
+  allowZero = false
+): number {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const t = Math.trunc(value);
+    if (allowZero) {
+      return t >= 0 ? t : fallback;
+    }
+    return t > 0 ? t : fallback;
+  }
+
+  if (typeof value !== "string" || !value) {
     return fallback;
   }
 

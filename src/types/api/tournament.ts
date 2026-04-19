@@ -85,11 +85,13 @@ export type TournamentPopulated = Omit<
 		logoUrl?: string | null;
 		link?: string | null;
 	} | null;
-	participants?: Array<{
-		_id?: mongoose.Types.ObjectId;
-		name?: string | null;
-		alias?: string | null;
-	}>;
+	participants?: Array<
+		mongoose.Types.ObjectId | {
+			_id?: mongoose.Types.ObjectId;
+			name?: string | null;
+			alias?: string | null;
+		}
+	>;
   /** Set when `schedule` is populated (lean); `null` if ref is broken; omit if no ref. */
   schedule?: SchedulePopulatedLean | null;
 };
@@ -99,6 +101,25 @@ export type TournamentPopulated = Omit<
 const dbIdLikeSchema = z.union([
   z.instanceof(mongoose.Types.ObjectId),
   z.string().regex(/^[0-9a-fA-F]{24}$/),
+]);
+
+/** Matches stored minutes (number) or numeric strings from atypical DB/JSON shapes. */
+const tournamentDurationMinutes = z.union([
+  z.number().int().min(5).max(240),
+  z
+    .string()
+    .regex(/^\s*\d+\s*$/)
+    .transform((s) => Number.parseInt(s.trim(), 10))
+    .pipe(z.number().int().min(5).max(240)),
+]);
+
+const tournamentBreakMinutes = z.union([
+  z.number().int().min(0).max(120),
+  z
+    .string()
+    .regex(/^\s*\d+\s*$/)
+    .transform((s) => Number.parseInt(s.trim(), 10))
+    .pipe(z.number().int().min(0).max(120)),
 ]);
 
 /**
@@ -121,8 +142,8 @@ export const tournamentPublishSourceSchema = z
     entryFee: z.number().optional(),
     minMember: z.number().int().min(1),
     maxMember: z.number().int().min(1),
-    duration: z.number().int().min(5).max(240).optional().nullable(),
-    breakDuration: z.number().int().min(0).max(120).optional().nullable(),
+    duration: z.union([z.null(), tournamentDurationMinutes]).optional(),
+    breakDuration: z.union([z.null(), tournamentBreakMinutes]).optional(),
     foodInfo: z.string().optional(),
     descriptionInfo: z.string().optional(),
   })

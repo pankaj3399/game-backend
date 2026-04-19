@@ -18,11 +18,7 @@ async function isMatchParticipant(
     _id: matchId,
     tournament: tournamentId,
     gameMode: "tournament",
-    $or: [
-      { "side1.players": userId },
-      { "side2.players": userId },
-      { "teams.players": userId },
-    ],
+    $or: [{ "side1.players": userId }, { "side2.players": userId }],
   })
     .select("_id")
     .lean<{ _id: unknown } | null>()
