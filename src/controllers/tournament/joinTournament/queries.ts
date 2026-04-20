@@ -29,9 +29,12 @@ export async function addParticipantIfCapacityAllows(
       status: "active",
       firstRoundScheduledAt: null,
       $expr: {
-        $lt: [
-          { $size: { $ifNull: ["$participants", []] } },
-          { $ifNull: ["$maxMember", 1] },
+        $or: [
+          { $not: [{ $isNumber: "$maxMember" }] },
+          { $ne: ["$maxMember", "$maxMember"] },
+          {
+            $lt: [{ $size: { $ifNull: ["$participants", []] } }, "$maxMember"],
+          },
         ],
       },
     },

@@ -35,8 +35,8 @@ export async function fetchGamesForScheduleRounds(
   // populated side players (see getTournamentMatches mapper), not raw refs.
   return Game.find({ schedule: scheduleId, _id: { $in: gameIds } })
     .select("_id side1 side2 court status matchType playMode startTime score")
-    .populate("side1.players", "name alias")
-    .populate("side2.players", "name alias")
+    .populate("side1.players", "name alias elo.rating elo.rd")
+    .populate("side2.players", "name alias elo.rating elo.rd")
     .populate("court", "name")
     .lean<GameForMatchesDoc[]>()
     .exec();

@@ -15,20 +15,7 @@ const entryFeeSchema = z.coerce.number().min(0).default(0);
 const memberCountSchema = z.coerce.number().int().min(1);
 const totalRoundsSchema = z.coerce.number().int().min(1).max(100);
 const durationMinutesSchema = z.coerce.number().int().min(5).max(240);
-/** Reject null/empty before coercion so they do not become 0. */
-const breakMinutesSchema = z
-  .union([
-    z
-      .null()
-      .refine(() => false, { message: "breakDuration cannot be null" }),
-    z
-      .literal("")
-      .refine(() => false, { message: "breakDuration cannot be empty" }),
-    z.coerce.number().int().min(0).max(120),
-  ])
-  .refine((val): val is number => typeof val === "number", {
-    message: "breakDuration must be a number",
-  });
+const breakMinutesSchema = z.coerce.number().int().min(0).max(120);
 
 
 const baseTournament = z.object({

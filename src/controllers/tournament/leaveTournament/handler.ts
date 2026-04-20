@@ -1,24 +1,36 @@
 import mongoose from "mongoose";
-import type { Types } from "mongoose";
-import Tournament from "../../../models/Tournament";
-import Schedule from "../../../models/Schedule";
-import type { TournamentPopulated } from "../../../types/api/tournament";
 import type { AuthenticatedSession } from "../../../shared";
 import { error, ok } from "../../../shared/helpers";
 import { isTournamentSchedulingLocked } from "../schedulingLock";
-
+import {
+  findTournamentForLeave,
+  findTournamentForLeaveConflictCheck,
+  findTournamentForLeaveWithSession,
+  pullTournamentParticipantIfNotScheduled,
+  scheduleHasProgressBlockingLeave,
+} from "./queries";
 const LEAVE_SCHEDULE_LOCKED = "LEAVE_SCHEDULE_LOCKED";
 
-function getScheduleIdForLockCheck(
-  schedule: TournamentPopulated["schedule"]
-): Types.ObjectId | null {
-  if (schedule == null) {
-    return null;
+function isSameParticipantId(id: unknown, authId: mongoose.Types.ObjectId) {
+  if (id instanceof mongoose.Types.ObjectId) {
+    return id.equals(authId);
   }
-  if (typeof schedule === "object" && "_id" in schedule && schedule._id != null) {
-    return schedule._id as Types.ObjectId;
+
+  if (typeof id === "object" && id !== null && "_id" in id) {
+    const nestedId = (id as { _id?: unknown })._id;
+    if (nestedId instanceof mongoose.Types.ObjectId) {
+      return nestedId.equals(authId);
+    }
+    if (nestedId != null) {
+      return String(nestedId) === authId.toString();
+    }
   }
-  return schedule as Types.ObjectId;
+
+  if (id == null) {
+    return false;
+  }
+
+  return String(id) === authId.toString();
 }
 
 /**
@@ -28,22 +40,15 @@ export async function leaveTournamentFlow(
   tournamentId: string,
   authSession: AuthenticatedSession
 ) {
-  const tournament = await Tournament.findById(tournamentId)
-    .select("participants firstRoundScheduledAt schedule")
-    .populate({
-      path: "schedule",
-      select: "currentRound rounds.round",
-    })
-    .lean<TournamentPopulated>()
-    .exec();
+  const tournament = await findTournamentForLeave(tournamentId);
 
   if (!tournament) {
     return error(404, "Tournament not found");
   }
 
   const participantIds = tournament.participants ?? [];
-  const userIsParticipant = participantIds.some(
-    (id) => id.toString() === authSession._id.toString()
+  const userIsParticipant = participantIds.some((id) =>
+    isSameParticipantId(id, authSession._id)
   );
 
   if (!userIsParticipant) {
@@ -58,22 +63,23 @@ export async function leaveTournamentFlow(
   }
 
   const mongoSession = await mongoose.startSession();
-  let returnedDoc: {
-    participants?: Array<{ toString: () => string }>;
-    maxMember?: number;
-  } | null = null;
+  let returnedDoc: Awaited<
+    ReturnType<typeof pullTournamentParticipantIfNotScheduled>
+  > | null = null;
 
   try {
     returnedDoc = await mongoSession.withTransaction(async () => {
-      const scheduleId = getScheduleIdForLockCheck(tournament.schedule);
+      const fresh = await findTournamentForLeaveWithSession(tournamentId, mongoSession);
+      if (!fresh) {
+        return null;
+      }
+
+      const scheduleId = fresh.schedule?._id ?? null;
       if (scheduleId != null) {
-        const scheduleHasProgress = await Schedule.exists({
-          _id: scheduleId,
-          $or: [
-            { currentRound: { $gte: 1 } },
-            { rounds: { $elemMatch: { round: { $gte: 1 } } } },
-          ],
-        }).session(mongoSession);
+        const scheduleHasProgress = await scheduleHasProgressBlockingLeave(
+          scheduleId,
+          mongoSession
+        );
 
         if (scheduleHasProgress) {
           const err = new Error(LEAVE_SCHEDULE_LOCKED);
@@ -82,21 +88,12 @@ export async function leaveTournamentFlow(
         }
       }
 
-      return await Tournament.findOneAndUpdate(
-        {
-          _id: tournamentId,
-          participants: authSession._id,
-          $or: [
-            { firstRoundScheduledAt: { $exists: false } },
-            { firstRoundScheduledAt: null },
-          ],
-        },
-        { $pull: { participants: authSession._id } },
-        { new: true, session: mongoSession }
-      )
-        .select("participants maxMember")
-        .lean()
-        .exec();
+      return pullTournamentParticipantIfNotScheduled(
+        tournamentId,
+        authSession._id,
+        mongoSession,
+        scheduleId
+      );
     });
   } catch (err: unknown) {
     if (
@@ -114,21 +111,14 @@ export async function leaveTournamentFlow(
   }
 
   if (!returnedDoc) {
-    const fresh = await Tournament.findById(tournamentId)
-      .select("participants firstRoundScheduledAt")
-      .populate({
-        path: "schedule",
-        select: "currentRound rounds.round",
-      })
-      .lean<TournamentPopulated>()
-      .exec();
+    const fresh = await findTournamentForLeaveConflictCheck(tournamentId);
 
     if (!fresh) {
       return error(404, "Tournament not found");
     }
 
     const stillParticipant = (fresh.participants ?? []).some(
-      (id) => id.toString() === authSession._id.toString()
+      (id) => isSameParticipantId(id, authSession._id)
     );
 
     if (!stillParticipant) {

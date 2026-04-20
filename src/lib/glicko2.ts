@@ -126,6 +126,9 @@ export function rateGlicko2Player(
 
   let mu = toMu(player.rating);
   let phi = toPhi(player.rd);
+  if (!Number.isFinite(player.vol) || player.vol <= 0) {
+    throw new Error("Invalid player volatility: expected a finite positive number");
+  }
   const vol = player.vol;
 
   phi = inflatePhi(phi, vol, options?.inactivityPeriods ?? 0);

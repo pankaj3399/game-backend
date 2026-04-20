@@ -6,8 +6,14 @@ export type MatchStatusResponse =
   | "scheduled"
   | "cancelled";
 
+export interface MatchPlayerRatingResponse {
+  rating: number | null;
+  rd: number | null;
+}
+
 export interface MatchPlayerResponse {
   id: string;
   name: string | null;
   alias: string | null;
+  elo?: MatchPlayerRatingResponse | null;
 }

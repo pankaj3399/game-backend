@@ -34,27 +34,23 @@ export async function getSchedule(req: AuthenticatedRequest, res: Response) {
       return;
     }
 
-    const schedule = await fetchScheduleForTournament(idResult.data, tournament.schedule);
+    const schedule = await fetchScheduleForTournament(tournament.schedule);
     const totalRounds = tournament.totalRounds;
 
     const responseContext =
       tournament.tournamentMode === "singleDay"
         ? {
             ...tournament,
-            duration:
-              typeof schedule?.matchDurationMinutes === "number"
-                ? Math.trunc(schedule.matchDurationMinutes)
-                : tournament.duration,
-            breakDuration:
-              typeof schedule?.breakTimeMinutes === "number"
-                ? Math.trunc(schedule.breakTimeMinutes)
-                : tournament.breakDuration,
+            duration: schedule?.matchDurationMinutes ?? tournament.duration,
+            breakDuration: schedule?.breakTimeMinutes ?? tournament.breakDuration,
           }
         : tournament;
 
     const payload = mapScheduleViewResponse(responseContext, {
       currentRound: schedule?.currentRound ?? 0,
       totalRounds,
+    }, {
+      matchesPerPlayer: schedule?.matchesPerPlayer ?? null,
     });
 
     res.status(200).json(payload);

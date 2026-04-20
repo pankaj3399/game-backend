@@ -4,10 +4,47 @@ import type { AuthenticatedRequest } from "../../../shared/authContext";
 import { buildErrorPayload } from "../../../shared/errors";
 import { guardIdParam } from "../../../shared/guards";
 import { mapGenerateScheduleResponse } from "./mapper";
-import { persistSinglesScheduleRound } from "./handler";
+import { persistScheduleRound } from "./handler";
 import { generateScheduleSchema } from "../shared/validation";
 import { authorizeScheduleAccess } from "../shared/authorize";
 import { fetchTournamentScheduleContext } from "../shared/queries";
+
+const SCHEDULE_CLIENT_ERROR_EXACT = new Set([
+  "At least one valid court must be selected",
+  "At least two participants are required for singles scheduling",
+  "At least four participants are required for doubles scheduling",
+  "At least one match is required to generate a schedule round",
+  "Unable to distribute matches per player with current participants",
+  "Unable to complete doubles pairing with current constraints: demand distribution is not feasible",
+  "Unable to complete doubles pairing with current constraints",
+  "Unable to complete singles pairing with current constraints",
+  "Unable to resolve singles participants for pairing",
+  "Unable to resolve doubles participants for pairing",
+  "Failed to assign schedule slot for one or more matches",
+  "matchDurationMinutes and breakTimeMinutes are required for scheduled tournaments",
+]);
+
+function isClientScheduleGenerationError(message: string) {
+  if (SCHEDULE_CLIENT_ERROR_EXACT.has(message)) {
+    return true;
+  }
+  if (message.startsWith("Round ") && message.includes("exceeds totalRounds limit")) {
+    return true;
+  }
+  if (message.startsWith("Round ") && message.includes("has not been generated yet")) {
+    return true;
+  }
+  if (message.startsWith("Cannot regenerate this round:")) {
+    return true;
+  }
+  if (message.startsWith("Missing game data for game")) {
+    return true;
+  }
+  if (message.startsWith("Round ") && message.includes("is not finished yet")) {
+    return true;
+  }
+  return false;
+}
 
 /**
  * POST /api/schedule/:id
@@ -55,41 +92,20 @@ export async function generateSchedule(req: AuthenticatedRequest, res: Response)
     }
 
     try {
-      const resultRaw: unknown = await persistSinglesScheduleRound(tournament, bodyResult.data);
-      if (!resultRaw || typeof resultRaw !== "object") {
-        throw new Error("Failed to generate schedule");
-      }
-
-      const scheduleId = "scheduleId" in resultRaw ? resultRaw.scheduleId : null;
-      const currentRound = "currentRound" in resultRaw ? resultRaw.currentRound : null;
-      const generatedMatches = "generatedMatches" in resultRaw ? resultRaw.generatedMatches : null;
-
-      if (
-        !scheduleId ||
-        typeof scheduleId !== "object" ||
-        !("toString" in scheduleId) ||
-        typeof scheduleId.toString !== "function" ||
-        typeof currentRound !== "number" ||
-        !Number.isFinite(currentRound) ||
-        typeof generatedMatches !== "number" ||
-        !Number.isFinite(generatedMatches)
-      ) {
-        throw new Error("Failed to generate schedule");
-      }
+      const result = await persistScheduleRound(tournament, bodyResult.data);
 
       res.status(200).json(
         mapGenerateScheduleResponse(
-          scheduleId,
+          result.scheduleId,
           bodyResult.data.round,
-          Math.trunc(currentRound),
-          Math.trunc(generatedMatches)
+          result.currentRound,
+          result.generatedMatches
         )
       );
       return;
     } catch (flowError) {
       const message = flowError instanceof Error ? flowError.message : "Failed to generate schedule";
-      const status =
-        message === "Unable to initialize tournament schedule" ? 500 : 400;
+      const status = isClientScheduleGenerationError(message) ? 400 : 500;
       res.status(status).json(buildErrorPayload(message));
       return;
     }

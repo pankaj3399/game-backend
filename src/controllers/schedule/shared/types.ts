@@ -53,7 +53,6 @@ export interface TournamentScheduleContext {
   startTime: string | null;
   duration: number | null;
   breakDuration: number | null;
-  matchesPerPlayer: number;
   totalRounds: number;
   playMode: TournamentPlayMode;
   createdBy: Types.ObjectId;
@@ -72,13 +71,12 @@ export interface TournamentScheduleContextRaw {
   startTime?: string | null;
   duration?: number | null;
   breakDuration?: number | null;
-  matchesPerPlayer?: number | null;
   totalRounds?: number | null;
   playMode?: TournamentPlayMode | null;
   createdBy?: DbIdLike | null;
   club?: ScheduleClubInfoRaw | null;
   participants?: ScheduleParticipantInfoRaw[] | null;
-  schedule?: DbIdLike | { _id?: DbIdLike; matchesPerPlayer?: number | null } | null;
+  schedule?: DbIdLike | null;
 }
 
 export interface ScheduleInputResponse {
@@ -121,7 +119,7 @@ export interface GenerateScheduleBody {
   mode: ScheduleMode;
   matchDurationMinutes?: number;
   breakTimeMinutes?: number;
-  matchesPerPlayer: number;
+  matchesPerPlayer?: number;
   startTime: string;
   courtIds: string[];
   participantOrder: string[];

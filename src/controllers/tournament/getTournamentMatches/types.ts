@@ -23,6 +23,10 @@ export interface PopulatedMatchPlayerDoc {
   _id: Types.ObjectId;
   name?: string | null;
   alias?: string | null;
+  elo?: {
+    rating?: number | null;
+    rd?: number | null;
+  } | null;
 }
 
 /**

@@ -1,57 +1,24 @@
-import type { Types } from "mongoose";
-import type {
-  GenerateScheduleBody,
-  ScheduleParticipantInfo,
-  TournamentScheduleContext,
-} from "./types";
+import type { ScheduleParticipantInfo, TournamentScheduleContext } from "./types";
+import {
+  DEFAULT_BREAK_TIME_MINUTES,
+  DEFAULT_MATCH_DURATION_MINUTES,
+  DEFAULT_MATCHES_PER_PLAYER,
+  DEFAULT_SCHEDULE_START_TIME,
+} from "./constants";
 
-const DEFAULT_MATCH_DURATION_MINUTES = 60;
-const DEFAULT_BREAK_TIME_MINUTES = 5;
-const DEFAULT_MATCHES_PER_PLAYER = 1;
-const DEFAULT_START_TIME = "13:40";
-
-function parseMinutesFromText(
-  value: string | number | null | undefined,
-  fallback: number,
-  allowZero = false
-): number {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    const t = Math.trunc(value);
-    if (allowZero) {
-      return t >= 0 ? t : fallback;
-    }
-    return t > 0 ? t : fallback;
-  }
-
-  if (typeof value !== "string" || !value) {
-    return fallback;
-  }
-
-  const match = value.match(/(\d+)/);
-  if (!match) {
-    return fallback;
-  }
-
-  const parsed = Number.parseInt(match[1], 10);
-  if (!Number.isFinite(parsed)) {
-    return fallback;
-  }
-  if (allowZero && parsed >= 0) {
-    return parsed;
-  }
-  return parsed > 0 ? parsed : fallback;
-}
-
-export function getDefaultScheduleInput(tournament: TournamentScheduleContext) {
+export function getDefaultScheduleInput(
+  tournament: TournamentScheduleContext,
+  options?: { matchesPerPlayer?: number | null }
+) {
   const courts = tournament.club?.courts ?? [];
   const selectedDefault = new Set(courts.slice(0, Math.min(2, courts.length)).map((court) => court._id.toString()));
 
+  const resolvedMatchesPerPlayer =
+    options?.matchesPerPlayer ?? DEFAULT_MATCHES_PER_PLAYER;
+
   const base = {
-    matchesPerPlayer:
-      Number.isFinite(tournament.matchesPerPlayer) && tournament.matchesPerPlayer >= 1
-        ? Math.trunc(tournament.matchesPerPlayer)
-        : DEFAULT_MATCHES_PER_PLAYER,
-    startTime: tournament.startTime ?? DEFAULT_START_TIME,
+    matchesPerPlayer: resolvedMatchesPerPlayer,
+    startTime: tournament.startTime ?? DEFAULT_SCHEDULE_START_TIME,
     mode: "singles" as const,
     availableCourts: courts.map((court) => ({
       id: court._id.toString(),
@@ -66,15 +33,8 @@ export function getDefaultScheduleInput(tournament: TournamentScheduleContext) {
 
   return {
     ...base,
-    matchDurationMinutes: parseMinutesFromText(
-      tournament.duration,
-      DEFAULT_MATCH_DURATION_MINUTES
-    ),
-    breakTimeMinutes: parseMinutesFromText(
-      tournament.breakDuration,
-      DEFAULT_BREAK_TIME_MINUTES,
-      true
-    ),
+    matchDurationMinutes: tournament.duration ?? DEFAULT_MATCH_DURATION_MINUTES,
+    breakTimeMinutes: tournament.breakDuration ?? DEFAULT_BREAK_TIME_MINUTES,
   };
 }
 
@@ -122,8 +82,8 @@ export function getParticipantOrder(
 
 export function sortParticipantsForScheduling(participants: ScheduleParticipantInfo[]) {
   return [...participants].sort((left, right) => {
-    const leftRating = typeof left.elo?.rating === "number" ? left.elo.rating : 1500;
-    const rightRating = typeof right.elo?.rating === "number" ? right.elo.rating : 1500;
+    const leftRating = left.elo.rating ?? 1500;
+    const rightRating = right.elo.rating ?? 1500;
     if (leftRating !== rightRating) {
       return rightRating - leftRating;
     }
@@ -145,6 +105,7 @@ export function buildDoublesPairs(
   unpaired: ScheduleParticipantInfo[];
 } {
   const teams: Array<{ team: number; players: [ScheduleParticipantInfo, ScheduleParticipantInfo] }> = [];
+  let oddParticipant: ScheduleParticipantInfo | null = null;
 
   for (let index = 0; index + 1 < participants.length; index += 2) {
     teams.push({
@@ -153,24 +114,20 @@ export function buildDoublesPairs(
     });
   }
 
-  const unpaired = participants.length % 2 === 1 ? [participants[participants.length - 1]] : [];
-  return { teams, unpaired };
-}
+  if (participants.length % 2 === 1) {
+    oddParticipant = participants[participants.length - 1];
+  }
 
-export function buildSinglesRoundPairs(
-  participants: ScheduleParticipantInfo[]
-): Array<{ playerOneId: Types.ObjectId; playerTwoId: Types.ObjectId }> {
-  const pairs: Array<{ playerOneId: Types.ObjectId; playerTwoId: Types.ObjectId }> = [];
-
-  // Odd participant counts intentionally leave the final participant unpaired for this round.
-  for (let index = 0; index + 1 < participants.length; index += 2) {
-    pairs.push({
-      playerOneId: participants[index]._id,
-      playerTwoId: participants[index + 1]._id,
+  if (oddParticipant && participants.length >= 2) {
+    // Keep everyone active by assigning the odd participant to an extra pair.
+    const extraPartner = participants[0];
+    teams.push({
+      team: teams.length + 1,
+      players: [oddParticipant, extraPartner],
     });
   }
 
-  return pairs;
+  return { teams, unpaired: [] };
 }
 
 export function computeMatchStartTime(

@@ -3,7 +3,7 @@ import { logger } from "../../../lib/logger";
 import { guardIdParam } from "../../../shared/guards";
 import { buildErrorPayload } from "../../../shared/errors";
 import { AuthenticatedRequest, type AuthenticatedSession } from "../../../shared/authContext";
-import { updateDraftSchema } from "./validation";
+import { updateDraftSchema, type UpdateDraftInput } from "./validation";
 import { authorizeUpdate } from "./authorize";
 import { fetchTournamentForUpdate } from "./queries";
 import { updateTournamentFlow } from "./handler";
@@ -58,6 +58,7 @@ export async function updateTournament(req: AuthenticatedRequest ,res: Response)
     }
 
     const nextStatus = bodyParse.data.status ?? tournament.data.status;
+    let publishUpdatePayload: UpdateDraftInput | null = null;
     if (nextStatus === "active") {
       const clubId = authResult.data.clubId;
       const d = bodyParse.data;
@@ -105,6 +106,11 @@ export async function updateTournament(req: AuthenticatedRequest ,res: Response)
         res.status(400).json(buildErrorPayload(message || "Tournament publish validation failed"));
         return;
       }
+      const normalizedPublishCandidate = {
+        ...publishValidation.data,
+        duration: publishValidation.data.duration ?? 60,
+        breakDuration: publishValidation.data.breakDuration ?? 0,
+      };
 
       const clubCourtIds = await getClubCourtIds(clubId);
       if (clubCourtIds.length === 0) {
@@ -113,11 +119,20 @@ export async function updateTournament(req: AuthenticatedRequest ,res: Response)
         );
         return;
       }
+
+      publishUpdatePayload = {
+        ...bodyParse.data,
+        ...normalizedPublishCandidate,
+      };
     }
 
-    const result = await updateTournamentFlow(idResult.data, bodyParse.data, {
-      clubChanged: authResult.data.clubChanged,
-    });
+    const result = await updateTournamentFlow(
+      idResult.data,
+      publishUpdatePayload ?? bodyParse.data,
+      {
+        clubChanged: authResult.data.clubChanged,
+      }
+    );
     if (!result) {
       res.status(404).json(buildErrorPayload("Tournament not found"));
       return;

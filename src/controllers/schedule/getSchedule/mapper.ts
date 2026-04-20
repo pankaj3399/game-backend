@@ -7,7 +7,8 @@ import type { TournamentScheduleContext, TournamentScheduleResponse } from "../s
 
 export function mapScheduleViewResponse(
   tournament: TournamentScheduleContext,
-  scheduleSummary: { currentRound: number; totalRounds: number }
+  scheduleSummary: { currentRound: number; totalRounds: number },
+  options?: { matchesPerPlayer?: number | null }
 ): TournamentScheduleResponse {
   const rankedParticipants = sortParticipantsForScheduling(tournament.participants);
 
@@ -16,7 +17,9 @@ export function mapScheduleViewResponse(
       id: tournament._id.toString(),
       name: tournament.name,
     },
-    scheduleInput: getDefaultScheduleInput(tournament),
+    scheduleInput: getDefaultScheduleInput(tournament, {
+      matchesPerPlayer: options?.matchesPerPlayer ?? null,
+    }),
     participants: rankedParticipants.map((participant, index) => ({
       id: participant._id.toString(),
       name: participantDisplayName(participant, `Player ${index + 1}`),

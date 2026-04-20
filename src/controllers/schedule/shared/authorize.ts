@@ -1,7 +1,8 @@
+import { Types } from "mongoose";
+import Game from "../../../models/Game";
 import { buildPermissionContext, type AuthenticatedSession } from "../../../shared/authContext";
 import { isOwnerOrSuperAdmin, userCanManageClub } from "../../../lib/permissions";
 import { error, ok } from "../../../shared/helpers";
-import Game from "../../../models/Game";
 import type { TournamentScheduleContext } from "./types";
 
 export async function authorizeScheduleAccess(
@@ -28,44 +29,39 @@ export async function authorizeScheduleAccess(
 }
 
 /**
- * Schedule managers/owners, or a player on the given match (side1/side2).
+ * Staff scheduling permission, or (if `matchId` is set) the user is a player on that match.
+ * Avoids duplicating staff checks vs participant checks across controllers.
  */
 export async function authorizeScheduleOrMatchParticipant(
   tournament: TournamentScheduleContext,
   session: AuthenticatedSession,
-  options: { matchId: string }
+  options: { matchId?: string }
 ) {
-  const scheduleAuth = await authorizeScheduleAccess(tournament, session);
-  if (scheduleAuth.status === 200) {
-    return scheduleAuth;
+  const primary = await authorizeScheduleAccess(tournament, session);
+  if (primary.status === 200) {
+    return primary;
   }
 
-  if (scheduleAuth.status !== 403) {
-    return scheduleAuth;
+  const matchId = options.matchId;
+  if (!matchId || !Types.ObjectId.isValid(matchId)) {
+    return primary;
   }
 
-  const match = await Game.findOne({
-    _id: options.matchId,
+  const matchObjectId = new Types.ObjectId(matchId);
+
+  const isParticipant = await Game.exists({
+    _id: matchObjectId,
     tournament: tournament._id,
     gameMode: "tournament",
     $or: [{ "side1.players": session._id }, { "side2.players": session._id }],
-  })
-    .select("_id")
-    .lean<{ _id: unknown } | null>()
-    .exec();
+  });
 
-  if (!match) {
-    return scheduleAuth;
+  if (isParticipant) {
+    if (!tournament.club || tournament.club._id == null) {
+      return error(400, "Tournament has no club");
+    }
+    return ok({ clubId: tournament.club._id.toString() }, { status: 200, message: "Authorized" });
   }
 
-  // `authorizeScheduleAccess` returned 403 (not a schedule manager). Participant path:
-  // club was already validated there before the 403. Re-check defensively before OK.
-  if (!tournament.club || tournament.club._id == null) {
-    return error(400, "Tournament has no club");
-  }
-
-  return ok(
-    { clubId: tournament.club._id.toString() },
-    { status: 200, message: "Authorized" }
-  );
+  return primary;
 }

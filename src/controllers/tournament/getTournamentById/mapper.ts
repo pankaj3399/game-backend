@@ -1,20 +1,8 @@
-import mongoose from "mongoose";
 import type { TournamentPopulated } from "../../../types/api/tournament";
 import { ROLES } from "../../../constants/roles";
 import type { DetailViewContext } from "../shared/authorizeGetById";
 import { computeSpotsTotal } from "../computeSpotsTotal";
 import { isTournamentSchedulingLocked } from "../schedulingLock";
-
-function apiMinutesNumber(value: unknown): number | null {
-  if (value == null) {
-    return null;
-  }
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) {
-    return null;
-  }
-  return Math.trunc(parsed);
-}
 
 /* =========================
    Response Types
@@ -88,8 +76,8 @@ export interface TournamentDetailResponse {
   minMember: number;
   maxMember: number;
   totalRounds: number;
-  duration: number | null;
-  breakDuration: number | null;
+  duration: number;
+  breakDuration: number;
   courts: CourtInfo[];
   foodInfo: string;
   descriptionInfo: string;
@@ -145,16 +133,13 @@ export function mapTournamentDetail(
   const participantsRaw = tournament.participants ?? [];
   const participantItems: ParticipantInfo[] = [];
   for (const p of participantsRaw) {
-    const id =
-      p instanceof mongoose.Types.ObjectId
-        ? p.toString()
-        : toSafeStringId(p._id);
+    const id = toSafeStringId(p._id);
     if (!id) continue;
 
     participantItems.push({
       id,
-      name: p instanceof mongoose.Types.ObjectId ? null : (p.name ?? null),
-      alias: p instanceof mongoose.Types.ObjectId ? null : (p.alias ?? null),
+      name: p.name ?? null,
+      alias: p.alias ?? null,
     });
   }
 
@@ -298,8 +283,14 @@ export function mapTournamentDetail(
       Number.isFinite(Number(tournament.totalRounds)) && Math.trunc(Number(tournament.totalRounds)) >= 1
         ? Math.trunc(Number(tournament.totalRounds))
         : 1,
-    duration: apiMinutesNumber(tournament.duration),
-    breakDuration: apiMinutesNumber(tournament.breakDuration),
+    duration:
+      typeof tournament.duration === "number" && Number.isFinite(tournament.duration)
+        ? Math.trunc(tournament.duration)
+        : 0,
+    breakDuration:
+      typeof tournament.breakDuration === "number" && Number.isFinite(tournament.breakDuration)
+        ? Math.trunc(tournament.breakDuration)
+        : 0,
     courts,
     foodInfo: tournament.foodInfo ?? "",
     descriptionInfo: tournament.descriptionInfo ?? "",

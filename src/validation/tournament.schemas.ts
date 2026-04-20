@@ -13,21 +13,9 @@ const totalRoundsSchema = z.coerce.number().int().min(1).max(100);
 const durationMinutesSchema = z.coerce.number().int().min(5).max(240);
 const breakMinutesSchema = z.coerce.number().int().min(0).max(120);
 
-/** Null must be listed before numeric branches so it is not coerced to 0. */
-const nullableDurationMinutes = z.union([
-  z.null(),
-  z
-    .literal('')
-    .refine(() => false, { message: 'duration cannot be empty' }),
-  durationMinutesSchema,
-]);
-const nullableBreakMinutes = z.union([
-  z.null(),
-  z
-    .literal('')
-    .refine(() => false, { message: 'breakDuration cannot be empty' }),
-  breakMinutesSchema,
-]);
+/** Null branch first so input null is not coerced to 0 by z.coerce.number(). */
+const nullableDurationMinutes = z.union([z.null(), durationMinutesSchema]);
+const nullableBreakMinutes = z.union([z.null(), breakMinutesSchema]);
 
 const draftFields = {
 	club: objectId.optional(),
@@ -90,28 +78,8 @@ const publishFields = {
 	maxMember: memberCountSchema,
 	totalRounds: totalRoundsSchema,
 	status: z.literal('active'),
-	duration: z.union([
-		z.null().refine(() => false, { message: 'Playing time is required' }),
-		z
-			.literal('')
-			.refine(() => false, { message: 'Playing time cannot be empty' }),
-		z
-			.coerce.number()
-			.int('Playing time must be a whole number of minutes')
-			.min(5, 'Playing time must be at least 5 minutes')
-			.max(240, 'Playing time must be at most 240 minutes'),
-	]),
-	breakDuration: z.union([
-		z.null().refine(() => false, { message: 'Game pause time is required' }),
-		z
-			.literal('')
-			.refine(() => false, { message: 'Game pause time cannot be empty' }),
-		z
-			.coerce.number()
-			.int('Game pause time must be a whole number of minutes')
-			.min(0, 'Game pause time cannot be negative')
-			.max(120, 'Game pause time must be at most 120 minutes'),
-	]),
+	duration: nullableDurationMinutes,
+	breakDuration: nullableBreakMinutes,
 	startTime: z.string().trim().regex(timeRegex, 'Invalid start time (expected HH:mm)').optional().nullable(),
 	endTime: z.string().trim().regex(timeRegex, 'Invalid end time (expected HH:mm)').optional().nullable()
 } satisfies z.ZodRawShape;

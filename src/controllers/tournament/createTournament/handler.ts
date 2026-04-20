@@ -52,6 +52,9 @@ export async function createTournamentFlow(
         { status: 200, message: "Tournament created successfully" }
       );
     });
+    if (!flowResult) {
+      return error(500, "Tournament creation transaction was aborted");
+    }
     return flowResult;
   } catch (err: unknown) {
     const mongoErr = err as {

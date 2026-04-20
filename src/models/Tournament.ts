@@ -25,6 +25,7 @@ export interface ITournament extends Document {
 	entryFee: number;
 	minMember: number;
 	maxMember: number;
+	/** Omitted on some drafts until publish; persisted tournaments should set both. */
 	duration?: number | null;
 	breakDuration?: number | null;
 	totalRounds: number;
@@ -110,26 +111,24 @@ const tournamentSchema = new mongoose.Schema<ITournament>(
 		duration: {
 			type: Number,
 			required: false,
+			min: [5, 'duration must be at least 5 minutes'],
+			max: [240, 'duration must be at most 240 minutes'],
+			default: 60,
 			validate: {
 				validator: (v: unknown) =>
-					v == null ||
-					(typeof v === 'number' &&
-						Number.isInteger(v) &&
-						v >= 5 &&
-						v <= 240),
+					v == null || (typeof v === 'number' && Number.isInteger(v) && v >= 5 && v <= 240),
 				message: 'duration must be an integer between 5 and 240 minutes, or omitted'
 			}
 		},
 		breakDuration: {
 			type: Number,
 			required: false,
+			min: [0, 'breakDuration must be at least 0 minutes'],
+			max: [120, 'breakDuration must be at most 120 minutes'],
+			default: 0,
 			validate: {
 				validator: (v: unknown) =>
-					v == null ||
-					(typeof v === 'number' &&
-						Number.isInteger(v) &&
-						v >= 0 &&
-						v <= 120),
+					v == null || (typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 120),
 				message: 'breakDuration must be an integer between 0 and 120 minutes, or omitted'
 			}
 		},
@@ -202,10 +201,10 @@ tournamentSchema.pre('save', async function () {
 	if (this.schedule) return;
 
 	try {
-		const session = this.$session?.();
+		const session = this.$session();
 		const schedule = await Schedule.findOneAndUpdate(
 			{ tournament: this._id },
-			{ $setOnInsert: { tournament: this._id, currentRound: 0, matchesPerPlayer: 1 } },
+			{ $setOnInsert: { tournament: this._id, currentRound: 0 } },
 			{
 				upsert: true,
 				new: true,
@@ -218,9 +217,11 @@ tournamentSchema.pre('save', async function () {
 			.lean()
 			.exec();
 
-		if (schedule?._id) {
-			this.schedule = schedule._id;
+		if (!schedule?._id) {
+			LogError('Tournament', 'save', 'pre(save)/schedule-missing', new Error('Schedule upsert returned without _id'));
+			throw new Error('Unable to resolve schedule id during tournament save');
 		}
+		this.schedule = schedule._id;
 	} catch (err) {
 		LogError('Tournament', 'save', 'pre(save)/schedule-link', err);
 		throw err;

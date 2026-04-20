@@ -1,7 +1,7 @@
 import type { Response } from "express";
 import { logger } from "../../../lib/logger";
 import type { AuthenticatedRequest } from "../../../shared/authContext";
-import { buildErrorPayload } from "../../../shared/errors";
+import { AppError, buildErrorPayload } from "../../../shared/errors";
 import { authorizeScheduleOrMatchParticipant } from "../../schedule/shared/authorize";
 import { fetchTournamentScheduleContext } from "../../schedule/shared/queries";
 import { recordTournamentMatchScoreFlow } from "./handler";
@@ -64,18 +64,17 @@ export async function recordMatchScore(req: AuthenticatedRequest, res: Response)
       ratings: result.updatedRatings,
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Failed to record match score";
-    const status =
-      message === "Tournament match not found"
-        ? 404
-        : message.includes("missing") || message.includes("Unable") || message.includes("required")
-          ? 400
-          : 500;
-
-    if (status === 500) {
-      logger.error("Error recording match score", { err });
+    if (err instanceof AppError) {
+      if (err.statusCode >= 500) {
+        logger.error("Error recording match score", { err });
+        res.status(500).json(buildErrorPayload("Internal server error"));
+        return;
+      }
+      res.status(err.statusCode).json(buildErrorPayload(err.message));
+      return;
     }
 
-    res.status(status).json(buildErrorPayload(message));
+    logger.error("Error recording match score", { err });
+    res.status(500).json(buildErrorPayload("Failed to record match score"));
   }
 }

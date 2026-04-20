@@ -7,7 +7,6 @@ import type { Types } from "mongoose";
 export interface SchedulePopulatedLean {
   _id: Types.ObjectId;
   currentRound?: number;
-  matchesPerPlayer?: number;
   rounds?: Array<{ round?: number }>;
 }
 

@@ -72,6 +72,7 @@ const scheduleSchema = new Schema<ISchedule>(
 			required: true,
 			min: [1, 'matchesPerPlayer must be at least 1'],
 			max: [20, 'matchesPerPlayer cannot be greater than 20'],
+			default: 1,
 			validate: {
 				validator: (v: unknown) => typeof v === 'number' && Number.isInteger(v),
 				message: 'matchesPerPlayer must be an integer'
