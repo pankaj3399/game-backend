@@ -65,6 +65,9 @@ export async function recordMatchScore(req: AuthenticatedRequest, res: Response)
     });
   } catch (err) {
     if (err instanceof AppError) {
+      if (err.statusCode >= 500) {
+        logger.error("Error recording match score", { err });
+      }
       res.status(err.statusCode).json(buildErrorPayload(err.message));
       return;
     }

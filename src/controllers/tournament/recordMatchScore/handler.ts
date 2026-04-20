@@ -125,7 +125,7 @@ function toRatingState(user: {
 function getStateOrThrow(states: Map<string, RatingState>, id: string) {
   const state = states.get(id);
   if (!state) {
-    throw new AppError(`Unable to resolve player rating state for participant ${id}`, 400);
+    throw new AppError(`Invariant: missing rating state for participant ${id}`, 500);
   }
   return state;
 }
@@ -321,7 +321,10 @@ export async function recordTournamentMatchScoreFlow(
       for (const participantId of uniqueParticipantIds) {
         const user = byUserId.get(participantId);
         if (!user) {
-          throw new AppError("Unable to resolve participant rating", 400);
+          throw new AppError(
+            `Invariant: missing user document while building rating state for participant ${participantId}`,
+            500
+          );
         }
         states.set(participantId, toRatingState(user));
       }
