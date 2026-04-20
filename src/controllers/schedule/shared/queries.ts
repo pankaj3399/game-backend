@@ -64,7 +64,7 @@ function buildNormalizedScheduleContext(raw: TournamentScheduleContextRaw) {
     _id: Types.ObjectId;
     name: string | null;
     alias: string | null;
-    elo: { rating: number | null };
+    elo: { rating: number | null; rd: number | null };
   }> = [];
   for (const participant of raw.participants ?? []) {
     const participantId = toObjectId(participant._id);
@@ -78,6 +78,7 @@ function buildNormalizedScheduleContext(raw: TournamentScheduleContextRaw) {
       alias: participant.alias ?? null,
       elo: {
         rating: participant.elo?.rating ?? null,
+        rd: participant.elo?.rd ?? null,
       },
     });
   }
@@ -124,7 +125,7 @@ export async function fetchTournamentScheduleContext(
         select: "_id name",
       },
     })
-    .populate("participants", "name alias elo.rating")
+    .populate("participants", "name alias elo.rating elo.rd")
     .lean<TournamentScheduleContextRaw>()
     .exec();
 

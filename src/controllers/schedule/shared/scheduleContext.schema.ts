@@ -30,6 +30,7 @@ export const scheduleClubInfoSchema = z.object({
 
 export const scheduleParticipantEloSchema = z.object({
   rating: z.union([z.number(), z.null()]),
+  rd: z.union([z.number(), z.null()]),
 });
 
 export const scheduleParticipantInfoSchema = z.object({

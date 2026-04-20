@@ -26,6 +26,7 @@ export function mapScheduleViewResponse(
       alias: participant.alias,
       skillLabel: "glicko2",
       rating: participant.elo?.rating ?? 1500,
+      rd: participant.elo?.rd ?? 200,
       order: index + 1,
     })),
     scheduleSummary,
