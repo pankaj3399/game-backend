@@ -182,6 +182,11 @@ function requiredSetCount(playMode: GamePlayMode): number {
 }
 
 function isWinnerDecided(playMode: GamePlayMode, input: RecordMatchScoreInput): boolean {
+  return decisiveSetsLength(playMode, input) != null;
+}
+
+/** Number of set rows that include the decisive set (1-based), or null if no winner yet. */
+function decisiveSetsLength(playMode: GamePlayMode, input: RecordMatchScoreInput): number | null {
   const setsToEvaluate = requiredSetCount(playMode);
   const majority = Math.floor(setsToEvaluate / 2) + 1;
   let playerOneSetWins = 0;
@@ -203,11 +208,11 @@ function isWinnerDecided(playMode: GamePlayMode, input: RecordMatchScoreInput): 
     }
 
     if (playerOneSetWins >= majority || playerTwoSetWins >= majority) {
-      return true;
+      return index + 1;
     }
   }
 
-  return false;
+  return null;
 }
 
 export async function recordTournamentMatchScoreFlow(
@@ -232,10 +237,6 @@ export async function recordTournamentMatchScoreFlow(
       }
 
       const now = new Date();
-      game.score = {
-        playerOneScores: [...input.playerOneScores],
-        playerTwoScores: [...input.playerTwoScores],
-      };
       game.startTime = game.startTime ?? now;
 
       const setsRequired = requiredSetCount(game.playMode);
@@ -252,6 +253,10 @@ export async function recordTournamentMatchScoreFlow(
 
       const winnerDecided = isWinnerDecided(game.playMode, input);
       if (!winnerDecided) {
+        game.score = {
+          playerOneScores: [...input.playerOneScores],
+          playerTwoScores: [...input.playerTwoScores],
+        };
         game.status = "pendingScore";
         game.endTime = undefined;
         await game.save({ session });
@@ -265,7 +270,23 @@ export async function recordTournamentMatchScoreFlow(
         };
       }
 
-      const outcomes = flattenOutcomeSegments(input);
+      const decisiveLen = decisiveSetsLength(game.playMode, input);
+      if (decisiveLen == null) {
+        throw new AppError("Winner could not be determined from submitted scores", 400);
+      }
+
+      const scoreThroughDecisiveSet: RecordMatchScoreInput = {
+        ...input,
+        playerOneScores: input.playerOneScores.slice(0, decisiveLen),
+        playerTwoScores: input.playerTwoScores.slice(0, decisiveLen),
+      };
+
+      game.score = {
+        playerOneScores: [...scoreThroughDecisiveSet.playerOneScores],
+        playerTwoScores: [...scoreThroughDecisiveSet.playerTwoScores],
+      };
+
+      const outcomes = flattenOutcomeSegments(scoreThroughDecisiveSet);
       if (outcomes.length === 0) {
         throw new AppError("At least one score outcome is required", 400);
       }

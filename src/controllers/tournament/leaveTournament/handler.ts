@@ -5,6 +5,7 @@ import { isTournamentSchedulingLocked } from "../schedulingLock";
 import {
   findTournamentForLeave,
   findTournamentForLeaveConflictCheck,
+  findTournamentForLeaveWithSession,
   pullTournamentParticipantIfNotScheduled,
   scheduleHasProgressBlockingLeave,
 } from "./queries";
@@ -68,7 +69,12 @@ export async function leaveTournamentFlow(
 
   try {
     returnedDoc = await mongoSession.withTransaction(async () => {
-      const scheduleId = tournament.schedule?._id ?? null;
+      const fresh = await findTournamentForLeaveWithSession(tournamentId, mongoSession);
+      if (!fresh) {
+        return null;
+      }
+
+      const scheduleId = fresh.schedule?._id ?? null;
       if (scheduleId != null) {
         const scheduleHasProgress = await scheduleHasProgressBlockingLeave(
           scheduleId,
@@ -85,7 +91,8 @@ export async function leaveTournamentFlow(
       return pullTournamentParticipantIfNotScheduled(
         tournamentId,
         authSession._id,
-        mongoSession
+        mongoSession,
+        scheduleId
       );
     });
   } catch (err: unknown) {

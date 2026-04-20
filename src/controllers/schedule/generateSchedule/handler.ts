@@ -92,7 +92,8 @@ export async function persistScheduleRound(
     (tournament.club?.courts ?? []).map((court) => court._id.toString())
   );
   const selectedCourtIds = body.courtIds.filter((courtId) => availableCourtIds.has(courtId));
-  if (selectedCourtIds.length === 0) {
+  const uniqueCourtIds = [...new Set(selectedCourtIds)];
+  if (uniqueCourtIds.length === 0) {
     throw new Error("At least one valid court must be selected");
   }
 
@@ -210,7 +211,7 @@ export async function persistScheduleRound(
         throw new Error("At least one match is required to generate a schedule round");
       }
 
-      const pairSlotAssignments = buildPairSlotAssignments(pairs, selectedCourtIds.length);
+      const pairSlotAssignments = buildPairSlotAssignments(pairs, uniqueCourtIds.length);
       const generationTimestamp = new Date();
 
       const gameDocs = pairs.map((pair, index) => {
@@ -238,7 +239,7 @@ export async function persistScheduleRound(
         });
 
         const common = {
-          court: new mongoose.Types.ObjectId(selectedCourtIds[assignment.courtIndex]),
+          court: new mongoose.Types.ObjectId(uniqueCourtIds[assignment.courtIndex]),
           tournament: tournament._id,
           schedule: scheduleDoc._id,
           score: {

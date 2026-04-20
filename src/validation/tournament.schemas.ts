@@ -13,8 +13,9 @@ const totalRoundsSchema = z.coerce.number().int().min(1).max(100);
 const durationMinutesSchema = z.coerce.number().int().min(5).max(240);
 const breakMinutesSchema = z.coerce.number().int().min(0).max(120);
 
-const nullableDurationMinutes = z.union([durationMinutesSchema, z.null()]);
-const nullableBreakMinutes = z.union([breakMinutesSchema, z.null()]);
+/** Null branch first so input null is not coerced to 0 by z.coerce.number(). */
+const nullableDurationMinutes = z.union([z.null(), durationMinutesSchema]);
+const nullableBreakMinutes = z.union([z.null(), breakMinutesSchema]);
 
 const draftFields = {
 	club: objectId.optional(),

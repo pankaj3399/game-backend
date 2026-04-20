@@ -21,6 +21,13 @@ export async function findTournamentForLeave(tournamentId: string) {
   return buildLeaveTournamentQuery(tournamentId).exec();
 }
 
+export async function findTournamentForLeaveWithSession(
+  tournamentId: string,
+  session: ClientSession
+) {
+  return buildLeaveTournamentQuery(tournamentId).session(session).exec();
+}
+
 export async function scheduleHasProgressBlockingLeave(
   scheduleId: Types.ObjectId,
   session: ClientSession
@@ -37,15 +44,26 @@ export async function scheduleHasProgressBlockingLeave(
 export async function pullTournamentParticipantIfNotScheduled(
   tournamentId: string,
   participantId: Types.ObjectId,
-  session: ClientSession
+  session: ClientSession,
+  expectedScheduleId: Types.ObjectId | null
 ) {
+  const scheduleConstraint =
+    expectedScheduleId != null
+      ? { schedule: expectedScheduleId }
+      : { $or: [{ schedule: { $exists: false } }, { schedule: null }] };
+
   return Tournament.findOneAndUpdate(
     {
-      _id: tournamentId,
-      participants: participantId,
-      $or: [
-        { firstRoundScheduledAt: { $exists: false } },
-        { firstRoundScheduledAt: null },
+      $and: [
+        { _id: tournamentId },
+        { participants: participantId },
+        {
+          $or: [
+            { firstRoundScheduledAt: { $exists: false } },
+            { firstRoundScheduledAt: null },
+          ],
+        },
+        scheduleConstraint,
       ],
     },
     { $pull: { participants: participantId } },

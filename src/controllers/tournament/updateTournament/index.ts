@@ -3,7 +3,7 @@ import { logger } from "../../../lib/logger";
 import { guardIdParam } from "../../../shared/guards";
 import { buildErrorPayload } from "../../../shared/errors";
 import { AuthenticatedRequest, type AuthenticatedSession } from "../../../shared/authContext";
-import { updateDraftSchema } from "./validation";
+import { updateDraftSchema, type UpdateDraftInput } from "./validation";
 import { authorizeUpdate } from "./authorize";
 import { fetchTournamentForUpdate } from "./queries";
 import { updateTournamentFlow } from "./handler";
@@ -58,6 +58,7 @@ export async function updateTournament(req: AuthenticatedRequest ,res: Response)
     }
 
     const nextStatus = bodyParse.data.status ?? tournament.data.status;
+    let publishUpdatePayload: UpdateDraftInput | null = null;
     if (nextStatus === "active") {
       const clubId = authResult.data.clubId;
       const d = bodyParse.data;
@@ -119,15 +120,19 @@ export async function updateTournament(req: AuthenticatedRequest ,res: Response)
         return;
       }
 
-      if (normalizedPublishCandidate.tournamentMode === "singleDay" && normalizedPublishCandidate.date == null) {
-        res.status(400).json(buildErrorPayload("Tournament date is required"));
-        return;
-      }
+      publishUpdatePayload = {
+        ...bodyParse.data,
+        ...normalizedPublishCandidate,
+      };
     }
 
-    const result = await updateTournamentFlow(idResult.data, bodyParse.data, {
-      clubChanged: authResult.data.clubChanged,
-    });
+    const result = await updateTournamentFlow(
+      idResult.data,
+      publishUpdatePayload ?? bodyParse.data,
+      {
+        clubChanged: authResult.data.clubChanged,
+      }
+    );
     if (!result) {
       res.status(404).json(buildErrorPayload("Tournament not found"));
       return;
