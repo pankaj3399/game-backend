@@ -1,8 +1,8 @@
 import mongoose from "mongoose";
-import Schedule from "../../../models/Schedule";
 import type { AuthenticatedSession } from "../../../shared/authContext";
 import { error, ok } from "../../../shared/helpers";
 import { computeSpotsTotal } from "../computeSpotsTotal";
+import { isTournamentSchedulingLocked } from "../schedulingLock";
 
 export interface JoinTournamentDoc {
   _id: mongoose.Types.ObjectId;
@@ -11,6 +11,9 @@ export interface JoinTournamentDoc {
   participants?: mongoose.Types.ObjectId[];
   maxMember: number;
   firstRoundScheduledAt?: Date | null;
+  schedule?: {
+    currentRound?: number;
+  } | mongoose.Types.ObjectId | null;
 }
 
 /**
@@ -41,11 +44,7 @@ export async function authorizeJoin(
     return error(400, "Tournament join is closed because the first round has already been scheduled");
   }
 
-  const schedule = await Schedule.findOne({ tournament: tournament._id })
-    .select("currentRound")
-    .lean<{ currentRound?: number } | null>()
-    .exec();
-  if (schedule && (!tournament.firstRoundScheduledAt || (schedule.currentRound ?? 0) >= 1)) {
+  if (isTournamentSchedulingLocked(tournament)) {
     return error(400, "Tournament join is closed because scheduling has already started");
   }
 
