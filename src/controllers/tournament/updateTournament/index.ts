@@ -96,7 +96,7 @@ export async function updateTournament(req: AuthenticatedRequest ,res: Response)
         entryFee: d.entryFee !== undefined ? d.entryFee : t.entryFee,
         minMember: d.minMember !== undefined ? d.minMember : t.minMember,
         maxMember: d.maxMember !== undefined ? d.maxMember : t.maxMember,
-        totalRounds: d.totalRounds !== undefined ? d.totalRounds : t.totalRounds ?? 1,
+        totalRounds: d.totalRounds !== undefined ? d.totalRounds : t.totalRounds,
         duration:
           d.duration !== undefined ? d.duration : t.duration ?? null,
         breakDuration:

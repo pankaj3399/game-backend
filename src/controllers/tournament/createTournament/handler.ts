@@ -1,8 +1,8 @@
 import mongoose from "mongoose";
+import Court from "../../../models/Court";
 import Tournament from "../../../models/Tournament";
 import type { CreateTournamentInput } from "./validation";
 import { authorizeCreate, type AuthenticatedSession } from "./authorize";
-import { getClubCourtIds } from "./queries";
 import { logger } from "../../../lib/logger";
 import { error, ok } from "../../../shared/helpers";
 /**
@@ -18,14 +18,6 @@ export async function createTournamentFlow(
   if (auth.status !== 200) {
     return error(auth.status, auth.message);
   }
-  const clubCourtIds = await getClubCourtIds(auth.data.context.clubId);
-
-  if (data.status === "active" && clubCourtIds.length === 0) {
-    return error(
-      400,
-      "Selected club has no courts. Add at least one court before publishing this tournament."
-    );
-  }
 
   const payload = {
     ...data,
@@ -35,6 +27,16 @@ export async function createTournamentFlow(
   const mongoSession = await mongoose.startSession();
   try {
     const flowResult = await mongoSession.withTransaction(async () => {
+      if (data.status === "active") {
+        const hasCourt = await Court.exists({ club: auth.data.context.clubId })
+          .session(mongoSession)
+          .exec();
+        if (!hasCourt) {
+          throw new Error(
+            "Selected club has no courts. Add at least one court before publishing this tournament."
+          );
+        }
+      }
       const [tournament] = await Tournament.create([payload], {
         session: mongoSession,
       });
@@ -57,6 +59,9 @@ export async function createTournamentFlow(
     }
     return flowResult;
   } catch (err: unknown) {
+    if (err instanceof Error && err.message.includes("Selected club has no courts")) {
+      return error(400, err.message);
+    }
     const mongoErr = err as {
       code?: number;
       keyPattern?: Record<string, number>;

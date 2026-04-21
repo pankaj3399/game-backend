@@ -197,14 +197,14 @@ tournamentSchema.pre('validate', function () {
 	}
 });
 
-tournamentSchema.pre('save', async function () {
-	if (this.schedule) return;
+tournamentSchema.post('save', async function (doc) {
+	if (doc.schedule) return;
 
 	try {
-		const session = this.$session();
+		const session = doc.$session?.();
 		const schedule = await Schedule.findOneAndUpdate(
-			{ tournament: this._id },
-			{ $setOnInsert: { tournament: this._id, currentRound: 0 } },
+			{ tournament: doc._id },
+			{ $setOnInsert: { tournament: doc._id, currentRound: 0 } },
 			{
 				upsert: true,
 				new: true,
@@ -218,13 +218,20 @@ tournamentSchema.pre('save', async function () {
 			.exec();
 
 		if (!schedule?._id) {
-			LogError('Tournament', 'save', 'pre(save)/schedule-missing', new Error('Schedule upsert returned without _id'));
-			throw new Error('Unable to resolve schedule id during tournament save');
+			LogError('Tournament', 'save', 'post(save)/schedule-missing', new Error('Schedule upsert returned without _id'));
+			return;
 		}
-		this.schedule = schedule._id;
+
+		await mongoose
+			.model<ITournament>('Tournament')
+			.updateOne(
+				{ _id: doc._id, $or: [{ schedule: { $exists: false } }, { schedule: null }] },
+				{ $set: { schedule: schedule._id } },
+				session ? { session } : {}
+			)
+			.exec();
 	} catch (err) {
-		LogError('Tournament', 'save', 'pre(save)/schedule-link', err);
-		throw err;
+		LogError('Tournament', 'save', 'post(save)/schedule-link', err);
 	}
 });
 

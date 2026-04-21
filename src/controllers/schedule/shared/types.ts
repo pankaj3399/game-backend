@@ -116,17 +116,4 @@ export interface TournamentScheduleResponse {
   };
 }
 
-export interface GenerateScheduleBody {
-  round: number;
-  mode: ScheduleMode;
-  matchDurationMinutes?: number;
-  breakTimeMinutes?: number;
-  matchesPerPlayer?: number;
-  startTime: string;
-  courtIds: string[];
-  participantOrder: string[];
-}
-
-export interface GeneratePairsBody {
-  participantOrder: string[];
-}
+export type { GeneratePairsBody, GenerateScheduleBody } from "./validation";

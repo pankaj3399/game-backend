@@ -57,6 +57,7 @@ export interface TournamentForUpdateAuth {
   maxMember?: number;
   totalRounds?: number;
   participants?: mongoose.Types.ObjectId[];
+  participantCount?: number;
   date?: Date | null;
   startTime?: string | null;
   endTime?: string | null;
@@ -121,8 +122,8 @@ export const tournamentPublishSourceSchema = z
     entryFee: z.number().optional(),
     minMember: z.number().int().min(1),
     maxMember: z.number().int().min(1),
-    duration: z.number().int().min(5).max(240).optional(),
-    breakDuration: z.number().int().min(0).max(120).optional(),
+    duration: z.number().int().min(5).max(240).nullable().optional(),
+    breakDuration: z.number().int().min(0).max(120).nullable().optional(),
     foodInfo: z.string().optional(),
     descriptionInfo: z.string().optional(),
   })
@@ -172,8 +173,8 @@ export function normalizeTournamentPublishSource(
     entryFee: source.entryFee,
     minMember: source.minMember ,
     maxMember: source.maxMember,
-    duration: source.duration,
-    breakDuration: source.breakDuration,
+    duration: source.duration ?? undefined,
+    breakDuration: source.breakDuration ?? undefined,
     foodInfo: source.foodInfo ?? "",
     descriptionInfo: source.descriptionInfo ?? "",
   };

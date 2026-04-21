@@ -79,13 +79,15 @@ export async function getTournamentMatches(req: AuthenticatedRequest, res: Respo
     }
 
     if (statusUpdates.length > 0) {
+      const appliedUpdates: Array<{ id: Types.ObjectId; status: GameStatus }> = [];
       for (let i = 0; i < statusUpdates.length; i += STATUS_UPDATE_CHUNK_SIZE) {
         const chunk = statusUpdates.slice(i, i + STATUS_UPDATE_CHUNK_SIZE);
-        await updateGameStatuses(chunk);
+        const appliedChunk = await updateGameStatuses(chunk);
+        appliedUpdates.push(...appliedChunk);
       }
 
       const statusById = new Map(
-        statusUpdates.map((u) => [u.id.toString(), u.status])
+        appliedUpdates.map((u) => [u.id.toString(), u.status])
       );
       for (const game of games) {
         const persisted = statusById.get(game._id.toString());

@@ -64,8 +64,8 @@ export async function applyResolvedTimedStatuses(
     return;
   }
 
-  await updateGameStatuses(statusUpdates);
-  const statusById = new Map(statusUpdates.map((u) => [u.id.toString(), u.status]));
+  const appliedUpdates = await updateGameStatuses(statusUpdates);
+  const statusById = new Map(appliedUpdates.map((u) => [u.id.toString(), u.status]));
   for (const game of games) {
     const persisted = statusById.get(game._id.toString());
     if (persisted !== undefined) {

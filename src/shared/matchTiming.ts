@@ -67,6 +67,9 @@ export function resolveTimedGameStatus(input: ResolveTimedGameStatusInput): Game
   }
 
   const nowTimestamp = input.now.getTime();
+  if (!Number.isFinite(nowTimestamp)) {
+    return input.persistedStatus;
+  }
 
   if (nowTimestamp < startTimestamp) {
     return "draft";

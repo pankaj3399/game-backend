@@ -14,8 +14,8 @@ export const statusEnum = z.enum(["draft", "active"]);
 const entryFeeSchema = z.coerce.number().min(0).default(0);
 const memberCountSchema = z.coerce.number().int().min(1);
 const totalRoundsSchema = z.coerce.number().int().min(1).max(100);
-const durationMinutesSchema = z.coerce.number().int().min(5).max(240);
-const breakMinutesSchema = z.coerce.number().int().min(0).max(120);
+const durationMinutesSchema = z.coerce.number().int().min(5).max(240).default(60);
+const breakMinutesSchema = z.coerce.number().int().min(0).max(120).default(0);
 
 
 const baseTournament = z.object({
@@ -33,8 +33,8 @@ const baseTournament = z.object({
     maxMember: memberCountSchema,
     totalRounds: totalRoundsSchema.optional(),
   
-    duration: durationMinutesSchema,
-    breakDuration: breakMinutesSchema,
+    duration: durationMinutesSchema.optional().default(60),
+    breakDuration: breakMinutesSchema.optional().default(0),
   
     foodInfo: z.string().optional(),
     descriptionInfo: z.string().optional(),

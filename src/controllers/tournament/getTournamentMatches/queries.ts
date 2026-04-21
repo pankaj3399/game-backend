@@ -52,7 +52,7 @@ export async function updateGameStatuses(
   session?: ClientSession
 ) {
   if (updates.length === 0) {
-    return;
+    return [] as Array<{ id: Types.ObjectId; status: GameStatus }>;
   }
 
   const result = await Game.bulkWrite(
@@ -71,4 +71,16 @@ export async function updateGameStatuses(
       `optimistic concurrency: matched ${result.matchedCount} of ${updates.length} game status updates (expected status changed concurrently)`
     );
   }
+
+  const desiredById = new Map(updates.map((entry) => [entry.id.toString(), entry.status]));
+  const ids = updates.map((entry) => entry.id);
+  const persisted = await Game.find({ _id: { $in: ids } })
+    .select("_id status")
+    .setOptions(session ? { session } : {})
+    .lean<Array<{ _id: Types.ObjectId; status: GameStatus }>>()
+    .exec();
+
+  return persisted
+    .filter((entry) => desiredById.get(entry._id.toString()) === entry.status)
+    .map((entry) => ({ id: entry._id, status: entry.status }));
 }

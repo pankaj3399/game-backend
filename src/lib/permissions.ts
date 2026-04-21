@@ -11,8 +11,9 @@ export interface TournamentPermissionContext {
 }
 
 /**
- * Returns true when the session belongs to the resource owner
- * or to a super admin. Safely handles null/undefined/invalid ids.
+ * Returns true when the session belongs to the resource owner or is super admin.
+ * `resourceCreatedBy` must be a `mongoose.Types.ObjectId` (or `undefined`);
+ * null/undefined are handled, but non-ObjectId values may fail `.equals(...)`.
  */
 export function isOwnerOrSuperAdmin(
   session: AuthenticatedSession,

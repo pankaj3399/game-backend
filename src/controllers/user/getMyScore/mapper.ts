@@ -146,6 +146,28 @@ function resolveMatchModeFromType(
 	return resolveMatchMode(playMode);
 }
 
+function compareSetScore(left: unknown, right: unknown): number {
+  if (isWalkover(left) && isWalkover(right)) {
+    return 0;
+  }
+  if (isWalkover(left)) {
+    return -1;
+  }
+  if (isWalkover(right)) {
+    return 1;
+  }
+  if (typeof left !== "number" || !Number.isFinite(left)) {
+    return 0;
+  }
+  if (typeof right !== "number" || !Number.isFinite(right)) {
+    return 0;
+  }
+  if (left === right) {
+    return 0;
+  }
+  return left > right ? 1 : -1;
+}
+
 function resolveTeamName(players: MyScorePlayer[], isDoubles: boolean, fallback: string): string {
 	if (!isDoubles) {
 		return resolveName(players[0], fallback);
@@ -213,6 +235,8 @@ export function mapGameToMyScoreEntry(game: MyScoreGameDoc, userId: string): MyS
 	const playerTwoScores = toScoreBreakdown(game.score?.playerTwoScores);
 	const myScore = userInTeamOne ? playerOneScores : playerTwoScores;
 	const opponentScore = userInTeamOne ? playerTwoScores : playerOneScores;
+	const mySetScores = userInTeamOne ? game.score?.playerOneScores : game.score?.playerTwoScores;
+	const oppSetScores = userInTeamOne ? game.score?.playerTwoScores : game.score?.playerOneScores;
 
 	return {
 		id: game._id.toString(),
@@ -228,11 +252,16 @@ export function mapGameToMyScoreEntry(game: MyScoreGameDoc, userId: string): MyS
 		mode: resolvedMode,
 		myScore: myScore.total,
 		opponentScore: opponentScore.total,
-		didWin: resolveDidWin(myScore, opponentScore),
+		didWin: resolveDidWin(myScore, opponentScore, mySetScores, oppSetScores),
 	};
 }
 
-function resolveDidWin(myScore: ScoreBreakdown, opponentScore: ScoreBreakdown): boolean | null {
+function resolveDidWin(
+  myScore: ScoreBreakdown,
+  opponentScore: ScoreBreakdown,
+  mySetScores: unknown[] | undefined,
+  opponentSetScores: unknown[] | undefined
+): boolean | null {
 	if (myScore.hasWalkover && !opponentScore.hasWalkover) {
 		return false;
 	}
@@ -240,6 +269,23 @@ function resolveDidWin(myScore: ScoreBreakdown, opponentScore: ScoreBreakdown): 
 	if (!myScore.hasWalkover && opponentScore.hasWalkover) {
 		return true;
 	}
+
+  if (Array.isArray(mySetScores) && Array.isArray(opponentSetScores)) {
+    const length = Math.min(mySetScores.length, opponentSetScores.length);
+    let mySetWins = 0;
+    let opponentSetWins = 0;
+    for (let index = 0; index < length; index += 1) {
+      const result = compareSetScore(mySetScores[index], opponentSetScores[index]);
+      if (result > 0) {
+        mySetWins += 1;
+      } else if (result < 0) {
+        opponentSetWins += 1;
+      }
+    }
+    if (mySetWins !== opponentSetWins) {
+      return mySetWins > opponentSetWins;
+    }
+  }
 
 	if (myScore.total == null || opponentScore.total == null) {
 		return null;

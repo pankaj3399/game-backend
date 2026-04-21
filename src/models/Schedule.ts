@@ -109,7 +109,6 @@ const scheduleSchema = new Schema<ISchedule>(
 	}
 );
 
-scheduleSchema.index({ tournament: 1 }, { unique: true });
 scheduleSchema.index({ status: 1, updatedAt: -1 });
 
 const Schedule = mongoose.model<ISchedule>('Schedule', scheduleSchema);

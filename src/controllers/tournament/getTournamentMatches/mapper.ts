@@ -10,16 +10,6 @@ import type {
   TournamentMatchResponse,
 } from "./types";
 
-const EMPTY_PLAYER: MatchPlayerResponse = {
-  id: "",
-  name: null,
-  alias: null,
-  elo: {
-    rating: null,
-    rd: null,
-  },
-};
-
 function mapStatus(status: GameStatus): MatchStatusResponse {
   switch (status) {
     case "finished":
@@ -105,9 +95,12 @@ function mapGameToMatch(
 
   const team1 = mapTeam(game.side1);
   const team2 = mapTeam(game.side2);
+  if (team1.length === 0 || team2.length === 0) {
+    return null;
+  }
 
-  const playerOne = team1[0] ?? EMPTY_PLAYER;
-  const playerTwo = team2[0] ?? EMPTY_PLAYER;
+  const playerOne = team1[0];
+  const playerTwo = team2[0];
 
   const players: [MatchPlayerResponse, MatchPlayerResponse] = [playerOne, playerTwo];
   const side1: [MatchPlayerResponse, MatchPlayerResponse | null] = [playerOne, team1[1] ?? null];

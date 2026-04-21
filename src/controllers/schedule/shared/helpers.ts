@@ -77,6 +77,15 @@ export function getParticipantOrder(
     seen.add(id);
   }
 
+  for (const participant of participants) {
+    const id = participant._id.toString();
+    if (seen.has(id)) {
+      continue;
+    }
+    ordered.push(participant);
+    seen.add(id);
+  }
+
   return ordered;
 }
 
@@ -118,16 +127,7 @@ export function buildDoublesPairs(
     oddParticipant = participants[participants.length - 1];
   }
 
-  if (oddParticipant && participants.length >= 2) {
-    // Keep everyone active by assigning the odd participant to an extra pair.
-    const extraPartner = participants[0];
-    teams.push({
-      team: teams.length + 1,
-      players: [oddParticipant, extraPartner],
-    });
-  }
-
-  return { teams, unpaired: [] };
+  return { teams, unpaired: oddParticipant ? [oddParticipant] : [] };
 }
 
 export function computeMatchStartTime(
