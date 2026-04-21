@@ -1,4 +1,5 @@
 import mongoose, { Document, Schema } from 'mongoose';
+import { LogError } from '../lib/logger';
 import {
 	TOURNAMENT_MODES,
 	TOURNAMENT_PLAY_MODES,
@@ -7,6 +8,7 @@ import {
 	type TournamentPlayMode,
 	type TournamentStatus
 } from '../types/domain/tournament';
+import Schedule from './Schedule';
 
 // Define the ITournament interface
 export interface ITournament extends Document {
@@ -23,14 +25,18 @@ export interface ITournament extends Document {
 	entryFee: number;
 	minMember: number;
 	maxMember: number;
-	duration: string;
-	breakDuration: string;
+	/** Omitted on some drafts until publish; persisted tournaments should set both. */
+	duration?: number | null;
+	breakDuration?: number | null;
+	totalRounds: number;
 	foodInfo?: string;
 	descriptionInfo?: string;
 	status: TournamentStatus;
 	createdAt?: Date;
 	updatedAt?: Date;
 	participants: mongoose.Types.ObjectId[];
+	firstRoundScheduledAt?: Date | null;
+	completedAt?: Date | null;
 }
 
 // Define the Tournament schema
@@ -103,12 +109,39 @@ const tournamentSchema = new mongoose.Schema<ITournament>(
 			default: 1
 		},
 		duration: {
-			type: String,
-			required: true
+			type: Number,
+			required: false,
+			min: [5, 'duration must be at least 5 minutes'],
+			max: [240, 'duration must be at most 240 minutes'],
+			default: 60,
+			validate: {
+				validator: (v: unknown) =>
+					v == null || (typeof v === 'number' && Number.isInteger(v) && v >= 5 && v <= 240),
+				message: 'duration must be an integer between 5 and 240 minutes, or omitted'
+			}
 		},
 		breakDuration: {
-			type: String,
-			required: true
+			type: Number,
+			required: false,
+			min: [0, 'breakDuration must be at least 0 minutes'],
+			max: [120, 'breakDuration must be at most 120 minutes'],
+			default: 0,
+			validate: {
+				validator: (v: unknown) =>
+					v == null || (typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 120),
+				message: 'breakDuration must be an integer between 0 and 120 minutes, or omitted'
+			}
+		},
+		totalRounds: {
+			type: Number,
+			required: true,
+			min: [1, 'totalRounds must be at least 1'],
+			max: [100, 'totalRounds cannot be greater than 100'],
+			default: 1,
+			validate: {
+				validator: (v: unknown) => typeof v === 'number' && Number.isInteger(v),
+				message: 'totalRounds must be an integer'
+			}
 		},
 		foodInfo: {
 			type: String,
@@ -139,6 +172,14 @@ const tournamentSchema = new mongoose.Schema<ITournament>(
 				}
 			],
 			default: []
+		},
+		firstRoundScheduledAt: {
+			type: Date,
+			default: null
+		},
+		completedAt: {
+			type: Date,
+			default: null
 		}
 	},
 	{
@@ -156,12 +197,43 @@ tournamentSchema.pre('validate', function () {
 	}
 });
 
-// tournamentSchema.pre('save', async function () {
-// 	if (!this.schedule) {
-// 		const _schedule = await mongoose.model('Schedule').create({ tournament: this._id, currentRound: 0 });
-// 		this.schedule = _schedule._id;
-// 	}
-// });
+tournamentSchema.post('save', async function (doc) {
+	if (doc.schedule) return;
+
+	try {
+		const session = doc.$session?.();
+		const schedule = await Schedule.findOneAndUpdate(
+			{ tournament: doc._id },
+			{ $setOnInsert: { tournament: doc._id, currentRound: 0 } },
+			{
+				upsert: true,
+				new: true,
+				setDefaultsOnInsert: true,
+				runValidators: true,
+				...(session ? { session } : {})
+			}
+		)
+			.select('_id')
+			.lean()
+			.exec();
+
+		if (!schedule?._id) {
+			LogError('Tournament', 'save', 'post(save)/schedule-missing', new Error('Schedule upsert returned without _id'));
+			return;
+		}
+
+		await mongoose
+			.model<ITournament>('Tournament')
+			.updateOne(
+				{ _id: doc._id, $or: [{ schedule: { $exists: false } }, { schedule: null }] },
+				{ $set: { schedule: schedule._id } },
+				session ? { session } : {}
+			)
+			.exec();
+	} catch (err) {
+		LogError('Tournament', 'save', 'post(save)/schedule-link', err);
+	}
+});
 
 const Tournament = mongoose.model<ITournament>('Tournament', tournamentSchema);
 

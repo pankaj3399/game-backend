@@ -2,6 +2,7 @@
 import mongoose from "mongoose";
 import { z } from "zod";
 import type { DbIdLike } from "../domain/common";
+import type { SchedulePopulatedLean } from "../domain/tournamentSchedule";
 import {
   TOURNAMENT_MODES,
   TOURNAMENT_PLAY_MODES,
@@ -54,22 +55,24 @@ export interface TournamentForUpdateAuth {
   name?: string;
   minMember?: number;
   maxMember?: number;
+  totalRounds?: number;
   participants?: mongoose.Types.ObjectId[];
+  participantCount?: number;
   date?: Date | null;
   startTime?: string | null;
   endTime?: string | null;
   playMode?: (typeof TOURNAMENT_PLAY_MODES)[number];
   tournamentMode?: (typeof TOURNAMENT_MODES)[number];
   entryFee?: number;
-  duration?: string | null;
-  breakDuration?: string | null;
+  duration?: number | null;
+  breakDuration?: number | null;
   foodInfo?: string | null;
   descriptionInfo?: string | null;
 }
 
 export type TournamentPopulated = Omit<
 	ITournament,
-  'club' | 'sponsor' | 'participants'
+  'club' | 'sponsor' | 'participants' | 'schedule'
 > & {
   club?: {
     _id: mongoose.Types.ObjectId;
@@ -84,10 +87,12 @@ export type TournamentPopulated = Omit<
 		link?: string | null;
 	} | null;
 	participants?: Array<{
-		_id?: mongoose.Types.ObjectId | string;
+		_id: mongoose.Types.ObjectId;
 		name?: string | null;
 		alias?: string | null;
 	}>;
+  /** Set when `schedule` is populated (lean); `null` if ref is broken; omit if no ref. */
+  schedule?: SchedulePopulatedLean | null;
 };
 
 
@@ -117,8 +122,9 @@ export const tournamentPublishSourceSchema = z
     entryFee: z.number().optional(),
     minMember: z.number().int().min(1),
     maxMember: z.number().int().min(1),
-    duration: z.string().optional(),
-    breakDuration: z.string().optional(),
+    totalRounds: z.number().int().min(1).max(100).nullable().optional(),
+    duration: z.number().int().min(5).max(240).nullable().optional(),
+    breakDuration: z.number().int().min(0).max(120).nullable().optional(),
     foodInfo: z.string().optional(),
     descriptionInfo: z.string().optional(),
   })
@@ -141,8 +147,9 @@ export type NormalizedTournamentPublishSource = {
   entryFee?: number;
   minMember: number;
   maxMember: number;
-  duration?: string;
-  breakDuration?: string;
+  totalRounds?: number;
+  duration?: number;
+  breakDuration?: number;
   foodInfo: string;
   descriptionInfo: string;
 };
@@ -168,8 +175,9 @@ export function normalizeTournamentPublishSource(
     entryFee: source.entryFee,
     minMember: source.minMember ,
     maxMember: source.maxMember,
-    duration: source.duration,
-    breakDuration: source.breakDuration,
+    totalRounds: source.totalRounds ?? undefined,
+    duration: source.duration ?? undefined,
+    breakDuration: source.breakDuration ?? undefined,
     foodInfo: source.foodInfo ?? "",
     descriptionInfo: source.descriptionInfo ?? "",
   };

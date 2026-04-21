@@ -1,0 +1,80 @@
+import { Types } from 'mongoose';
+import Game from '../../../models/Game';
+import User from '../../../models/User';
+
+export interface PopulatedPlayer {
+	_id: Types.ObjectId;
+	name?: string | null;
+	alias?: string | null;
+}
+
+interface PopulatedTournament {
+	_id: Types.ObjectId;
+	name?: string | null;
+}
+
+interface PopulatedTeam {
+	players: (PopulatedPlayer | Types.ObjectId)[];
+}
+
+export interface MyScoreGameDoc {
+	_id: Types.ObjectId;
+	side1: PopulatedTeam;
+	side2: PopulatedTeam;
+	tournament: PopulatedTournament | Types.ObjectId | null;
+	score?: {
+		playerOneScores?: unknown[];
+		playerTwoScores?: unknown[];
+	} | null;
+	matchType?: 'singles' | 'doubles' | null;
+	playMode?: string | null;
+	startTime?: Date | null;
+	endTime?: Date | null;
+	createdAt?: Date | null;
+}
+
+interface UserRatingSnapshot {
+	rating: number;
+	rd: number;
+}
+
+export async function fetchCompletedTournamentGamesForUser(userId: string): Promise<MyScoreGameDoc[]> {
+	if (!Types.ObjectId.isValid(userId)) {
+		return [];
+	}
+
+	const userObjectId = new Types.ObjectId(userId);
+
+	return Game.find({
+		gameMode: 'tournament',
+		status: 'finished',
+		$or: [{ 'side1.players': userObjectId }, { 'side2.players': userObjectId }],
+	})
+		.select('_id side1 side2 tournament score matchType playMode startTime endTime createdAt')
+		.populate('side1.players', 'name alias')
+		.populate('side2.players', 'name alias')
+		.populate('tournament', 'name')
+		.sort({ endTime: -1, startTime: -1, createdAt: -1 })
+		.limit(1000)
+		.lean<MyScoreGameDoc[]>()
+		.exec();
+}
+
+export async function fetchUserRatingSnapshot(userId: string): Promise<UserRatingSnapshot | null> {
+	const user = await User.findById(userId)
+		.select('elo.rating elo.rd')
+		.lean<{ elo?: { rating?: number | null; rd?: number | null } }>()
+		.exec();
+
+	if (!user) {
+		return null;
+	}
+
+	const rating = typeof user.elo?.rating === 'number' ? user.elo.rating : 1500;
+	const rd = typeof user.elo?.rd === 'number' ? user.elo.rd : 200;
+
+	return {
+		rating,
+		rd,
+	};
+}

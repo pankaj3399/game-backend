@@ -1,15 +1,12 @@
-import type { Request, Response } from 'express';
+import type { Response } from 'express';
 import { logger } from '../../../lib/logger';
 import { buildErrorPayload } from '../../../shared/errors';
+import type { AuthenticatedRequest } from '../../../shared/authContext';
 import { deleteAccountFlow } from './handler';
 
-export async function deleteAccount(req: Request, res: Response) {
+export async function deleteAccount(req: AuthenticatedRequest, res: Response) {
 	try {
 		const session = req.user;
-		if (!session?._id) {
-			res.status(401).json(buildErrorPayload('Not authenticated'));
-			return;
-		}
 
 		const result = await deleteAccountFlow(session._id.toString());
 		if (result.status !== 200) {

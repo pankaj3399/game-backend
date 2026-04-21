@@ -33,7 +33,10 @@ export function validateActiveTournamentEnrolledUpdate(
     return ok(undefined, { status: 200, message: "OK" });
   }
 
-  const enrolledCount = (tournament.participants ?? []).length;
+  const enrolledCount =
+    typeof tournament.participantCount === "number"
+      ? tournament.participantCount
+      : (tournament.participants ?? []).length;
   if (enrolledCount === 0) {
     return ok(undefined, { status: 200, message: "OK" });
   }

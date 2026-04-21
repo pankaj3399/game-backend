@@ -12,7 +12,6 @@ import { AuthenticatedRequest } from "../../../shared";
  */
 export async function createTournament(req: AuthenticatedRequest, res: Response) {
   try {
-
     const parsed = createTournamentSchema.safeParse(req.body);
     if (!parsed.success) {
       const message = parsed.error.issues.map((i: { message: string }) => i.message).join("; ");

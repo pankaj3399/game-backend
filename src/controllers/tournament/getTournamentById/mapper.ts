@@ -1,7 +1,8 @@
 import type { TournamentPopulated } from "../../../types/api/tournament";
 import { ROLES } from "../../../constants/roles";
-import type { DetailViewContext } from "./authorize";
+import type { DetailViewContext } from "../shared/authorizeGetById";
 import { computeSpotsTotal } from "../computeSpotsTotal";
+import { isTournamentSchedulingLocked } from "../schedulingLock";
 
 /* =========================
    Response Types
@@ -56,6 +57,7 @@ export interface ProgressInfo {
 export interface PermissionsInfo {
   canEdit: boolean;
   canJoin: boolean;
+  canLeave: boolean;
   isParticipant: boolean;
 }
 
@@ -73,8 +75,9 @@ export interface TournamentDetailResponse {
   entryFee: number;
   minMember: number;
   maxMember: number;
-  duration: string | null;
-  breakDuration: string | null;
+  totalRounds: number;
+  duration: number;
+  breakDuration: number;
   courts: CourtInfo[];
   foodInfo: string;
   descriptionInfo: string;
@@ -84,6 +87,7 @@ export interface TournamentDetailResponse {
   permissions: PermissionsInfo;
   createdAt: string | null;
   updatedAt: string | null;
+  completedAt?: string | null;
 }
 
 /* =========================
@@ -174,11 +178,14 @@ export function mapTournamentDetail(
   // Verification: tournaments without maxMember normalize to Infinity and remain joinable.
   const hasAvailableSpots =
     rawSpotsTotal === Infinity || spotsFilled < rawSpotsTotal;
+  const joinLockedByScheduling = isTournamentSchedulingLocked(tournament);
 
   const canJoin =
     isActive &&
     !isParticipant &&
-    hasAvailableSpots;
+    hasAvailableSpots &&
+    !joinLockedByScheduling;
+  const canLeave = isParticipant && !joinLockedByScheduling;
 
   /* =========================
      Courts
@@ -272,8 +279,18 @@ export function mapTournamentDetail(
         : 0
     ),
     maxMember: spotsTotalForResponse,
-    duration: tournament.duration ?? null,
-    breakDuration: tournament.breakDuration ?? null,
+    totalRounds:
+      Number.isFinite(Number(tournament.totalRounds)) && Math.trunc(Number(tournament.totalRounds)) >= 1
+        ? Math.trunc(Number(tournament.totalRounds))
+        : 1,
+    duration:
+      typeof tournament.duration === "number" && Number.isFinite(tournament.duration)
+        ? Math.trunc(tournament.duration)
+        : 0,
+    breakDuration:
+      typeof tournament.breakDuration === "number" && Number.isFinite(tournament.breakDuration)
+        ? Math.trunc(tournament.breakDuration)
+        : 0,
     courts,
     foodInfo: tournament.foodInfo ?? "",
     descriptionInfo: tournament.descriptionInfo ?? "",
@@ -287,9 +304,11 @@ export function mapTournamentDetail(
     permissions: {
       canEdit,
       canJoin,
+      canLeave,
       isParticipant,
     },
     createdAt: tournament.createdAt instanceof Date ? tournament.createdAt.toISOString() : null,
     updatedAt: tournament.updatedAt instanceof Date ? tournament.updatedAt.toISOString() : null,
+    completedAt: tournament.completedAt instanceof Date ? tournament.completedAt.toISOString() : null,
   };
 }

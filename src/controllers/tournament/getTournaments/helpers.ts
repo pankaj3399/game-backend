@@ -144,7 +144,12 @@ function intersectIds(
   
     // --- WHEN ---
     if (query.when) {
-      Object.assign(filter, getTimeWindowFilter(query.when));
+      const timeWindow = getTimeWindowFilter(query.when);
+      const timeBranches =
+        "$or" in timeWindow && Array.isArray(timeWindow.$or)
+          ? timeWindow.$or
+          : [timeWindow];
+      filter.$or = [...timeBranches, { tournamentMode: "unscheduled" }];
     }
   
     // --- SEARCH ---

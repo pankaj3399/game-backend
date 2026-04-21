@@ -1,4 +1,5 @@
-import type { Types } from "mongoose";
+import mongoose, { type Types } from "mongoose";
+import Court from "../../../models/Court";
 import Tournament, { type ITournament } from "../../../models/Tournament";
 import type { UpdateDraftInput } from "./validation";
 import { computeEffectiveSponsor } from "./computeEffectiveSponsor";
@@ -29,13 +30,33 @@ export async function updateTournamentFlow(
     payload.sponsor = computeEffectiveSponsor(true, data.sponsor, undefined);
   }
 
-  const updated = await Tournament.findByIdAndUpdate(
-    tournamentId,
-    { $set: payload },
-    { new: true, runValidators: true }
-  )
-    .lean()
-    .exec();
+  const session = await mongoose.startSession();
+  let updated: (Pick<ITournament, "name" | "club" | "status" | "date" | "updatedAt"> & {
+    _id: Types.ObjectId;
+  }) | null = null;
+
+  try {
+    await session.withTransaction(async () => {
+      if (data.status === "active" && payload.club) {
+        const hasCourt = await Court.exists({ club: payload.club })
+          .session(session)
+          .exec();
+        if (!hasCourt) {
+          throw new Error("Selected club has no courts. Add at least one court before publishing this tournament.");
+        }
+      }
+
+      updated = await Tournament.findByIdAndUpdate(
+        tournamentId,
+        { $set: payload },
+        { new: true, runValidators: true, session }
+      )
+        .lean<Pick<ITournament, "name" | "club" | "status" | "date" | "updatedAt"> & { _id: Types.ObjectId }>()
+        .exec();
+    });
+  } finally {
+    await session.endSession();
+  }
 
   if (!updated) {
     return { ok: false };

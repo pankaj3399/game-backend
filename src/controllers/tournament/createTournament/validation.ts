@@ -11,6 +11,12 @@ export const playModeEnum = z.enum([
 
 export const statusEnum = z.enum(["draft", "active"]);
 
+const entryFeeSchema = z.coerce.number().min(0).default(0);
+const memberCountSchema = z.coerce.number().int().min(1);
+const totalRoundsSchema = z.coerce.number().int().min(1).max(100);
+const durationMinutesSchema = z.coerce.number().int().min(5).max(240).default(60);
+const breakMinutesSchema = z.coerce.number().int().min(0).max(120).default(0);
+
 
 const baseTournament = z.object({
     club: objectId,
@@ -22,12 +28,13 @@ const baseTournament = z.object({
   
     playMode: playModeEnum,
   
-    entryFee: z.number().min(0).nonnegative().default(0),
-    minMember: z.number().int().min(1),
-    maxMember: z.number().int().min(1),
+    entryFee: entryFeeSchema,
+    minMember: memberCountSchema,
+    maxMember: memberCountSchema,
+    totalRounds: totalRoundsSchema.optional(),
   
-    duration: z.string(),
-    breakDuration: z.string(),
+    duration: durationMinutesSchema.optional().default(60),
+    breakDuration: breakMinutesSchema.optional().default(0),
   
     foodInfo: z.string().optional(),
     descriptionInfo: z.string().optional(),
@@ -107,6 +114,18 @@ const baseTournament = z.object({
           code: z.ZodIssueCode.custom,
           path: ["sponsor"],
           message: "conflicting sponsor and sponsorId",
+        });
+      }
+    })
+    .superRefine((d, ctx) => {
+      if (d.status !== "active") {
+        return;
+      }
+      if (d.totalRounds === undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["totalRounds"],
+          message: "totalRounds is required when status is active",
         });
       }
     })

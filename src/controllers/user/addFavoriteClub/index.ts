@@ -1,17 +1,14 @@
-import type { Request, Response } from 'express';
+import type { Response } from 'express';
 import { logger } from '../../../lib/logger';
 import { addFavoriteClubSchema } from '../../../validation/user.schemas';
 import { buildErrorPayload } from '../../../shared/errors';
 import { parseBodyWithSchema } from '../../../shared/validation';
+import type { AuthenticatedRequest } from '../../../shared/authContext';
 import { addFavoriteClubFlow } from './handler';
 
-export async function addFavoriteClub(req: Request, res: Response): Promise<void> {
+export async function addFavoriteClub(req: AuthenticatedRequest, res: Response): Promise<void> {
 	try {
 		const session = req.user;
-		if (!session?._id) {
-			res.status(401).json(buildErrorPayload('Not authenticated'));
-			return;
-		}
 
 		const parsed = parseBodyWithSchema(addFavoriteClubSchema, req.body);
 		if (parsed.status !== 200) {
