@@ -550,8 +550,8 @@ export async function persistScheduleRound(
       };
 
       if (isScheduledTournament) {
-        tournamentSet.duration = `${resolvedMatchDurationMinutes} min`;
-        tournamentSet.breakDuration = `${resolvedBreakTimeMinutes} min`;
+        tournamentSet.duration = resolvedMatchDurationMinutes;
+        tournamentSet.breakDuration = resolvedBreakTimeMinutes;
       }
 
       await Tournament.updateOne(

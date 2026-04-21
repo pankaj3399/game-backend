@@ -10,6 +10,10 @@ import type { TournamentForUpdateAuth } from "../../../types/api";
  */
 export async function fetchTournamentForUpdate(id: string) {
   try{
+    if (!mongoose.isValidObjectId(id)) {
+      return error(400, "Invalid tournament id");
+    }
+
     const [tournament] = await Tournament.aggregate<TournamentForUpdateAuth>([
       { $match: { _id: new mongoose.Types.ObjectId(id) } },
       {

@@ -282,6 +282,9 @@ function resolveDidWin(
 	}
 
   if (Array.isArray(mySetScores) && Array.isArray(opponentSetScores)) {
+    if (mySetScores.length !== opponentSetScores.length) {
+      return null;
+    }
     const length = Math.min(mySetScores.length, opponentSetScores.length);
     let mySetWins = 0;
     let opponentSetWins = 0;
@@ -296,6 +299,7 @@ function resolveDidWin(
     if (mySetWins !== opponentSetWins) {
       return mySetWins > opponentSetWins;
     }
+    return null;
   }
 
 	if (myScore.total == null || opponentScore.total == null) {

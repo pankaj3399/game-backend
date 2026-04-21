@@ -121,7 +121,7 @@ export async function updateTournament(req: AuthenticatedRequest ,res: Response)
             const publishValidation = publishSchema.safeParse(publishCandidate);
             if (!publishValidation.success) {
               const message = publishValidation.error.issues.map((issue) => issue.message).join("; ");
-              throw new Error(message || "Tournament publish validation failed");
+              throw new Error(`publish validation failed: ${message || "Tournament publish validation failed"}`);
             }
             return {
               ...publishValidation.data,
@@ -148,7 +148,7 @@ export async function updateTournament(req: AuthenticatedRequest ,res: Response)
         clubChanged: authResult.data.clubChanged,
       }
     );
-    if (!result) {
+    if (!result || !result.ok) {
       res.status(404).json(buildErrorPayload("Tournament not found"));
       return;
     }
