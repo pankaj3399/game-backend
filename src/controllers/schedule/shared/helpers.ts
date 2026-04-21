@@ -185,17 +185,17 @@ export function computeMatchStartTime(
     const windowMinutes = endMinutes - startMinutes;
     const hasRoomForOneMatch = windowMinutes >= body.matchDurationMinutes;
 
-    if (hasRoomForOneMatch) {
-      const wavesPerDay =
-        Math.floor((windowMinutes - body.matchDurationMinutes) / timeBlock) + 1;
-      const normalizedWavesPerDay = Math.max(1, wavesPerDay);
-      dayOffset = Math.floor(wave / normalizedWavesPerDay);
-      waveInDay = wave % normalizedWavesPerDay;
-    } else {
-      // Window is configured but cannot fit even one match: allow one slot per day.
-      dayOffset = wave;
-      waveInDay = 0;
+    if (!hasRoomForOneMatch) {
+      throw new Error(
+        "Configured schedule window is shorter than a single match duration"
+      );
     }
+
+    const wavesPerDay =
+      Math.floor((windowMinutes - body.matchDurationMinutes) / timeBlock) + 1;
+    const normalizedWavesPerDay = Math.max(1, wavesPerDay);
+    dayOffset = Math.floor(wave / normalizedWavesPerDay);
+    waveInDay = wave % normalizedWavesPerDay;
   }
 
   dateRef.setUTCDate(dateRef.getUTCDate() + dayOffset);
