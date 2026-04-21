@@ -124,7 +124,7 @@ export async function persistScheduleRound(
     await session.withTransaction(async () => {
       const freshTournament = await Tournament.findById(tournament._id)
         .select(
-          "_id totalRounds tournamentMode date startTime duration breakDuration playMode participants club schedule"
+          "_id totalRounds tournamentMode date startTime endTime duration breakDuration playMode participants club schedule"
         )
         .populate({
           path: "club",
@@ -293,6 +293,9 @@ export async function persistScheduleRound(
             {
               matchDurationMinutes: resolvedMatchDurationMinutes,
               breakTimeMinutes: resolvedBreakTimeMinutes,
+            },
+            {
+              windowEndTime: freshTournament.endTime ?? null,
             }
           ),
           status: "draft" as const,

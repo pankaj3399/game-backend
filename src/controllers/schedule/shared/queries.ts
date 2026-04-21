@@ -94,6 +94,7 @@ function buildNormalizedScheduleContext(raw: TournamentScheduleContextRaw) {
     tournamentMode: raw.tournamentMode ?? "singleDay",
     date: raw.date ?? null,
     startTime: raw.startTime ?? null,
+    endTime: raw.endTime ?? null,
     duration: raw.duration ?? null,
     breakDuration: raw.breakDuration ?? null,
     totalRounds:
@@ -115,7 +116,7 @@ export async function fetchTournamentScheduleContext(
 ) {
   const raw = await Tournament.findById(tournamentId)
     .select(
-      "_id name minMember firstRoundScheduledAt tournamentMode date startTime duration breakDuration totalRounds playMode createdBy club participants schedule"
+      "_id name minMember firstRoundScheduledAt tournamentMode date startTime endTime duration breakDuration totalRounds playMode createdBy club participants schedule"
     )
     .populate({
       path: "club",
