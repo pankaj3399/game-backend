@@ -163,7 +163,7 @@ export async function updateTournament(req: AuthenticatedRequest ,res: Response)
     });
   } catch (err: unknown) {
     if (err instanceof Error) {
-      if (err.message.includes("publish validation failed") || err.message.includes("Tournament publish validation failed")) {
+      if (err.message.startsWith("publish validation failed:")) {
         res.status(400).json(buildErrorPayload(err.message));
         return;
       }

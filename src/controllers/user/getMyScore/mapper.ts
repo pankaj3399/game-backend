@@ -63,6 +63,10 @@ function getTeamIds(players: MyScorePlayer[]): string[] {
 	return ids;
 }
 
+function toCanonicalTeamId(ids: string[]): string {
+	return [...ids].sort((left, right) => left.localeCompare(right)).join(':');
+}
+
 function resolveTournamentName(game: MyScoreGameDoc): string {
 	if (game.tournament && !(game.tournament instanceof Types.ObjectId)) {
 		const tournamentName = game.tournament.name?.trim();
@@ -234,10 +238,10 @@ export function mapGameToMyScoreEntry(game: MyScoreGameDoc, userId: string): MyS
 
 	const opponentId = userInTeamOne
 		? isDoubles
-			? teamTwoIds.join(':')
+			? toCanonicalTeamId(teamTwoIds)
 			: teamTwoIds[0]
 		: isDoubles
-			? teamOneIds.join(':')
+			? toCanonicalTeamId(teamOneIds)
 			: teamOneIds[0];
 
 	const playerOneScores = toScoreBreakdown(game.score?.playerOneScores);
