@@ -35,7 +35,13 @@ export async function addParticipantIfCapacityAllows(
   }
 
   const scheduleFilter = scheduleDoc
-    ? { schedule: scheduleDoc._id }
+    ? {
+        $or: [
+          { schedule: scheduleDoc._id },
+          { schedule: { $exists: false } },
+          { schedule: null },
+        ],
+      }
     : {
         $or: [{ schedule: { $exists: false } }, { schedule: null }],
       };
