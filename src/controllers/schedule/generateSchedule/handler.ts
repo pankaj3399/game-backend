@@ -13,7 +13,7 @@ import {
   getParticipantOrder,
 } from "../shared/helpers";
 import { parseDurationMinutes, resolveTimedGameStatus } from "../../../shared/matchTiming";
-import { isValidIanaTimeZone } from "../../../shared/timezone";
+import { isValidIanaTimeZone, resolveTournamentTimeZone } from "../../../shared/timezone";
 import type {
   GenerateScheduleBody,
   TournamentScheduleContext,
@@ -276,12 +276,14 @@ export async function persistScheduleRound(
       }
 
       const matchesPerWave = Math.max(1, uniqueCourtIds.length);
-      if (!isValidIanaTimeZone(freshTournament.timezone)) {
+      if (isScheduledTournament && !isValidIanaTimeZone(freshTournament.timezone)) {
         throw new Error(
           "Tournament timezone is missing or invalid. Update tournament settings before scheduling."
         );
       }
-      const tournamentTimezone = freshTournament.timezone;
+      const tournamentTimezone = isScheduledTournament
+        ? (freshTournament.timezone as string)
+        : resolveTournamentTimeZone(freshTournament.timezone);
 
       const gameDocs = pairs.map((pair, index) => {
         const slot = Math.floor(index / matchesPerWave) + 1;

@@ -4,9 +4,11 @@ import { error, ok } from "../../../shared/helpers";
 import { TournamentStatus } from "./validation";
 import { escapeRegex } from "../../../lib/validation";
 import {
+  getZonedDateParts,
   getCurrentTimeInTimeZone,
   getStartOfTodayInTimeZoneUtc,
   resolveTournamentTimeZone,
+  zonedDateTimeToUtcDate,
 } from "../../../shared/timezone";
 
 function intersectIds(
@@ -23,7 +25,18 @@ function intersectIds(
   ): TournamentFilter {
     const resolvedTimeZone = resolveTournamentTimeZone(timezone);
     const startOfToday = getStartOfTodayInTimeZoneUtc(resolvedTimeZone);
-    const startOfTomorrow = new Date(startOfToday.getTime() + 24 * 60 * 60 * 1000);
+    const todayParts = getZonedDateParts(startOfToday, resolvedTimeZone);
+    const startOfTomorrow = zonedDateTimeToUtcDate(
+      {
+        year: todayParts.year,
+        month: todayParts.month,
+        day: todayParts.day + 1,
+        hour: 0,
+        minute: 0,
+        second: 0,
+      },
+      resolvedTimeZone
+    );
     const nowTime = getCurrentTimeInTimeZone(resolvedTimeZone);
   
     if (when === "future") {

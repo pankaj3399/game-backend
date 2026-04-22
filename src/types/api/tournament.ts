@@ -13,6 +13,7 @@ import type {
   PublishBodyInput,
   PublishInput,
 } from "../../validation/tournament.schemas";
+import { isValidIanaTimeZone } from "../../shared/timezone";
 
 import type { ITournament } from "../../models/Tournament";
 
@@ -118,7 +119,13 @@ export const tournamentPublishSourceSchema = z
     date: z.coerce.date().optional().nullable(),
     startTime: z.string().optional().nullable(),
     endTime: z.string().optional().nullable(),
-    timezone: z.string().optional().nullable(),
+    timezone: z
+      .string()
+      .optional()
+      .nullable()
+      .refine((value) => value == null || isValidIanaTimeZone(value), {
+        message: "Invalid IANA timezone",
+      }),
     playMode: z.enum(TOURNAMENT_PLAY_MODES).optional(),
     tournamentMode: z.enum(TOURNAMENT_MODES).optional(),
     entryFee: z.number().optional(),

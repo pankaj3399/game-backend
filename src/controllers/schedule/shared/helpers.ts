@@ -6,6 +6,7 @@ import {
   DEFAULT_SCHEDULE_START_TIME,
 } from "./constants";
 import {
+  getZonedDateParts,
   zonedDateTimeToUtcDate,
 } from "../../../shared/timezone";
 
@@ -138,13 +139,12 @@ export function computeMatchStartTime(
   startTime: string,
   slotNumber: number,
   body: { matchDurationMinutes: number; breakTimeMinutes: number },
-  options?: {
+  options: {
     windowEndTime?: string | null;
     tournamentTimezone: string;
   }
 ): Date {
   const now = new Date();
-  const dateRef = baseDate ?? now;
 
   if (!/^\d{1,2}:\d{1,2}$/.test(startTime)) {
     throw new Error(`Invalid startTime format: expected "HH:MM", got "${startTime}"`);
@@ -215,28 +215,27 @@ export function computeMatchStartTime(
   const targetMinute = normalizedMinutesInDay % 60;
   const totalDayOffset = dayOffset + carryDays;
 
-  const targetDate = new Date(
-    Date.UTC(
-      dateRef.getUTCFullYear(),
-      dateRef.getUTCMonth(),
-      dateRef.getUTCDate() + totalDayOffset,
-      0,
-      0,
-      0,
-      0
-    )
-  );
-
-  const timezone = options?.tournamentTimezone;
+  const timezone = options.tournamentTimezone;
   if (!timezone) {
     throw new Error("Tournament timezone is missing or invalid. Update tournament settings before scheduling.");
   }
 
+  const baseDateParts = baseDate
+    ? {
+        year: baseDate.getUTCFullYear(),
+        month: baseDate.getUTCMonth() + 1,
+        day: baseDate.getUTCDate(),
+      }
+    : (() => {
+        const parts = getZonedDateParts(now, timezone);
+        return { year: parts.year, month: parts.month, day: parts.day };
+      })();
+
   return zonedDateTimeToUtcDate(
     {
-      year: targetDate.getUTCFullYear(),
-      month: targetDate.getUTCMonth() + 1,
-      day: targetDate.getUTCDate(),
+      year: baseDateParts.year,
+      month: baseDateParts.month,
+      day: baseDateParts.day + totalDayOffset,
       hour: targetHour,
       minute: targetMinute,
       second: 0,

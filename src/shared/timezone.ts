@@ -32,7 +32,7 @@ export function resolveTournamentTimeZone(
     : DEFAULT_TOURNAMENT_TIMEZONE;
 }
 
-function getZonedDateParts(instant: Date, timeZone: string): ZonedDateParts {
+export function getZonedDateParts(instant: Date, timeZone: string): ZonedDateParts {
   const formatter = new Intl.DateTimeFormat("en-US-u-nu-latn", {
     timeZone,
     year: "numeric",
