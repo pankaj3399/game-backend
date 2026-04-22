@@ -67,13 +67,10 @@ export async function updateTournament(req: AuthenticatedRequest ,res: Response)
     }
 
     const resolvedTournamentTimezone = await resolveTournamentTimezoneFromClub(authResult.data.clubId);
-    const dataWithResolvedTimezone: UpdateDraftInput =
-      bodyParse.data.timezone !== undefined
-        ? {
-            ...bodyParse.data,
-            timezone: resolvedTournamentTimezone,
-          }
-        : bodyParse.data;
+    const dataWithResolvedTimezone: UpdateDraftInput = {
+      ...bodyParse.data,
+      timezone: resolvedTournamentTimezone,
+    };
 
     const enrolledGuard = validateActiveTournamentEnrolledUpdate(
       tournament.data,

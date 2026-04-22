@@ -44,6 +44,7 @@ export async function leaveTournamentFlow(
     | { outcome: "pending_score_matches" }
     | { outcome: "confirmation_required" }
     | { outcome: "concurrent_leave" }
+    | { outcome: "concurrent_match_update" }
     | null;
   let returnedDoc: LeaveTransactionResult = null;
 
@@ -113,8 +114,8 @@ export async function leaveTournamentFlow(
         const score = leavesFromSide1
           ? { playerOneScores: ["wo" as const], playerTwoScores: [1] }
           : { playerOneScores: [1], playerTwoScores: ["wo" as const] };
-        await Game.updateOne(
-          { _id: match._id, status: { $nin: ["finished", "cancelled"] } },
+        const updateResult = await Game.updateOne(
+          { _id: match._id, status: { $nin: ["finished", "cancelled", "pendingScore"] } },
           {
             $set: {
               score,
@@ -124,6 +125,9 @@ export async function leaveTournamentFlow(
           },
           { session: mongoSession }
         ).exec();
+        if (updateResult.matchedCount !== 1) {
+          return { outcome: "concurrent_match_update" as const };
+        }
       }
 
       return { outcome: "left" as const, tournament: updatedTournament };
@@ -147,6 +151,9 @@ export async function leaveTournamentFlow(
   }
   if (returnedDoc.outcome === "concurrent_leave") {
     return error(409, "Unable to leave tournament due to a concurrent update. Please retry.");
+  }
+  if (returnedDoc.outcome === "concurrent_match_update") {
+    return error(409, "Unable to leave tournament due to a concurrent match update. Please retry.");
   }
 
   const stillParticipant = (returnedDoc.tournament.participants ?? []).some((id: mongoose.Types.ObjectId) =>
