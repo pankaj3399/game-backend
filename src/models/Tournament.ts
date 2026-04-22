@@ -217,7 +217,7 @@ tournamentSchema.post('save', async function (doc) {
 			{ $setOnInsert: { tournament: doc._id, currentRound: 0 } },
 			{
 				upsert: true,
-				new: true,
+				returnDocument: 'after',
 				setDefaultsOnInsert: true,
 				runValidators: true,
 				...(session ? { session } : {})

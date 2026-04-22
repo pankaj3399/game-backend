@@ -180,7 +180,7 @@ export async function persistScheduleRound(
           },
           {
             upsert: true,
-            new: true,
+            returnDocument: "after",
             setDefaultsOnInsert: true,
             runValidators: true,
             session,

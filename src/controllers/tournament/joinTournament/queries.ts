@@ -37,7 +37,7 @@ export async function addParticipantIfCapacityAllows(
       },
     },
     { $addToSet: { participants: userId } },
-    { new: true }
+    { returnDocument: "after" }
   )
     .select("participants maxMember")
     .lean<JoinTournamentLeanDoc | null>()

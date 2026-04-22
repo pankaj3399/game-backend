@@ -49,7 +49,7 @@ export async function updateTournamentFlow(
       updated = await Tournament.findByIdAndUpdate(
         tournamentId,
         { $set: payload },
-        { new: true, runValidators: true, session }
+        { returnDocument: "after", runValidators: true, session }
       )
         .lean<Pick<ITournament, "name" | "club" | "status" | "date" | "updatedAt"> & { _id: Types.ObjectId }>()
         .exec();

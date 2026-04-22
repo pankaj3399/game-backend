@@ -67,7 +67,7 @@ export async function pullTournamentParticipantIfNotScheduled(
       ],
     },
     { $pull: { participants: participantId } },
-    { new: true, session }
+    { returnDocument: "after", session }
   )
     .select("participants maxMember")
     .lean<LeaveTournamentPullLean>()

@@ -60,7 +60,7 @@ export async function leaveTournamentFlow(
       const updatedTournament = await Tournament.findOneAndUpdate(
         { _id: tournamentId, participants: authSession._id },
         { $pull: { participants: authSession._id } },
-        { new: true, session: mongoSession }
+        { returnDocument: "after", session: mongoSession }
       )
         .select("participants maxMember")
         .lean<{ participants?: mongoose.Types.ObjectId[]; maxMember?: number } | null>()

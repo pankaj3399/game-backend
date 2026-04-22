@@ -21,7 +21,7 @@ async function reactivateUserIfDeleted(user: UserDocument, session: mongoose.Cli
 	const reactivatedUser = await User.findByIdAndUpdate(
 		user._id,
 		{ deletedAt: null, status: 'active' },
-		{ new: true }
+		{ returnDocument: 'after' }
 	)
 		.setOptions({ includeDeleted: true })
 		.session(session);
