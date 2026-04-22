@@ -223,7 +223,7 @@ export async function persistScheduleRound(
           _id: { $in: gamesToReplaceIds },
           schedule: scheduleDoc._id,
           $or: [
-            { status: { $in: ["active", "pendingScore", "finished", "cancelled"] } },
+            { status: { $in: ["active", "pendingScore", "finished"] } },
             { startTime: { $ne: null, $lte: new Date() } },
           ],
         })
