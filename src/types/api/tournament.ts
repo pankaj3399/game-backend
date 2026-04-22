@@ -13,6 +13,7 @@ import type {
   PublishBodyInput,
   PublishInput,
 } from "../../validation/tournament.schemas";
+import { isValidIanaTimeZone } from "../../shared/timezone";
 
 import type { ITournament } from "../../models/Tournament";
 
@@ -42,6 +43,7 @@ export interface TournamentListDoc {
 	name: string;
 	club: PopulatedClub | null;
 	date?: Date;
+	timezone?: string | null;
 	status: TournamentStatus;
 	sponsorId?: PopulatedSponsor | null;
 }
@@ -61,6 +63,7 @@ export interface TournamentForUpdateAuth {
   date?: Date | null;
   startTime?: string | null;
   endTime?: string | null;
+  timezone?: string | null;
   playMode?: (typeof TOURNAMENT_PLAY_MODES)[number];
   tournamentMode?: (typeof TOURNAMENT_MODES)[number];
   entryFee?: number;
@@ -117,6 +120,13 @@ export const tournamentPublishSourceSchema = z
     date: z.coerce.date().optional().nullable(),
     startTime: z.string().optional().nullable(),
     endTime: z.string().optional().nullable(),
+    timezone: z
+      .string()
+      .optional()
+      .nullable()
+      .refine((value) => value == null || isValidIanaTimeZone(value), {
+        message: "Invalid IANA timezone",
+      }),
     playMode: z.enum(TOURNAMENT_PLAY_MODES).optional(),
     tournamentMode: z.enum(TOURNAMENT_MODES).optional(),
     entryFee: z.number().optional(),
@@ -142,6 +152,7 @@ export type NormalizedTournamentPublishSource = {
   date: Date | null;
   startTime?: string | null;
   endTime?: string | null;
+  timezone?: string;
   playMode: PublishInput["playMode"];
   tournamentMode: PublishInput["tournamentMode"];
   entryFee?: number;
@@ -170,6 +181,7 @@ export function normalizeTournamentPublishSource(
     date: source.date ?? null,
     startTime: source.startTime,
     endTime: source.endTime,
+    timezone: source.timezone ?? undefined,
     playMode: source.playMode ?? DEFAULT_PLAY_MODE,
     tournamentMode: source.tournamentMode ?? DEFAULT_TOURNAMENT_MODE,
     entryFee: source.entryFee,

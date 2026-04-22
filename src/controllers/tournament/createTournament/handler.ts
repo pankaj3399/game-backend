@@ -5,6 +5,10 @@ import type { CreateTournamentInput } from "./validation";
 import { authorizeCreate, type AuthenticatedSession } from "./authorize";
 import { logger } from "../../../lib/logger";
 import { error, ok } from "../../../shared/helpers";
+import {
+  resolveTournamentTimezoneFromClub,
+  TournamentTimezoneResolutionError,
+} from "../shared/resolveTournamentTimezone";
 /**
  * Orchestrates create-tournament: resolve courts (when applicable), authorize,
  * build payload, persist. Returns a result object for the HTTP layer.
@@ -19,13 +23,14 @@ export async function createTournamentFlow(
     return error(auth.status, auth.message);
   }
 
-  const payload = {
-    ...data,
-    createdBy: session._id,
-  };
-
   const mongoSession = await mongoose.startSession();
   try {
+    const tournamentTimezone = await resolveTournamentTimezoneFromClub(auth.data.context.clubId);
+    const payload = {
+      ...data,
+      timezone: tournamentTimezone,
+      createdBy: session._id,
+    };
     const flowResult = await mongoSession.withTransaction(async () => {
       if (data.status === "active") {
         const hasCourt = await Court.exists({ club: auth.data.context.clubId })
@@ -59,8 +64,13 @@ export async function createTournamentFlow(
     }
     return flowResult;
   } catch (err: unknown) {
-    if (err instanceof Error && err.message.includes("Selected club has no courts")) {
+    if (err instanceof TournamentTimezoneResolutionError) {
       return error(400, err.message);
+    }
+    if (err instanceof Error) {
+      if (err.message.includes("Selected club has no courts")) {
+        return error(400, err.message);
+      }
     }
     const mongoErr = err as {
       code?: number;

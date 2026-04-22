@@ -20,7 +20,9 @@ export async function getTournamentById(req: AuthenticatedRequest, res: Response
       return;
     }
 
-    const tournament = await fetchTournamentById(idResult.data);
+    const tournament = await fetchTournamentById(idResult.data, {
+      participantIdForLeaveChecks: req.user._id.toString(),
+    });
     if (!tournament) {
       res.status(404).json(buildErrorPayload("Tournament not found"));
       return;
@@ -38,7 +40,8 @@ export async function getTournamentById(req: AuthenticatedRequest, res: Response
       tournament,
       authResult.data.context,
       clubSponsors,
-      req.user._id.toString()
+      req.user._id.toString(),
+      tournament.leaveBlockers
     );
 
     res.status(200).json({ tournament: response });

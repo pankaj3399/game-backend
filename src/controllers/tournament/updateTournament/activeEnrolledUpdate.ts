@@ -68,6 +68,16 @@ export function validateActiveTournamentEnrolledUpdate(
     );
   }
 
+  if (
+    data.timezone !== undefined &&
+    !nullableStringEqual(tournament.timezone, data.timezone)
+  ) {
+    return error(
+      400,
+      "Cannot change timezone while the tournament is active with enrolled participants"
+    );
+  }
+
   const effectiveMax =
     data.maxMember !== undefined ? data.maxMember : tournament.maxMember;
 

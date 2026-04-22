@@ -57,6 +57,7 @@ export const tournamentScheduleContextSchema = z.object({
   date: dateOrNull,
   startTime: stringOrNull,
   endTime: stringOrNull,
+  timezone: stringOrNull,
   duration: durationMinutesOrNull,
   breakDuration: breakMinutesOrNull,
   totalRounds: z.number().int().min(1).max(100),

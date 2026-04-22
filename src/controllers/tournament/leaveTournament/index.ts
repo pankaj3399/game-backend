@@ -19,7 +19,10 @@ export async function leaveTournament(req: AuthenticatedRequest, res: Response) 
       return;
     }
 
-    const result = await leaveTournamentFlow(idResult.data, req.user);
+    const confirmLeaveWithWalkover = req.body?.confirmLeaveWithWalkover === true;
+    const result = await leaveTournamentFlow(idResult.data, req.user, {
+      confirmLeaveWithWalkover,
+    });
     if (result.status !== 200) {
       res.status(result.status).json(buildErrorPayload(result.message));
       return;

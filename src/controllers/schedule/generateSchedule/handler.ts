@@ -13,6 +13,7 @@ import {
   getParticipantOrder,
 } from "../shared/helpers";
 import { parseDurationMinutes, resolveTimedGameStatus } from "../../../shared/matchTiming";
+import { isValidIanaTimeZone, resolveTournamentTimeZone } from "../../../shared/timezone";
 import type {
   GenerateScheduleBody,
   TournamentScheduleContext,
@@ -124,7 +125,7 @@ export async function persistScheduleRound(
     await session.withTransaction(async () => {
       const freshTournament = await Tournament.findById(tournament._id)
         .select(
-          "_id totalRounds tournamentMode date startTime endTime duration breakDuration playMode participants club schedule"
+          "_id totalRounds tournamentMode date startTime endTime timezone duration breakDuration playMode participants club schedule"
         )
         .populate({
           path: "club",
@@ -179,7 +180,7 @@ export async function persistScheduleRound(
           },
           {
             upsert: true,
-            new: true,
+            returnDocument: "after",
             setDefaultsOnInsert: true,
             runValidators: true,
             session,
@@ -222,7 +223,7 @@ export async function persistScheduleRound(
           _id: { $in: gamesToReplaceIds },
           schedule: scheduleDoc._id,
           $or: [
-            { status: { $in: ["active", "pendingScore", "finished", "cancelled"] } },
+            { status: { $in: ["active", "pendingScore", "finished"] } },
             { startTime: { $ne: null, $lte: new Date() } },
           ],
         })
@@ -275,6 +276,14 @@ export async function persistScheduleRound(
       }
 
       const matchesPerWave = Math.max(1, uniqueCourtIds.length);
+      if (isScheduledTournament && !isValidIanaTimeZone(freshTournament.timezone)) {
+        throw new Error(
+          "Tournament timezone is missing or invalid. Update tournament settings before scheduling."
+        );
+      }
+      const tournamentTimezone = isScheduledTournament
+        ? (freshTournament.timezone as string)
+        : resolveTournamentTimeZone(freshTournament.timezone);
 
       const gameDocs = pairs.map((pair, index) => {
         const slot = Math.floor(index / matchesPerWave) + 1;
@@ -296,6 +305,7 @@ export async function persistScheduleRound(
             },
             {
               windowEndTime: freshTournament.endTime ?? null,
+              tournamentTimezone,
             }
           ),
           status: "draft" as const,

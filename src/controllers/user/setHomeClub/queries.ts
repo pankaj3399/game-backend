@@ -4,7 +4,7 @@ export async function assignHomeClubFromFavorites(userId: string, clubId: string
 	return User.findOneAndUpdate(
 		{ _id: userId, favoriteClubs: clubId },
 		{ $set: { homeClub: clubId } },
-		{ new: true }
+		{ returnDocument: 'after' }
 	).exec();
 }
 

@@ -1,15 +1,14 @@
 import mongoose from "mongoose";
 import type { AuthenticatedSession } from "../../../shared";
 import { error, ok } from "../../../shared/helpers";
-import { isTournamentSchedulingLocked } from "../schedulingLock";
-import {
-  findTournamentForLeave,
-  findTournamentForLeaveConflictCheck,
-  findTournamentForLeaveWithSession,
-  pullTournamentParticipantIfNotScheduled,
-  scheduleHasProgressBlockingLeave,
-} from "./queries";
-const LEAVE_SCHEDULE_LOCKED = "LEAVE_SCHEDULE_LOCKED";
+import Tournament from "../../../models/Tournament";
+import Game from "../../../models/Game";
+
+const CONCURRENT_MATCH_UPDATE_ERROR = "CONCURRENT_MATCH_UPDATE";
+type TournamentParticipantStateLean = {
+  participants?: mongoose.Types.ObjectId[];
+  maxMember?: number;
+};
 
 function isSameParticipantId(id: unknown, authId: mongoose.Types.ObjectId) {
   if (id instanceof mongoose.Types.ObjectId) {
@@ -35,111 +34,150 @@ function isSameParticipantId(id: unknown, authId: mongoose.Types.ObjectId) {
 
 /**
  * Atomically removes the user from tournament participants.
+ * Any unfinished matches for the leaving participant are auto-finished as WO
+ * losses so the opponent side progresses without manual intervention.
  */
 export async function leaveTournamentFlow(
   tournamentId: string,
-  authSession: AuthenticatedSession
+  authSession: AuthenticatedSession,
+  options?: { confirmLeaveWithWalkover?: boolean }
 ) {
-  const tournament = await findTournamentForLeave(tournamentId);
-
-  if (!tournament) {
-    return error(404, "Tournament not found");
-  }
-
-  const participantIds = tournament.participants ?? [];
-  const userIsParticipant = participantIds.some((id) =>
-    isSameParticipantId(id, authSession._id)
-  );
-
-  if (!userIsParticipant) {
-    return error(400, "You are not a participant in this tournament");
-  }
-
-  if (isTournamentSchedulingLocked(tournament)) {
-    return error(
-      400,
-      "You cannot leave this tournament after scheduling has started"
-    );
-  }
-
+  const confirmLeaveWithWalkover = options?.confirmLeaveWithWalkover === true;
   const mongoSession = await mongoose.startSession();
-  let returnedDoc: Awaited<
-    ReturnType<typeof pullTournamentParticipantIfNotScheduled>
-  > | null = null;
+  type LeaveTransactionResult =
+    | { outcome: "left"; tournament: { participants?: mongoose.Types.ObjectId[]; maxMember?: number } }
+    | { outcome: "not_participant" }
+    | { outcome: "pending_score_matches" }
+    | { outcome: "confirmation_required" }
+    | { outcome: "concurrent_leave" }
+    | { outcome: "concurrent_match_update" }
+    | null;
+  let returnedDoc: LeaveTransactionResult = null;
 
   try {
     returnedDoc = await mongoSession.withTransaction(async () => {
-      const fresh = await findTournamentForLeaveWithSession(tournamentId, mongoSession);
-      if (!fresh) {
-        return null;
+      const fresh = await Tournament.findById(tournamentId)
+        .select("_id participants maxMember")
+        .session(mongoSession)
+        .lean<TournamentParticipantStateLean | null>()
+        .exec();
+      if (!fresh) return null;
+
+      const wasParticipant = (fresh.participants ?? []).some((id) =>
+        isSameParticipantId(id, authSession._id)
+      );
+      if (!wasParticipant) {
+        return { outcome: "not_participant" as const };
       }
 
-      const scheduleId = fresh.schedule?._id ?? null;
-      if (scheduleId != null) {
-        const scheduleHasProgress = await scheduleHasProgressBlockingLeave(
-          scheduleId,
-          mongoSession
-        );
+      const hasPendingScoreMatches = await Game.exists({
+        tournament: tournamentId,
+        status: "pendingScore",
+        $or: [{ "side1.players": authSession._id }, { "side2.players": authSession._id }],
+      })
+        .session(mongoSession)
+        .lean()
+        .exec();
+      if (hasPendingScoreMatches) {
+        return { outcome: "pending_score_matches" as const };
+      }
 
-        if (scheduleHasProgress) {
-          const err = new Error(LEAVE_SCHEDULE_LOCKED);
-          (err as Error & { code?: string }).code = LEAVE_SCHEDULE_LOCKED;
-          throw err;
+      const unfinishedMatches = await Game.find({
+        tournament: tournamentId,
+        status: { $nin: ["finished", "cancelled", "pendingScore"] },
+        $or: [{ "side1.players": authSession._id }, { "side2.players": authSession._id }],
+      })
+        .select("_id side1.players side2.players")
+        .session(mongoSession)
+        .lean<
+          Array<{
+            _id: mongoose.Types.ObjectId;
+            side1?: { players?: mongoose.Types.ObjectId[] };
+            side2?: { players?: mongoose.Types.ObjectId[] };
+          }>
+        >()
+        .exec();
+      if (unfinishedMatches.length > 0 && !confirmLeaveWithWalkover) {
+        return { outcome: "confirmation_required" as const };
+      }
+
+      const updatedTournament = await Tournament.findOneAndUpdate(
+        { _id: tournamentId, participants: authSession._id },
+        { $pull: { participants: authSession._id } },
+        { returnDocument: "after", session: mongoSession }
+      )
+        .select("participants maxMember")
+        .lean<{ participants?: mongoose.Types.ObjectId[]; maxMember?: number } | null>()
+        .exec();
+      if (!updatedTournament) {
+        return { outcome: "concurrent_leave" as const };
+      }
+
+      const now = new Date();
+      for (const match of unfinishedMatches) {
+        const leavesFromSide1 = (match.side1?.players ?? []).some((id) =>
+          isSameParticipantId(id, authSession._id)
+        );
+        const score = leavesFromSide1
+          ? { playerOneScores: ["wo" as const], playerTwoScores: [1] }
+          : { playerOneScores: [1], playerTwoScores: ["wo" as const] };
+        const updateResult = await Game.updateOne(
+          { _id: match._id, status: { $nin: ["finished", "cancelled", "pendingScore"] } },
+          {
+            $set: {
+              score,
+              status: "finished" as const,
+              endTime: now,
+            },
+          },
+          { session: mongoSession }
+        ).exec();
+        if (updateResult.matchedCount !== 1) {
+          throw new Error(CONCURRENT_MATCH_UPDATE_ERROR);
         }
       }
 
-      return pullTournamentParticipantIfNotScheduled(
-        tournamentId,
-        authSession._id,
-        mongoSession,
-        scheduleId
-      );
+      return { outcome: "left" as const, tournament: updatedTournament };
     });
   } catch (err: unknown) {
-    if (
-      err instanceof Error &&
-      (err as Error & { code?: string }).code === LEAVE_SCHEDULE_LOCKED
-    ) {
-      return error(
-        400,
-        "You cannot leave this tournament after scheduling has started"
-      );
+    if (err instanceof Error && err.message === CONCURRENT_MATCH_UPDATE_ERROR) {
+      returnedDoc = { outcome: "concurrent_match_update" };
+    } else {
+      throw err;
     }
-    throw err;
   } finally {
     await mongoSession.endSession();
   }
 
   if (!returnedDoc) {
-    const fresh = await findTournamentForLeaveConflictCheck(tournamentId);
-
-    if (!fresh) {
-      return error(404, "Tournament not found");
-    }
-
-    const stillParticipant = (fresh.participants ?? []).some(
-      (id) => isSameParticipantId(id, authSession._id)
-    );
-
-    if (!stillParticipant) {
-      return error(400, "You are not a participant in this tournament");
-    }
-
-    if (isTournamentSchedulingLocked(fresh)) {
-      return error(
-        400,
-        "You cannot leave this tournament after scheduling has started"
-      );
-    }
-
-    return error(
-      409,
-      "Unable to leave tournament due to a concurrent update. Please retry."
-    );
+    return error(404, "Tournament not found");
   }
 
-  const spotsFilled = (returnedDoc.participants ?? []).length;
-  const spotsTotal = Math.max(1, returnedDoc.maxMember ?? 1);
+  if (returnedDoc.outcome === "not_participant") {
+    return error(400, "Not a participant in this tournament");
+  }
+  if (returnedDoc.outcome === "confirmation_required") {
+    return error(400, "LEAVE_CONFIRM_WO_REQUIRED");
+  }
+  if (returnedDoc.outcome === "pending_score_matches") {
+    return error(400, "Cannot leave tournament while pendingScore matches include this participant");
+  }
+  if (returnedDoc.outcome === "concurrent_leave") {
+    return error(409, "Unable to leave tournament due to a concurrent update. Please retry.");
+  }
+  if (returnedDoc.outcome === "concurrent_match_update") {
+    return error(409, "Unable to leave tournament due to a concurrent match update. Please retry.");
+  }
+
+  const stillParticipant = (returnedDoc.tournament.participants ?? []).some((id: mongoose.Types.ObjectId) =>
+    isSameParticipantId(id, authSession._id)
+  );
+  if (stillParticipant) {
+    return error(409, "Unable to leave tournament due to a concurrent update. Please retry.");
+  }
+
+  const spotsFilled = (returnedDoc.tournament.participants ?? []).length;
+  const spotsTotal = Math.max(1, returnedDoc.tournament.maxMember ?? 1);
   const isParticipant = false;
 
   return ok(

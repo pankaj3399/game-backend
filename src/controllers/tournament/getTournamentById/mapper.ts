@@ -2,7 +2,12 @@ import type { TournamentPopulated } from "../../../types/api/tournament";
 import { ROLES } from "../../../constants/roles";
 import type { DetailViewContext } from "../shared/authorizeGetById";
 import { computeSpotsTotal } from "../computeSpotsTotal";
-import { isTournamentSchedulingLocked } from "../schedulingLock";
+import type { TournamentLeaveBlockers } from "../shared/fetchTournamentById";
+import {
+  DEFAULT_TOURNAMENT_TIMEZONE,
+  getZonedDateParts,
+  isValidIanaTimeZone,
+} from "../../../shared/timezone";
 
 /* =========================
    Response Types
@@ -70,6 +75,7 @@ export interface TournamentDetailResponse {
   date: string | null;
   startTime: string | null;
   endTime: string | null;
+  timezone: string | null;
   playMode: string;
   tournamentMode: string;
   entryFee: number;
@@ -107,6 +113,21 @@ function toSafeStringId(id: unknown): string | null {
   }
 }
 
+function formatDateOnlyUtc(value: Date, timezone?: string | null): string | null {
+  if (!Number.isFinite(value.getTime())) {
+    return null;
+  }
+
+  const safeTimezone = isValidIanaTimeZone(timezone)
+    ? timezone
+    : DEFAULT_TOURNAMENT_TIMEZONE;
+  const parts = getZonedDateParts(value, safeTimezone);
+  const year = parts.year;
+  const month = String(parts.month).padStart(2, "0");
+  const day = String(parts.day).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 /* =========================
    Main Mapper
 ========================= */
@@ -115,7 +136,8 @@ export function mapTournamentDetail(
   tournament: TournamentPopulated,
   context: DetailViewContext,
   clubSponsorsList: ClubSponsorDoc[],
-  sessionUserId: string
+  sessionUserId: string,
+  leaveBlockers?: TournamentLeaveBlockers
 ): TournamentDetailResponse {
   if (!tournament) {
     throw new Error("Invalid tournament data: missing tournament");
@@ -178,14 +200,15 @@ export function mapTournamentDetail(
   // Verification: tournaments without maxMember normalize to Infinity and remain joinable.
   const hasAvailableSpots =
     rawSpotsTotal === Infinity || spotsFilled < rawSpotsTotal;
-  const joinLockedByScheduling = isTournamentSchedulingLocked(tournament);
-
   const canJoin =
     isActive &&
     !isParticipant &&
-    hasAvailableSpots &&
-    !joinLockedByScheduling;
-  const canLeave = isParticipant && !joinLockedByScheduling;
+    hasAvailableSpots;
+  const hasLeaveBlockers =
+    isParticipant &&
+    ((leaveBlockers?.hasPendingScoreMatches ?? false) ||
+      (leaveBlockers?.hasUnfinishedMatches ?? false));
+  const canLeave = isParticipant && !hasLeaveBlockers;
 
   /* =========================
      Courts
@@ -260,15 +283,21 @@ export function mapTournamentDetail(
      Final Response
   ========================= */
 
+  const effectiveTimezone = tournament.timezone ?? DEFAULT_TOURNAMENT_TIMEZONE;
+
   return {
     id: tournamentId,
     name: tournament.name,
     club,
     sponsor,
     clubSponsors,
-    date: tournament.date instanceof Date ? tournament.date.toISOString() : null,
+    date:
+      tournament.date instanceof Date
+        ? formatDateOnlyUtc(tournament.date, effectiveTimezone)
+        : null,
     startTime: tournament.startTime ?? null,
     endTime: tournament.endTime ?? null,
+    timezone: effectiveTimezone,
     playMode: tournament.playMode,
     tournamentMode: tournament.tournamentMode,
     entryFee: Number.isFinite(tournament.entryFee) ? tournament.entryFee : 0,

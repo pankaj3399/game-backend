@@ -34,6 +34,7 @@
     "passport": "^0.7.0",
     "passport-apple": "^2.0.2",
     "passport-google-oauth": "^2.0.0",
+    "tz-lookup": "^6.1.25",
     "winston": "^3.19.0",
     "zod": "^4.3.6"
   },
@@ -45,6 +46,7 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^20.0.0",
     "@types/passport": "^1.0.17",
+    "@types/tz-lookup": "^6.1.2",
     "jest": "^30.2.0",
     "ts-jest": "^29.4.6",
     "tsx": "^4.19.2",

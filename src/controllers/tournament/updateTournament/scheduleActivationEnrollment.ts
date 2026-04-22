@@ -1,6 +1,11 @@
 import type { TournamentForUpdateAuth } from "../../../types/api";
 import { error, ok } from "../../../shared/helpers";
 import type { UpdateDraftInput } from "./validation";
+import {
+  DEFAULT_TOURNAMENT_TIMEZONE,
+  isValidIanaTimeZone,
+  resolveTournamentTimeZone,
+} from "../../../shared/timezone";
 
 const timeRegex = /^([0-1]\d|2[0-3]):([0-5]\d)$/;
 
@@ -13,6 +18,7 @@ function isFullyScheduledSingleDay(t: {
   date?: Date | null;
   startTime?: string | null;
   endTime?: string | null;
+  timezone?: string | null;
 }): boolean {
   if (t.tournamentMode !== "singleDay") return false;
   if (t.date == null) return false;
@@ -20,6 +26,9 @@ function isFullyScheduledSingleDay(t: {
   const et = t.endTime;
   if (st == null || st === "" || !isValidTime(st)) return false;
   if (et == null || et === "" || !isValidTime(et)) return false;
+  if (t.timezone != null && t.timezone !== "" && !isValidIanaTimeZone(t.timezone)) return false;
+  const resolvedTimezone = resolveTournamentTimeZone(t.timezone, DEFAULT_TOURNAMENT_TIMEZONE);
+  if (!isValidIanaTimeZone(resolvedTimezone)) return false;
   const toMin = (time: string) => {
     const [h, m] = time.split(":").map(Number);
     return h * 60 + m;
@@ -33,6 +42,10 @@ function currentScheduleFields(tournament: TournamentForUpdateAuth) {
     date: tournament.date ?? null,
     startTime: tournament.startTime ?? null,
     endTime: tournament.endTime ?? null,
+    timezone: resolveTournamentTimeZone(
+      tournament.timezone ?? null,
+      DEFAULT_TOURNAMENT_TIMEZONE
+    ),
   };
 }
 
@@ -50,6 +63,11 @@ function mergeEffectiveSchedule(
       data.startTime !== undefined ? data.startTime : tournament.startTime ?? null,
     endTime:
       data.endTime !== undefined ? data.endTime : tournament.endTime ?? null,
+    timezone:
+      resolveTournamentTimeZone(
+        data.timezone !== undefined ? data.timezone : tournament.timezone ?? null,
+        DEFAULT_TOURNAMENT_TIMEZONE
+      ),
   };
 }
 

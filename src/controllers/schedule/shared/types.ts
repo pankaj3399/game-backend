@@ -53,6 +53,7 @@ export interface TournamentScheduleContext {
   date: Date | null;
   startTime: string | null;
   endTime: string | null;
+  timezone: string | null;
   duration: number | null;
   breakDuration: number | null;
   totalRounds: number;
@@ -72,6 +73,7 @@ export interface TournamentScheduleContextRaw {
   date?: Date | null;
   startTime?: string | null;
   endTime?: string | null;
+  timezone?: string | null;
   duration?: number | null;
   breakDuration?: number | null;
   totalRounds?: number | null;

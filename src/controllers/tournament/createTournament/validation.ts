@@ -25,7 +25,7 @@ const baseTournament = z.object({
     sponsorId: objectId.nullable().optional(),
   
     name: z.string().min(1),
-  
+
     playMode: playModeEnum,
   
     entryFee: entryFeeSchema,

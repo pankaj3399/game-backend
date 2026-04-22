@@ -8,6 +8,7 @@ import {
 	type TournamentPlayMode,
 	type TournamentStatus
 } from '../types/domain/tournament';
+import { DEFAULT_TOURNAMENT_TIMEZONE, isValidIanaTimeZone } from '../shared/timezone';
 import Schedule from './Schedule';
 
 // Define the ITournament interface
@@ -20,6 +21,7 @@ export interface ITournament extends Document {
 	date?: Date;
 	startTime?: string;
 	endTime?: string;
+	timezone?: string;
 	playMode: TournamentPlayMode;
 	tournamentMode: TournamentMode;
 	entryFee: number;
@@ -73,6 +75,14 @@ const tournamentSchema = new mongoose.Schema<ITournament>(
 		},
 		endTime: {
 			type: String
+		},
+		timezone: {
+			type: String,
+			default: DEFAULT_TOURNAMENT_TIMEZONE,
+			validate: {
+				validator: (v: unknown) => typeof v === 'string' && isValidIanaTimeZone(v),
+				message: 'timezone must be a valid IANA timezone (for example: Asia/Kolkata)'
+			}
 		},
 		playMode: {
 			type: String,
@@ -207,7 +217,7 @@ tournamentSchema.post('save', async function (doc) {
 			{ $setOnInsert: { tournament: doc._id, currentRound: 0 } },
 			{
 				upsert: true,
-				new: true,
+				returnDocument: 'after',
 				setDefaultsOnInsert: true,
 				runValidators: true,
 				...(session ? { session } : {})

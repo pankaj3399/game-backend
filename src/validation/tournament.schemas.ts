@@ -1,8 +1,14 @@
 import { z } from 'zod';
 import { TOURNAMENT_MODES, TOURNAMENT_PLAY_MODES, TOURNAMENT_STATUSES } from '../types/domain/tournament';
 import { objectId } from './base-helpers';
+import { isValidIanaTimeZone } from '../shared/timezone';
 const timeRegex = /^([0-1]\d|2[0-3]):([0-5]\d)$/;
 const isValidTime = (s: string) => timeRegex.test(s);
+const timezoneSchema = z
+	.string()
+	.trim()
+	.min(1)
+	.refine(isValidIanaTimeZone, 'Invalid timezone (expected IANA timezone like Asia/Kolkata)');
 
 const playModeEnum = z.enum(TOURNAMENT_PLAY_MODES);
 const tournamentModeEnum = z.enum(TOURNAMENT_MODES);
@@ -25,6 +31,7 @@ const draftFields = {
 	date: z.coerce.date().optional().nullable(),
 	startTime: z.union([z.string().trim().regex(timeRegex, 'Invalid start time (expected HH:mm)'), z.null()]).optional(),
 	endTime: z.union([z.string().trim().regex(timeRegex, 'Invalid end time (expected HH:mm)'), z.null()]).optional(),
+	timezone: z.union([timezoneSchema, z.null()]).optional(),
 	playMode: playModeEnum.optional(),
 	tournamentMode: tournamentModeEnum.optional(),
 	entryFee: entryFeeSchema.optional(),
@@ -112,6 +119,13 @@ export const publishSchema = z
 			return d.endTime != null && d.endTime !== '' && isValidTime(d.endTime);
 		},
 		{ message: 'Invalid or missing tournament end time', path: ['endTime'] }
+	)
+	.refine(
+		(d) => {
+			if (d.tournamentMode !== 'singleDay') return true;
+			return d.timezone != null && d.timezone !== '' && isValidIanaTimeZone(d.timezone);
+		},
+		{ message: 'Invalid or missing tournament timezone', path: ['timezone'] }
 	)
 	.refine(
 		(d) => {

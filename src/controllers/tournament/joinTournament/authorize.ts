@@ -2,7 +2,6 @@ import mongoose from "mongoose";
 import type { AuthenticatedSession } from "../../../shared/authContext";
 import { error, ok } from "../../../shared/helpers";
 import { computeSpotsTotal } from "../computeSpotsTotal";
-import { isTournamentSchedulingLocked } from "../schedulingLock";
 
 export interface JoinTournamentDoc {
   _id: mongoose.Types.ObjectId;
@@ -38,14 +37,6 @@ export async function authorizeJoin(
   );
   if (alreadyJoined) {
     return error(400, "Already joined");
-  }
-
-  if (tournament.firstRoundScheduledAt) {
-    return error(400, "Tournament join is closed because the first round has already been scheduled");
-  }
-
-  if (isTournamentSchedulingLocked(tournament)) {
-    return error(400, "Tournament join is closed because scheduling has already started");
   }
 
   // Capacity must match mapTournamentDetail `permissions.canJoin` (hasAvailableSpots).

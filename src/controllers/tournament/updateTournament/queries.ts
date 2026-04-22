@@ -29,6 +29,7 @@ export async function fetchTournamentForUpdate(id: string) {
           date: 1,
           startTime: 1,
           endTime: 1,
+          timezone: 1,
           playMode: 1,
           tournamentMode: 1,
           entryFee: 1,
