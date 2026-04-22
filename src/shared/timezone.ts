@@ -42,6 +42,7 @@ export function getZonedDateParts(instant: Date, timeZone: string): ZonedDatePar
     minute: "2-digit",
     second: "2-digit",
     hour12: false,
+    hourCycle: "h23",
   });
 
   const parts = formatter.formatToParts(instant);
@@ -87,6 +88,12 @@ export function zonedDateTimeToUtcDate(
   },
   timeZone: string
 ): Date {
+  const requestedWallTime = `${input.year}-${String(input.month).padStart(2, "0")}-${String(
+    input.day
+  ).padStart(2, "0")} ${String(input.hour).padStart(2, "0")}:${String(input.minute).padStart(
+    2,
+    "0"
+  )}:${String(input.second ?? 0).padStart(2, "0")}`;
   const targetMs = Date.UTC(
     input.year,
     input.month - 1,
@@ -98,6 +105,7 @@ export function zonedDateTimeToUtcDate(
   );
 
   let guessMs = targetMs;
+  let lastDelta = Number.NaN;
   for (let i = 0; i < 4; i += 1) {
     const zoned = getZonedDateParts(new Date(guessMs), timeZone);
     const observedMs = Date.UTC(
@@ -111,9 +119,16 @@ export function zonedDateTimeToUtcDate(
     );
     const delta = targetMs - observedMs;
     guessMs += delta;
+    lastDelta = delta;
     if (delta === 0) {
       break;
     }
+  }
+
+  if (lastDelta !== 0) {
+    throw new Error(
+      `Unable to resolve zoned datetime without DST ambiguity for ${requestedWallTime} in ${timeZone}`
+    );
   }
 
   return new Date(guessMs);

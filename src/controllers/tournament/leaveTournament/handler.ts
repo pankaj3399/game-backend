@@ -36,7 +36,11 @@ export async function leaveTournamentFlow(
   authSession: AuthenticatedSession
 ) {
   const mongoSession = await mongoose.startSession();
-  let returnedDoc: { participants?: mongoose.Types.ObjectId[]; maxMember?: number } | null = null;
+  type LeaveTransactionResult =
+    | { outcome: "left"; tournament: { participants?: mongoose.Types.ObjectId[]; maxMember?: number } }
+    | { outcome: "not_participant" }
+    | null;
+  let returnedDoc: LeaveTransactionResult = null;
 
   try {
     returnedDoc = await mongoSession.withTransaction(async () => {
@@ -44,15 +48,13 @@ export async function leaveTournamentFlow(
         .select("_id participants maxMember")
         .session(mongoSession)
         .exec();
-      if (!fresh) {
-        return null;
-      }
+      if (!fresh) return null;
 
       const wasParticipant = (fresh.participants ?? []).some((id) =>
         isSameParticipantId(id, authSession._id)
       );
       if (!wasParticipant) {
-        return { participants: fresh.participants, maxMember: fresh.maxMember };
+        return { outcome: "not_participant" as const };
       }
 
       const updatedTournament = await Tournament.findOneAndUpdate(
@@ -63,6 +65,9 @@ export async function leaveTournamentFlow(
         .select("participants maxMember")
         .lean<{ participants?: mongoose.Types.ObjectId[]; maxMember?: number } | null>()
         .exec();
+      if (!updatedTournament) {
+        return null;
+      }
 
       const unfinishedMatches = await Game.find({
         tournament: tournamentId,
@@ -89,7 +94,7 @@ export async function leaveTournamentFlow(
           ? { playerOneScores: ["wo" as const], playerTwoScores: [1] }
           : { playerOneScores: [1], playerTwoScores: ["wo" as const] };
         await Game.updateOne(
-          { _id: match._id },
+          { _id: match._id, status: { $nin: ["pendingScore"] } },
           {
             $set: {
               score,
@@ -101,7 +106,7 @@ export async function leaveTournamentFlow(
         ).exec();
       }
 
-      return updatedTournament;
+      return { outcome: "left" as const, tournament: updatedTournament };
     });
   } finally {
     await mongoSession.endSession();
@@ -111,15 +116,19 @@ export async function leaveTournamentFlow(
     return error(404, "Tournament not found");
   }
 
-  const stillParticipant = (returnedDoc.participants ?? []).some((id) =>
+  if (returnedDoc.outcome === "not_participant") {
+    return error(400, "Not a participant in this tournament");
+  }
+
+  const stillParticipant = (returnedDoc.tournament.participants ?? []).some((id) =>
     isSameParticipantId(id, authSession._id)
   );
   if (stillParticipant) {
     return error(409, "Unable to leave tournament due to a concurrent update. Please retry.");
   }
 
-  const spotsFilled = (returnedDoc.participants ?? []).length;
-  const spotsTotal = Math.max(1, returnedDoc.maxMember ?? 1);
+  const spotsFilled = (returnedDoc.tournament.participants ?? []).length;
+  const spotsTotal = Math.max(1, returnedDoc.tournament.maxMember ?? 1);
   const isParticipant = false;
 
   return ok(

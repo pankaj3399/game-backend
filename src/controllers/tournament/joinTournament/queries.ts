@@ -8,9 +8,8 @@ export interface JoinTournamentLeanDoc {
 
 export async function getTournamentById(tournamentId: string) {
   return Tournament.findById(tournamentId)
-    .select("_id club name status minMember maxMember participants firstRoundScheduledAt schedule")
+    .select("_id club name status minMember maxMember participants firstRoundScheduledAt")
     .populate("club")
-    .populate({ path: "schedule", select: "currentRound" })
     .lean()
     .exec();
 }
@@ -31,7 +30,6 @@ export async function addParticipantIfCapacityAllows(
       $expr: {
         $or: [
           { $not: [{ $isNumber: "$maxMember" }] },
-          { $ne: ["$maxMember", "$maxMember"] },
           {
             $lt: [{ $size: { $ifNull: ["$participants", []] } }, "$maxMember"],
           },

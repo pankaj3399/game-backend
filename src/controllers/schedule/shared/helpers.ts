@@ -221,11 +221,10 @@ export function computeMatchStartTime(
   }
 
   const baseDateParts = baseDate
-    ? {
-        year: baseDate.getUTCFullYear(),
-        month: baseDate.getUTCMonth() + 1,
-        day: baseDate.getUTCDate(),
-      }
+    ? (() => {
+        const parts = getZonedDateParts(baseDate, timezone);
+        return { year: parts.year, month: parts.month, day: parts.day };
+      })()
     : (() => {
         const parts = getZonedDateParts(now, timezone);
         return { year: parts.year, month: parts.month, day: parts.day };

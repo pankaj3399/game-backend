@@ -43,6 +43,7 @@ export interface TournamentListDoc {
 	name: string;
 	club: PopulatedClub | null;
 	date?: Date;
+	timezone?: string | null;
 	status: TournamentStatus;
 	sponsorId?: PopulatedSponsor | null;
 }

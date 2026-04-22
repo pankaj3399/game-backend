@@ -1,4 +1,8 @@
 import type { TournamentListDoc } from "../../../types/api/tournament";
+import {
+  DEFAULT_TOURNAMENT_TIMEZONE,
+  getZonedDateParts,
+} from "../../../shared/timezone";
 
 export interface TournamentListItem {
   id: unknown;
@@ -14,15 +18,22 @@ export interface TournamentListItem {
   } | null;
 }
 
-function formatDateOnlyUtc(value: Date | string): string | null {
+function formatDateOnlyUtc(
+  value: Date | string,
+  timezone?: string | null
+): string | null {
   const date = value instanceof Date ? value : new Date(value);
   if (!Number.isFinite(date.getTime())) {
     return null;
   }
 
-  const year = date.getUTCFullYear();
-  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(date.getUTCDate()).padStart(2, "0");
+  const parts = getZonedDateParts(
+    date,
+    timezone ?? DEFAULT_TOURNAMENT_TIMEZONE
+  );
+  const year = parts.year;
+  const month = String(parts.month).padStart(2, "0");
+  const day = String(parts.day).padStart(2, "0");
   return `${year}-${month}-${day}`;
 }
 
@@ -31,7 +42,7 @@ export function mapTournamentListItems(tournaments: TournamentListDoc[]) {
     id: t._id,
     name: t.name,
     club: t.club ? { id: t.club._id, name: t.club.name } : null,
-    date: t.date ? formatDateOnlyUtc(t.date) : null,
+    date: t.date ? formatDateOnlyUtc(t.date, t.timezone) : null,
     status: t.status,
     sponsor: t.sponsorId
       ? {

@@ -2,6 +2,10 @@ import type { TournamentPopulated } from "../../../types/api/tournament";
 import { ROLES } from "../../../constants/roles";
 import type { DetailViewContext } from "../shared/authorizeGetById";
 import { computeSpotsTotal } from "../computeSpotsTotal";
+import {
+  DEFAULT_TOURNAMENT_TIMEZONE,
+  getZonedDateParts,
+} from "../../../shared/timezone";
 
 /* =========================
    Response Types
@@ -107,14 +111,18 @@ function toSafeStringId(id: unknown): string | null {
   }
 }
 
-function formatDateOnlyUtc(value: Date): string | null {
+function formatDateOnlyUtc(value: Date, timezone?: string | null): string | null {
   if (!Number.isFinite(value.getTime())) {
     return null;
   }
 
-  const year = value.getUTCFullYear();
-  const month = String(value.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(value.getUTCDate()).padStart(2, "0");
+  const parts = getZonedDateParts(
+    value,
+    timezone ?? DEFAULT_TOURNAMENT_TIMEZONE
+  );
+  const year = parts.year;
+  const month = String(parts.month).padStart(2, "0");
+  const day = String(parts.day).padStart(2, "0");
   return `${year}-${month}-${day}`;
 }
 
@@ -274,7 +282,10 @@ export function mapTournamentDetail(
     club,
     sponsor,
     clubSponsors,
-    date: tournament.date instanceof Date ? formatDateOnlyUtc(tournament.date) : null,
+    date:
+      tournament.date instanceof Date
+        ? formatDateOnlyUtc(tournament.date, tournament.timezone)
+        : null,
     startTime: tournament.startTime ?? null,
     endTime: tournament.endTime ?? null,
     timezone: tournament.timezone ?? null,

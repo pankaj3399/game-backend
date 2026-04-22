@@ -26,6 +26,7 @@ function isFullyScheduledSingleDay(t: {
   const et = t.endTime;
   if (st == null || st === "" || !isValidTime(st)) return false;
   if (et == null || et === "" || !isValidTime(et)) return false;
+  if (t.timezone != null && t.timezone !== "" && !isValidIanaTimeZone(t.timezone)) return false;
   const resolvedTimezone = resolveTournamentTimeZone(t.timezone, DEFAULT_TOURNAMENT_TIMEZONE);
   if (!isValidIanaTimeZone(resolvedTimezone)) return false;
   const toMin = (time: string) => {
