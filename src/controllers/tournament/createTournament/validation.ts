@@ -41,8 +41,8 @@ const baseTournament = z.object({
     maxMember: memberCountSchema,
     totalRounds: totalRoundsSchema.optional(),
   
-    duration: durationMinutesSchema.optional().default(60),
-    breakDuration: breakMinutesSchema.optional().default(0),
+    duration: durationMinutesSchema.optional(),
+    breakDuration: breakMinutesSchema.optional(),
   
     foodInfo: z.string().optional(),
     descriptionInfo: z.string().optional(),
