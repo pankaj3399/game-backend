@@ -197,10 +197,13 @@ export async function persistScheduleRound(
         throw new Error(`Round ${targetRound} exceeds totalRounds limit (${freshTournament.totalRounds})`);
       }
 
+      const scheduleMatchDurationMinutes = parseDurationMinutes(
+        scheduleDoc.matchDurationMinutes ?? null,
+        undefined
+      );
       const roundMatchDurationMinutes =
-        typeof scheduleDoc.matchDurationMinutes === "number" && Number.isFinite(scheduleDoc.matchDurationMinutes)
-          ? Math.max(5, Math.trunc(scheduleDoc.matchDurationMinutes))
-          : parseDurationMinutes(freshTournament.duration ?? null, DEFAULT_MATCH_DURATION_MINUTES);
+        scheduleMatchDurationMinutes ??
+        parseDurationMinutes(freshTournament.duration ?? null, DEFAULT_MATCH_DURATION_MINUTES);
 
       const resolvedMatchesPerPlayer = body.matchesPerPlayer ?? scheduleDoc.matchesPerPlayer ?? 1;
 

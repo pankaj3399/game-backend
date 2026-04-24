@@ -10,7 +10,15 @@ import {
 const dateOrNull = z.union([z.date(), z.null()]);
 
 const stringOrNull = z.union([z.string(), z.null()]);
-const durationMinutesOrNull = z.union([z.number().int().min(5).max(240), z.null()]);
+const durationMinutesOrNull = z.union([
+  z
+    .number()
+    .int()
+    .min(5)
+    .max(120)
+    .refine((value) => value % 5 === 0, "Duration must be in 5-minute intervals"),
+  z.null(),
+]);
 const breakMinutesOrNull = z.union([z.number().int().min(0).max(120), z.null()]);
 
 export const mongoObjectIdSchema = z.custom<Types.ObjectId>(
@@ -91,7 +99,8 @@ export const tournamentScheduleDocumentSchema = z.object({
     .number()
     .int()
     .min(5)
-    .max(240)
+    .max(120)
+    .refine((value) => value % 5 === 0, "matchDurationMinutes must be in 5-minute intervals")
     .nullish()
     .transform((v): number | null => v ?? null),
   breakTimeMinutes: z

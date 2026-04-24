@@ -9,7 +9,13 @@ export const generateScheduleSchema = z
   .object({
     round: z.number().int().min(1),
     mode: scheduleModeSchema,
-    matchDurationMinutes: z.number().int().min(5).max(240).optional(),
+    matchDurationMinutes: z
+      .number()
+      .int()
+      .min(5)
+      .max(120)
+      .refine((value) => value % 5 === 0, "matchDurationMinutes must be in 5-minute intervals")
+      .optional(),
     breakTimeMinutes: z.number().int().min(0).max(120).optional(),
     matchesPerPlayer: z.number().int().min(1).max(20).optional(),
     startTime: z.string().regex(timeRegex, "Invalid start time (expected HH:mm)"),

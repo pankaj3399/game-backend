@@ -1,7 +1,7 @@
 import mongoose, { type Types } from "mongoose";
 import Court from "../../../models/Court";
 import Tournament, { type ITournament } from "../../../models/Tournament";
-import type { UpdateDraftInput } from "./validation";
+import type { UpdateTournamentPersistenceInput } from "./validation";
 import { computeEffectiveSponsor } from "./computeEffectiveSponsor";
 
 export interface UpdateResult {
@@ -21,7 +21,7 @@ export interface UpdateResult {
  */
 export async function updateTournamentFlow(
   tournamentId: string,
-  data: UpdateDraftInput,
+  data: UpdateTournamentPersistenceInput,
   context: { clubChanged: boolean }
 ) {
   const payload: Record<string, unknown> = { ...data };

@@ -14,8 +14,16 @@ export const statusEnum = z.enum(["draft", "active"]);
 const entryFeeSchema = z.coerce.number().min(0).default(0);
 const memberCountSchema = z.coerce.number().int().min(1);
 const totalRoundsSchema = z.coerce.number().int().min(1).max(100);
-const durationMinutesSchema = z.coerce.number().int().min(5).max(240).default(60);
+const durationMinutesSchema = z
+  .coerce
+  .number()
+  .int()
+  .min(5)
+  .max(120)
+  .refine((value) => value % 5 === 0, "duration must be in 5-minute intervals")
+  .default(60);
 const breakMinutesSchema = z.coerce.number().int().min(0).max(120).default(0);
+const timeRegex = /^([0-1]\d|2[0-3]):([0-5]\d)$/;
 
 
 const baseTournament = z.object({
@@ -33,8 +41,8 @@ const baseTournament = z.object({
     maxMember: memberCountSchema,
     totalRounds: totalRoundsSchema.optional(),
   
-    duration: durationMinutesSchema.optional().default(60),
-    breakDuration: breakMinutesSchema.optional().default(0),
+    duration: durationMinutesSchema.optional(),
+    breakDuration: breakMinutesSchema.optional(),
   
     foodInfo: z.string().optional(),
     descriptionInfo: z.string().optional(),
@@ -47,8 +55,8 @@ const baseTournament = z.object({
     status: z.literal("draft"),
     tournamentMode: z.literal("singleDay"),
     date: z.coerce.date().optional(),
-    startTime: z.string().optional(),
-    endTime: z.string().optional(),
+    startTime: z.string().regex(timeRegex).optional(),
+    endTime: z.string().regex(timeRegex).optional(),
   })
 
   const draftUnscheduled = baseTournament.partial().extend({
@@ -60,8 +68,8 @@ const baseTournament = z.object({
     status: z.literal("active"),
     tournamentMode: z.literal("singleDay"),
     date: z.coerce.date(),
-    startTime: z.string().regex(/^\d{2}:\d{2}$/),
-    endTime: z.string().regex(/^\d{2}:\d{2}$/),
+    startTime: z.string().regex(timeRegex),
+    endTime: z.string().regex(timeRegex),
   })
 
   const publishUnscheduled = baseTournament.extend({

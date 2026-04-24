@@ -1,6 +1,6 @@
 import type { TournamentForUpdateAuth } from "../../../types/api";
 import { error, ok } from "../../../shared/helpers";
-import type { UpdateDraftInput } from "./validation";
+import type { UpdateTournamentPersistenceInput } from "./validation";
 import {
   DEFAULT_TOURNAMENT_TIMEZONE,
   isValidIanaTimeZone,
@@ -51,7 +51,7 @@ function currentScheduleFields(tournament: TournamentForUpdateAuth) {
 
 function mergeEffectiveSchedule(
   tournament: TournamentForUpdateAuth,
-  data: UpdateDraftInput
+  data: UpdateTournamentPersistenceInput
 ) {
   return {
     tournamentMode:
@@ -79,7 +79,7 @@ function mergeEffectiveSchedule(
  */
 export function validateScheduleActivationEnrollment(
   tournament: TournamentForUpdateAuth,
-  data: UpdateDraftInput
+  data: UpdateTournamentPersistenceInput
 ) {
   const nextStatus =
     data.status !== undefined ? data.status : tournament.status;

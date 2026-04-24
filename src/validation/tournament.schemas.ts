@@ -16,7 +16,13 @@ const tournamentModeEnum = z.enum(TOURNAMENT_MODES);
 const entryFeeSchema = z.coerce.number().min(0);
 const memberCountSchema = z.coerce.number().int().min(1);
 const totalRoundsSchema = z.coerce.number().int().min(1).max(100);
-const durationMinutesSchema = z.coerce.number().int().min(5).max(240);
+const durationMinutesSchema = z
+	.coerce
+	.number()
+	.int()
+	.min(5)
+	.max(120)
+	.refine((value) => value % 5 === 0, 'Duration must be in 5-minute intervals');
 const breakMinutesSchema = z.coerce.number().int().min(0).max(120);
 
 /** Null branch first so input null is not coerced to 0 by z.coerce.number(). */
@@ -31,7 +37,6 @@ const draftFields = {
 	date: z.coerce.date().optional().nullable(),
 	startTime: z.union([z.string().trim().regex(timeRegex, 'Invalid start time (expected HH:mm)'), z.null()]).optional(),
 	endTime: z.union([z.string().trim().regex(timeRegex, 'Invalid end time (expected HH:mm)'), z.null()]).optional(),
-	timezone: z.union([timezoneSchema, z.null()]).optional(),
 	playMode: playModeEnum.optional(),
 	tournamentMode: tournamentModeEnum.optional(),
 	entryFee: entryFeeSchema.optional(),
@@ -78,6 +83,7 @@ const publishFields = {
 	...draftFields,
 	club: objectId,
 	name: z.string().trim().min(1, 'Tournament name is required'),
+	timezone: timezoneSchema,
 	playMode: playModeEnum,
 	tournamentMode: tournamentModeEnum,
 	entryFee: entryFeeSchema,
@@ -143,7 +149,7 @@ export const publishSchema = z
 /** Partial schema for publish request body. Validates and strips unknown fields. */
 export const publishBodySchema = z
 	.object(publishSchema.shape)
-	.omit({ status: true, club: true })
+	.omit({ status: true, club: true, timezone: true })
 	.partial()
 	.strip();
 

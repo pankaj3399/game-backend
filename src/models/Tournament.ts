@@ -122,12 +122,13 @@ const tournamentSchema = new mongoose.Schema<ITournament>(
 			type: Number,
 			required: false,
 			min: [5, 'duration must be at least 5 minutes'],
-			max: [240, 'duration must be at most 240 minutes'],
+			max: [120, 'duration must be at most 120 minutes'],
 			default: 60,
 			validate: {
 				validator: (v: unknown) =>
-					v == null || (typeof v === 'number' && Number.isInteger(v) && v >= 5 && v <= 240),
-				message: 'duration must be an integer between 5 and 240 minutes, or omitted'
+					v == null ||
+					(typeof v === 'number' && Number.isInteger(v) && v >= 5 && v <= 120 && v % 5 === 0),
+				message: 'duration must be an integer between 5 and 120 minutes in 5-minute intervals, or omitted'
 			}
 		},
 		breakDuration: {

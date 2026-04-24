@@ -8,7 +8,10 @@ function normalizeDurationMinutes(value: number | null | undefined): number | nu
   }
 
   const normalized = Math.trunc(value);
-  if (normalized <= 0) {
+  if (normalized < 5 || normalized > 120) {
+    return null;
+  }
+  if (normalized % 5 !== 0) {
     return null;
   }
 

@@ -45,7 +45,7 @@ export interface TournamentListDoc {
 	date?: Date;
 	timezone?: string | null;
 	status: TournamentStatus;
-	sponsorId?: PopulatedSponsor | null;
+	sponsor?: PopulatedSponsor | null;
 }
 
 export interface TournamentForUpdateAuth {
@@ -133,7 +133,16 @@ export const tournamentPublishSourceSchema = z
     minMember: z.number().int().min(1),
     maxMember: z.number().int().min(1),
     totalRounds: z.number().int().min(1).max(100).nullable().optional(),
-    duration: z.number().int().min(5).max(240).nullable().optional(),
+    duration: z
+      .number()
+      .int()
+      .min(5)
+      .max(120)
+      .refine((value) => value % 5 === 0, {
+        message: "Duration must be in 5-minute intervals",
+      })
+      .nullable()
+      .optional(),
     breakDuration: z.number().int().min(0).max(120).nullable().optional(),
     foodInfo: z.string().optional(),
     descriptionInfo: z.string().optional(),

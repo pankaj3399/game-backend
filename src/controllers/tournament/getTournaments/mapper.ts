@@ -44,12 +44,12 @@ export function mapTournamentListItems(tournaments: TournamentListDoc[]) {
     club: t.club ? { id: t.club._id, name: t.club.name } : null,
     date: t.date ? formatDateOnlyUtc(t.date, t.timezone) : null,
     status: t.status,
-    sponsor: t.sponsorId
+    sponsor: t.sponsor
       ? {
-          id: t.sponsorId._id.toString(),
-          name: t.sponsorId.name,
-          logoUrl: t.sponsorId.logoUrl,
-          link: t.sponsorId.link,
+          id: t.sponsor._id.toString(),
+          name: t.sponsor.name,
+          logoUrl: t.sponsor.logoUrl,
+          link: t.sponsor.link,
         }
       : null,
   }));

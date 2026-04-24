@@ -3,7 +3,10 @@ import { logger } from "../../../lib/logger";
 import { guardIdParam } from "../../../shared/guards";
 import { buildErrorPayload } from "../../../shared/errors";
 import { AuthenticatedRequest, type AuthenticatedSession } from "../../../shared/authContext";
-import { updateDraftSchema, type UpdateDraftInput } from "./validation";
+import {
+  updateDraftSchema,
+  type UpdateTournamentPersistenceInput,
+} from "./validation";
 import { authorizeUpdate } from "./authorize";
 import { fetchTournamentForUpdate } from "./queries";
 import { updateTournamentFlow } from "./handler";
@@ -73,14 +76,13 @@ export async function updateTournament(req: AuthenticatedRequest ,res: Response)
       bodyParse.data.endTime !== undefined ||
       bodyParse.data.tournamentMode !== undefined;
 
-    const shouldApplyResolvedTimezone =
-      bodyParse.data.timezone !== undefined || timezoneImpliedByUpdateFields;
+    const shouldApplyResolvedTimezone = timezoneImpliedByUpdateFields;
 
     const resolvedTournamentTimezone = shouldApplyResolvedTimezone
       ? await resolveTournamentTimezoneFromClub(authResult.data.clubId)
       : undefined;
 
-    const dataWithResolvedTimezone: UpdateDraftInput =
+    const dataWithResolvedTimezone: UpdateTournamentPersistenceInput =
       resolvedTournamentTimezone !== undefined
         ? {
             ...bodyParse.data,
@@ -111,7 +113,7 @@ export async function updateTournament(req: AuthenticatedRequest ,res: Response)
     }
 
     const nextStatus = dataWithResolvedTimezone.status ?? tournament.data.status;
-    let publishUpdatePayload: UpdateDraftInput | null = null;
+    let publishUpdatePayload: UpdateTournamentPersistenceInput | null = null;
     if (nextStatus === "active") {
       const clubId = authResult.data.clubId;
       const d = dataWithResolvedTimezone;
@@ -131,8 +133,7 @@ export async function updateTournament(req: AuthenticatedRequest ,res: Response)
           d.startTime !== undefined ? d.startTime : t.startTime ?? null,
         endTime: d.endTime !== undefined ? d.endTime : t.endTime ?? null,
         timezone:
-          resolvedTournamentTimezone ??
-          (d.timezone !== undefined ? d.timezone : t.timezone ?? null),
+          resolvedTournamentTimezone ?? t.timezone ?? null,
         playMode:
           d.playMode !== undefined ? d.playMode : t.playMode,
         tournamentMode:
@@ -176,7 +177,7 @@ export async function updateTournament(req: AuthenticatedRequest ,res: Response)
       };
     }
 
-    const effectiveUpdatePayload: UpdateDraftInput = {
+    const effectiveUpdatePayload: UpdateTournamentPersistenceInput = {
       ...dataWithResolvedTimezone,
     };
 

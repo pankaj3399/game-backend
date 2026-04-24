@@ -81,8 +81,14 @@ const scheduleSchema = new Schema<ISchedule>(
 		matchDurationMinutes: {
 			type: Number,
 			min: [5, 'matchDurationMinutes must be at least 5'],
-			max: [240, 'matchDurationMinutes must be at most 240'],
-			default: null
+			max: [120, 'matchDurationMinutes must be at most 120'],
+			default: null,
+			validate: {
+				validator: (v: unknown) =>
+					v == null ||
+					(typeof v === 'number' && Number.isInteger(v) && v >= 5 && v <= 120 && v % 5 === 0),
+				message: 'matchDurationMinutes must be in 5-minute intervals between 5 and 120'
+			}
 		},
 		breakTimeMinutes: {
 			type: Number,

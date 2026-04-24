@@ -1,4 +1,4 @@
-import type { UpdateDraftInput } from "./validation";
+import type { UpdateTournamentPersistenceInput } from "./validation";
 import type { TournamentForUpdateAuth } from "../../../types/api";
 import { error, ok } from "../../../shared/helpers";
 
@@ -27,7 +27,7 @@ function nullableStringEqual(
  */
 export function validateActiveTournamentEnrolledUpdate(
   tournament: TournamentForUpdateAuth,
-  data: UpdateDraftInput
+  data: UpdateTournamentPersistenceInput
 ) {
   if (tournament.status !== "active") {
     return ok(undefined, { status: 200, message: "OK" });
@@ -65,16 +65,6 @@ export function validateActiveTournamentEnrolledUpdate(
     return error(
       400,
       "Cannot change end time while the tournament is active with enrolled participants"
-    );
-  }
-
-  if (
-    data.timezone !== undefined &&
-    !nullableStringEqual(tournament.timezone, data.timezone)
-  ) {
-    return error(
-      400,
-      "Cannot change timezone while the tournament is active with enrolled participants"
     );
   }
 
