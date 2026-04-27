@@ -30,5 +30,11 @@ export interface MyScoreResponse {
 		mode: 'all' | MyScoreMatchMode;
 		range: 'last30Days' | 'allTime';
 	};
+	pagination: {
+		page: number;
+		limit: number;
+		total: number;
+		totalPages: number;
+	};
 	entries: MyScoreEntry[];
 }

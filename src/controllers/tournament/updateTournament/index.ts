@@ -11,7 +11,6 @@ import { authorizeUpdate } from "./authorize";
 import { fetchTournamentForUpdate } from "./queries";
 import { updateTournamentFlow } from "./handler";
 import { computeEffectiveSponsor } from "./computeEffectiveSponsor";
-import { validateActiveTournamentEnrolledUpdate } from "./activeEnrolledUpdate";
 import { validateScheduleActivationEnrollment } from "./scheduleActivationEnrollment";
 import { publishSchema } from "../../../validation/tournament.schemas";
 import {
@@ -90,15 +89,6 @@ export async function updateTournament(req: AuthenticatedRequest ,res: Response)
         : {
             ...bodyParse.data,
           };
-
-    const enrolledGuard = validateActiveTournamentEnrolledUpdate(
-      tournament.data,
-      bodyParse.data
-    );
-    if (!enrolledGuard.ok) {
-      res.status(enrolledGuard.status).json(buildErrorPayload(enrolledGuard.message));
-      return;
-    }
 
     const scheduleEnrollmentGuard = validateScheduleActivationEnrollment(
       tournament.data,

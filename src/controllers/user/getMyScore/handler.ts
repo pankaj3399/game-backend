@@ -52,11 +52,16 @@ export async function getMyScoreFlow(userId: string, query: MyScoreQuery) {
 			return left.id.localeCompare(right.id);
 		});
 
+	const totalEntries = mappedEntries.length;
 	const totalWins = mappedEntries.filter((entry) => entry.didWin === true).length;
+	const totalPages = Math.max(1, Math.ceil(totalEntries / query.limit));
+	const page = Math.min(query.page, totalPages);
+	const startIndex = (page - 1) * query.limit;
+	const paginatedEntries = mappedEntries.slice(startIndex, startIndex + query.limit);
 
 	const response: MyScoreResponse = {
 		summary: {
-			totalMatches: mappedEntries.length,
+			totalMatches: totalEntries,
 			totalWins,
 			glicko2: {
 				rating: Math.round(ratingSnapshot.rating),
@@ -67,7 +72,13 @@ export async function getMyScoreFlow(userId: string, query: MyScoreQuery) {
 			mode: query.mode,
 			range: query.range,
 		},
-		entries: mappedEntries,
+		pagination: {
+			page,
+			limit: query.limit,
+			total: totalEntries,
+			totalPages,
+		},
+		entries: paginatedEntries,
 	};
 
 	return ok(response, { status: 200, message: 'My score fetched successfully' });

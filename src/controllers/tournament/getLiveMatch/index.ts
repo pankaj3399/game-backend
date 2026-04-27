@@ -8,7 +8,8 @@ import { selectLiveGame, selectNextScheduledGame } from "./selection";
 
 /**
  * GET /api/tournaments/live-match
- * Returns the current user's active match (if any) and their next scheduled match.
+ * Returns the current user's active match (if any), next scheduled match,
+ * and all in-flight tournament matches where the user is a participant.
  */
 export async function getTournamentLiveMatch(req: AuthenticatedRequest, res: Response) {
   try {
@@ -20,6 +21,7 @@ export async function getTournamentLiveMatch(req: AuthenticatedRequest, res: Res
       res.status(200).json({
         liveMatch: null,
         nextMatch: null,
+        matches: [],
       });
       return;
     }
@@ -32,10 +34,12 @@ export async function getTournamentLiveMatch(req: AuthenticatedRequest, res: Res
 
     const liveMatch = liveGame ? mapLiveMatchItem(liveGame, userId) : null;
     const nextMatch = nextGame ? mapLiveMatchItem(nextGame, userId) : null;
+    const matches = games.map((game) => mapLiveMatchItem(game, userId));
 
     res.status(200).json({
       liveMatch,
       nextMatch,
+      matches,
     });
   } catch (err) {
     logger.error("Error getting tournament live match", { err });

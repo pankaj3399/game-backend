@@ -1,12 +1,20 @@
 import type { Types } from "mongoose";
-import type { GameStatus, MatchType } from "../../../types/domain/game";
-import type { MatchPlayerResponse, MatchStatusResponse } from "../../../types/domain/match";
+import type {
+  GamePlayMode,
+  GameStatus,
+  MatchType,
+} from "../../../types/domain/game";
+import type {
+  MatchPlayerResponse,
+  MatchStatusResponse,
+} from "../../../types/domain/match";
 
 export type { MatchPlayerResponse, MatchStatusResponse };
 
 export interface LiveMatchResponseItem {
   id: string;
   mode: MatchType;
+  playMode: GamePlayMode;
   status: MatchStatusResponse;
   startTime: string | null;
   tournament: {
@@ -32,6 +40,7 @@ export interface LiveMatchGameDoc {
   status: GameStatus;
   startTime?: Date | null;
   matchType: MatchType;
+  playMode: GamePlayMode;
   side1: {
     players: Array<PopulatedPlayer | Types.ObjectId | null>;
   };
