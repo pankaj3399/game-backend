@@ -55,6 +55,9 @@ export interface GameForMatchesDoc {
   matchType: MatchType;
   playMode: GamePlayMode;
   startTime?: Date | null;
+  isHistorical?: boolean;
+  detachedFromRound?: number | null;
+  detachedFromSlot?: number | null;
 }
 
 export type MatchScoreValueResponse = number | "wo";
@@ -82,6 +85,9 @@ export interface TournamentMatchResponse {
   players: [MatchPlayerResponse, MatchPlayerResponse];
   side1: [MatchPlayerResponse, MatchPlayerResponse | null];
   side2: [MatchPlayerResponse, MatchPlayerResponse | null];
+  isHistorical?: boolean;
+  detachedFromRound?: number | null;
+  detachedFromSlot?: number | null;
 }
 
 export interface TournamentMatchesResponse {

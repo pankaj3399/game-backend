@@ -128,16 +128,12 @@ function mapGameToMatch(
   };
 
   // Include information about detached/historical games (regenerated/rolled back)
-  if ((game as any).isHistorical === true) {
-    (base as any).isHistorical = true;
-    (base as any).detachedFromRound =
-      typeof (game as any).detachedFromRound === "number"
-        ? Math.trunc((game as any).detachedFromRound)
-        : null;
-    (base as any).detachedFromSlot =
-      typeof (game as any).detachedFromSlot === "number"
-        ? Math.trunc((game as any).detachedFromSlot)
-        : null;
+  if (game.isHistorical === true) {
+    base.isHistorical = true;
+    base.detachedFromRound =
+      typeof game.detachedFromRound === "number" ? Math.trunc(game.detachedFromRound) : null;
+    base.detachedFromSlot =
+      typeof game.detachedFromSlot === "number" ? Math.trunc(game.detachedFromSlot) : null;
   }
 
   return base;
@@ -165,14 +161,14 @@ export function mapTournamentMatchesResponse(
   // but were preserved during a regeneration. These games will have `isHistorical` and
   // `detachedFromRound`/`detachedFromSlot` set by the generator.
   for (const g of games) {
-    if ((g as any).isHistorical !== true) continue;
+    if (g.isHistorical !== true) continue;
     const id = g._id.toString();
     // Skip if already represented by schedule entries
     if (matches.some((m) => m.id === id)) continue;
     const syntheticEntry = {
       game: g._id,
-      round: (g as any).detachedFromRound ?? 1,
-      slot: (g as any).detachedFromSlot ?? 1,
+      round: g.detachedFromRound ?? 1,
+      slot: g.detachedFromSlot ?? 1,
     } as ScheduleRoundDoc;
     const mapped = mapGameToMatch(g, syntheticEntry);
     if (mapped != null) {

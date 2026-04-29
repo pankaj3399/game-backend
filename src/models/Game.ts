@@ -1,4 +1,4 @@
-import mongoose, { Document } from 'mongoose';
+import mongoose, { type HydratedDocument } from 'mongoose';
 import {
 	GAME_MODES,
 	GAME_PLAY_MODES,
@@ -126,7 +126,7 @@ const gameSchema = new mongoose.Schema<IGame>(
 	}
 );
 
-gameSchema.pre('validate', function (this: any) {
+gameSchema.pre('validate', function (this: HydratedDocument<IGame>) {
 	if (!this.side1 || !this.side2) {
 		this.invalidate('side1', 'both side1 and side2 are required');
 		this.invalidate('side2', 'both side1 and side2 are required');
