@@ -27,6 +27,10 @@ export interface IGame extends Document {
 	};
 	startTime?: Date;
 	endTime?: Date;
+	detachedFromRound?: number;
+	detachedFromSlot?: number;
+	isHistorical?: boolean;
+	detachedFromScheduleAt?: Date;
 	status: GameStatus;
 	gameMode: GameMode;
 	matchType: MatchType;
@@ -76,6 +80,10 @@ const gameSchema = new mongoose.Schema<IGame>(
 		},
 		startTime: { type: Date },
 		endTime: { type: Date },
+		detachedFromRound: { type: Number, index: true, sparse: true },
+		detachedFromSlot: { type: Number, sparse: true },
+		isHistorical: { type: Boolean, default: false },
+		detachedFromScheduleAt: { type: Date },
 		status: {
 			type: String,
 			enum: {
@@ -118,7 +126,7 @@ const gameSchema = new mongoose.Schema<IGame>(
 	}
 );
 
-gameSchema.pre('validate', function () {
+gameSchema.pre('validate', function (this: any) {
 	if (!this.side1 || !this.side2) {
 		this.invalidate('side1', 'both side1 and side2 are required');
 		this.invalidate('side2', 'both side1 and side2 are required');

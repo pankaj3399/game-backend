@@ -280,18 +280,31 @@ export async function persistScheduleRound(
           .map((game) => game._id);
 
         if (historicalGamesToPreserve.length > 0) {
+          const entryByGameId = new Map(
+            existingRoundEntries.map((e: ScheduleRoundEntryLike) => [e.game.toString(), e])
+          );
+
           await Game.bulkWrite(
-            historicalGamesToPreserve.map((game) => ({
-              updateOne: {
-                filter: { _id: game._id },
-                update: {
-                  $unset: { schedule: "" },
-                  $set: {
-                    status: game.status === "finished" ? "finished" : "cancelled",
+            historicalGamesToPreserve.map((game) => {
+              const entry = entryByGameId.get(game._id.toString());
+              const detachedRound = entry ? Math.trunc(entry.round) : undefined;
+              const detachedSlot = entry ? Math.trunc(entry.slot) : undefined;
+              return {
+                updateOne: {
+                  filter: { _id: game._id },
+                  update: {
+                    $unset: { schedule: "" },
+                    $set: {
+                      status: game.status === "finished" ? "finished" : "cancelled",
+                      isHistorical: true,
+                      detachedFromRound: detachedRound,
+                      detachedFromSlot: detachedSlot,
+                      detachedFromScheduleAt: new Date(),
+                    },
                   },
                 },
-              },
-            })),
+              };
+            }),
             { session }
           );
         }

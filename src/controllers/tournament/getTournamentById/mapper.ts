@@ -43,8 +43,6 @@ interface ClubSponsorDoc {
 export interface CourtInfo {
   id: string;
   name: string;
-  type: string | null;
-  placement: string | null;
 }
 
 export interface ParticipantInfo {
@@ -204,11 +202,10 @@ export function mapTournamentDetail(
     isActive &&
     !isParticipant &&
     hasAvailableSpots;
-  const hasLeaveBlockers =
-    isParticipant &&
-    ((leaveBlockers?.hasPendingScoreMatches ?? false) ||
-      (leaveBlockers?.hasUnfinishedMatches ?? false));
-  const canLeave = isParticipant && !hasLeaveBlockers;
+  // Leave availability is not hard-blocked based on match state.
+  // The leave flow finalizes unfinished matches (and pendingScore matches)
+  // as walkovers and uses confirmation when needed.
+  const canLeave = isParticipant;
 
   /* =========================
      Courts
@@ -222,8 +219,6 @@ export function mapTournamentDetail(
     courts.push({
       id,
       name: court.name ?? "",
-      type: court.type ?? null,
-      placement: court.placement ?? null,
     });
   }
 

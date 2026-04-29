@@ -47,7 +47,6 @@ export async function leaveTournamentFlow(
   type LeaveTransactionResult =
     | { outcome: "left"; tournament: { participants?: mongoose.Types.ObjectId[]; maxMember?: number } }
     | { outcome: "not_participant" }
-    | { outcome: "pending_score_matches" }
     | { outcome: "confirmation_required" }
     | { outcome: "concurrent_leave" }
     | { outcome: "concurrent_match_update" }
@@ -70,21 +69,9 @@ export async function leaveTournamentFlow(
         return { outcome: "not_participant" as const };
       }
 
-      const hasPendingScoreMatches = await Game.exists({
-        tournament: tournamentId,
-        status: "pendingScore",
-        $or: [{ "side1.players": authSession._id }, { "side2.players": authSession._id }],
-      })
-        .session(mongoSession)
-        .lean()
-        .exec();
-      if (hasPendingScoreMatches) {
-        return { outcome: "pending_score_matches" as const };
-      }
-
       const unfinishedMatches = await Game.find({
         tournament: tournamentId,
-        status: { $nin: ["finished", "cancelled", "pendingScore"] },
+        status: { $nin: ["finished", "cancelled"] },
         $or: [{ "side1.players": authSession._id }, { "side2.players": authSession._id }],
       })
         .select("_id side1.players side2.players")
@@ -119,10 +106,10 @@ export async function leaveTournamentFlow(
           isSameParticipantId(id, authSession._id)
         );
         const score = leavesFromSide1
-          ? { playerOneScores: ["wo" as const], playerTwoScores: [1] }
-          : { playerOneScores: [1], playerTwoScores: ["wo" as const] };
+          ? { playerOneScores: ["wo" as const], playerTwoScores: [0] }
+          : { playerOneScores: [0], playerTwoScores: ["wo" as const] };
         const updateResult = await Game.updateOne(
-          { _id: match._id, status: { $nin: ["finished", "cancelled", "pendingScore"] } },
+          { _id: match._id, status: { $nin: ["finished", "cancelled"] } },
           {
             $set: {
               score,
@@ -158,9 +145,6 @@ export async function leaveTournamentFlow(
   }
   if (returnedDoc.outcome === "confirmation_required") {
     return error(400, "LEAVE_CONFIRM_WO_REQUIRED");
-  }
-  if (returnedDoc.outcome === "pending_score_matches") {
-    return error(400, "Cannot leave tournament while pendingScore matches include this participant");
   }
   if (returnedDoc.outcome === "concurrent_leave") {
     return error(409, "Unable to leave tournament due to a concurrent update. Please retry.");

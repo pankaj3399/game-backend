@@ -22,6 +22,7 @@ export async function fetchScheduleForTournament(scheduleId: Types.ObjectId | nu
 }
 
 export async function fetchGamesForScheduleRounds(
+  tournamentId: Types.ObjectId,
   scheduleId: Types.ObjectId | null,
   rounds: ScheduleRoundDoc[]
 ) {
@@ -30,11 +31,17 @@ export async function fetchGamesForScheduleRounds(
   }
 
   const gameIds = rounds.map((entry) => entry.game);
+  const detachedRounds = Array.from(new Set(rounds.map((r) => Math.trunc(r.round))));
 
   // Populate is required: `GameForMatchesDoc` / `GameMatchPlayerSlot` assume
   // populated side players (see getTournamentMatches mapper), not raw refs.
-  return Game.find({ schedule: scheduleId, _id: { $in: gameIds } })
-    .select("_id side1 side2 court status matchType playMode startTime score")
+  return Game.find({
+    $or: [
+      { schedule: scheduleId, _id: { $in: gameIds } },
+      { tournament: tournamentId, isHistorical: true, detachedFromRound: { $in: detachedRounds } },
+    ],
+  })
+    .select("_id side1 side2 court status matchType playMode startTime score isHistorical detachedFromRound detachedFromSlot")
     .populate("side1.players", "name alias elo.rating elo.rd")
     .populate("side2.players", "name alias elo.rating elo.rd")
     .populate("court", "name")
