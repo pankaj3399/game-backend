@@ -127,6 +127,15 @@ function mapGameToMatch(
     side2,
   };
 
+  // Include information about detached/historical games (regenerated/rolled back)
+  if (game.isHistorical === true) {
+    base.isHistorical = true;
+    base.detachedFromRound =
+      typeof game.detachedFromRound === "number" ? Math.trunc(game.detachedFromRound) : null;
+    base.detachedFromSlot =
+      typeof game.detachedFromSlot === "number" ? Math.trunc(game.detachedFromSlot) : null;
+  }
+
   return base;
 }
 
@@ -144,6 +153,26 @@ export function mapTournamentMatchesResponse(
   for (const entry of schedule?.rounds ?? []) {
     const mapped = mapGameToMatch(gamesById.get(entry.game.toString()), entry);
     if (mapped != null) {
+      matches.push(mapped);
+    }
+  }
+
+  // Include detached/historical games that no longer exist in schedule.rounds
+  // but were preserved during a regeneration. These games will have `isHistorical` and
+  // `detachedFromRound`/`detachedFromSlot` set by the generator.
+  for (const g of games) {
+    if (g.isHistorical !== true) continue;
+    const id = g._id.toString();
+    // Skip if already represented by schedule entries
+    if (matches.some((m) => m.id === id)) continue;
+    const syntheticEntry = {
+      game: g._id,
+      round: g.detachedFromRound ?? 1,
+      slot: g.detachedFromSlot ?? 1,
+    } as ScheduleRoundDoc;
+    const mapped = mapGameToMatch(g, syntheticEntry);
+    if (mapped != null) {
+      // mark as historical is added inside mapGameToMatch
       matches.push(mapped);
     }
   }

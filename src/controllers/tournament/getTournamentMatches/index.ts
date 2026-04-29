@@ -47,6 +47,7 @@ export async function getTournamentMatches(req: AuthenticatedRequest, res: Respo
     const schedule = await fetchScheduleForTournament(scheduleId);
 
     const games = await fetchGamesForScheduleRounds(
+      tournament._id,
       scheduleId,
       schedule?.rounds ?? []
     );
