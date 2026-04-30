@@ -186,9 +186,10 @@ gameSchema.pre('validate', function (this: HydratedDocument<IGame>) {
 				'playerSnapshots must contain one snapshot per player'
 			);
 		}
-
 		const snapshotByPlayerId = new Set(
-			playerSnapshots.map((snapshot) => snapshot.player?.toString()).filter((id): id is string => Boolean(id))
+			playerSnapshots
+				.map((snapshot) => snapshot?.player?.toString())
+				.filter((id): id is string => Boolean(id))
 		);
 
 		for (const player of players) {
