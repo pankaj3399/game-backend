@@ -2,6 +2,7 @@ import type { Response } from "express";
 import mongoose from "mongoose";
 import Game from "../../../models/Game";
 import Schedule from "../../../models/Schedule";
+import Tournament from "../../../models/Tournament";
 import type { AuthenticatedRequest } from "../../../shared/authContext";
 import { buildErrorPayload } from "../../../shared/errors";
 import { guardIdParam } from "../../../shared/guards";
@@ -49,9 +50,24 @@ export async function cancelScheduleRound(req: AuthenticatedRequest, res: Respon
     const session = await mongoose.startSession();
     try {
       await session.withTransaction(async () => {
+        const latestTournament = await Tournament.findById(idResult.data)
+          .select("_id schedule")
+          .session(session)
+          .lean<{ _id: mongoose.Types.ObjectId; schedule: mongoose.Types.ObjectId | null }>()
+          .exec();
+
+        if (!latestTournament) {
+          throw new Error("Tournament not found");
+        }
+
         const scheduleId = tournament.schedule ?? null;
-        if (!scheduleId) {
-          throw new Error("No active schedule found for this tournament");
+        const latestScheduleId = latestTournament.schedule ?? null;
+        if (
+          !scheduleId ||
+          !latestScheduleId ||
+          scheduleId.toString() !== latestScheduleId.toString()
+        ) {
+          throw new Error("Tournament schedule changed concurrently. Please retry.");
         }
 
         const scheduleDoc = await Schedule.findById(scheduleId).session(session).exec();
@@ -123,12 +139,16 @@ export async function cancelScheduleRound(req: AuthenticatedRequest, res: Respon
     console.error(error);
     const message =
       error instanceof Error ? error.message : "Failed to cancel schedule round";
-    const status =
+    let status = 500;
+    if (message === "Tournament schedule changed concurrently. Please retry.") {
+      status = 409;
+    } else if (
       message === "Invalid round parameter" ||
       message === "No active schedule found for this tournament" ||
       (message.startsWith("Round ") && message.endsWith("has not been generated yet."))
-        ? 400
-        : 500;
+    ) {
+      status = 400;
+    }
     const safeMessage = status === 500 ? "Internal server error" : message;
     res.status(status).json(buildErrorPayload(safeMessage));
   }

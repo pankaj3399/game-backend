@@ -360,6 +360,9 @@ export async function persistScheduleRound(
       const tournamentTimezone = isScheduledTournament
         ? (freshTournament.timezone as string)
         : resolveTournamentTimeZone(freshTournament.timezone);
+      const participantsById = new Map(
+        freshTournament.participants.map((participant) => [participant._id.toString(), participant])
+      );
 
       const gameDocs = pairs.map((pair, index) => {
         const slot = Math.floor(index / matchesPerWave) + 1;
@@ -390,7 +393,7 @@ export async function persistScheduleRound(
         };
 
         const toSnapshot = (playerId: mongoose.Types.ObjectId) => {
-          const participant = freshTournament.participants.find((p) => p._id.toString() === playerId.toString());
+          const participant = participantsById.get(playerId.toString());
           const participantRating = participant?.elo?.rating;
           const participantRd = participant?.elo?.rd;
           const rating = Number.isFinite(participantRating) ? participantRating : 1500;

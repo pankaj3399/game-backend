@@ -55,8 +55,22 @@ const gameTeamSchema = new mongoose.Schema<IGameTeam>(
 			type: [
 				{
 					player: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-					rating: { type: Number, required: true },
-					rd: { type: Number, required: true }
+					rating: {
+						type: Number,
+						required: true,
+						validate: {
+							validator: Number.isFinite,
+							message: 'rating must be a finite number'
+						}
+					},
+					rd: {
+						type: Number,
+						required: true,
+						validate: {
+							validator: Number.isFinite,
+							message: 'rd must be a finite number'
+						}
+					}
 				}
 			],
 			required: true,
