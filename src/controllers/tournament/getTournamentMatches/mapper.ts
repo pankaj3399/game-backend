@@ -167,8 +167,8 @@ function mapGameToMatch(
     side1,
     side2,
     isHistorical: game.isHistorical === true ? true : undefined,
-    detachedFromRound: nullableInteger(game.detachedFromRound),
-    detachedFromSlot: nullableInteger(game.detachedFromSlot),
+    detachedFromRound: nullableInteger(game.detachedFromRound) ?? undefined,
+    detachedFromSlot: nullableInteger(game.detachedFromSlot) ?? undefined,
   };
 
   return base;
