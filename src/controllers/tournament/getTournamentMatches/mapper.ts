@@ -1,4 +1,4 @@
-import type { GameStatus } from "../../../types/domain/game";
+import type { GamePlayMode, GameStatus, MatchType } from "../../../types/domain/game";
 import type {
   GameForMatchesDoc,
   GameMatchPlayerSlot,
@@ -10,7 +10,7 @@ import type {
   TournamentMatchResponse,
 } from "./types";
 
-function mapStatus(status: GameStatus): MatchStatusResponse {
+function mapStatus(status: GameStatus | undefined): MatchStatusResponse {
   switch (status) {
     case "finished":
       return "completed";
@@ -25,6 +25,54 @@ function mapStatus(status: GameStatus): MatchStatusResponse {
     default:
       return "scheduled";
   }
+}
+
+function normalizeMatchType(value: unknown): MatchType {
+  return value === "doubles" ? "doubles" : "singles";
+}
+
+function normalizePlayMode(value: unknown): GamePlayMode {
+  switch (value) {
+    case "TieBreak10":
+    case "1set":
+    case "3setTieBreak10":
+    case "3set":
+    case "5set":
+      return value;
+    default:
+      return "TieBreak10";
+  }
+}
+
+function nullableInteger(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Math.trunc(value);
+  }
+
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? Math.trunc(parsed) : null;
+  }
+
+  return null;
+}
+
+function positiveInteger(value: unknown, fallback: number): number {
+  const parsed = nullableInteger(value);
+  return parsed != null && parsed >= 1 ? parsed : fallback;
+}
+
+function dateToIso(value: unknown): string | null {
+  if (value instanceof Date) {
+    return Number.isFinite(value.getTime()) ? value.toISOString() : null;
+  }
+
+  if (typeof value === "string" || typeof value === "number") {
+    const date = new Date(value);
+    return Number.isFinite(date.getTime()) ? date.toISOString() : null;
+  }
+
+  return null;
 }
 
 function normalizeScores(values: Array<number | "wo"> | undefined) {
@@ -101,12 +149,12 @@ function mapGameToMatch(
 
   const base: TournamentMatchResponse = {
     id: game._id.toString(),
-    round: Math.max(1, Math.trunc(entry.round)),
-    slot: Math.max(1, Math.trunc(entry.slot)),
-    mode: game.matchType,
-    playMode: game.playMode,
+    round: positiveInteger(entry.round, 1),
+    slot: positiveInteger(entry.slot, 1),
+    mode: normalizeMatchType(game.matchType),
+    playMode: normalizePlayMode(game.playMode),
     status: mapStatus(game.status),
-    startTime: game.startTime?.toISOString() ?? null,
+    startTime: dateToIso(game.startTime),
     score: {
       playerOneScores: normalizeScores(game.score?.playerOneScores),
       playerTwoScores: normalizeScores(game.score?.playerTwoScores),
@@ -118,16 +166,10 @@ function mapGameToMatch(
     players,
     side1,
     side2,
+    isHistorical: game.isHistorical === true ? true : undefined,
+    detachedFromRound: nullableInteger(game.detachedFromRound),
+    detachedFromSlot: nullableInteger(game.detachedFromSlot),
   };
-
-  // Include information about detached/historical games (regenerated/rolled back)
-  if (game.isHistorical === true) {
-    base.isHistorical = true;
-    base.detachedFromRound =
-      typeof game.detachedFromRound === "number" ? Math.trunc(game.detachedFromRound) : null;
-    base.detachedFromSlot =
-      typeof game.detachedFromSlot === "number" ? Math.trunc(game.detachedFromSlot) : null;
-  }
 
   return base;
 }
@@ -160,8 +202,8 @@ export function mapTournamentMatchesResponse(
     if (matches.some((m) => m.id === id)) continue;
     const syntheticEntry = {
       game: g._id,
-      round: g.detachedFromRound ?? 1,
-      slot: g.detachedFromSlot ?? 1,
+      round: positiveInteger(g.detachedFromRound, 1),
+      slot: positiveInteger(g.detachedFromSlot, 1),
     } as ScheduleRoundDoc;
     const mapped = mapGameToMatch(g, syntheticEntry);
     if (mapped != null) {
