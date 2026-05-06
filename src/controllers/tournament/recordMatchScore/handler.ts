@@ -1,7 +1,8 @@
 import mongoose, { Types } from "mongoose";
-import Game from "../../../models/Game";
+import Game, { type IGame } from "../../../models/Game";
 import Schedule from "../../../models/Schedule";
 import Tournament from "../../../models/Tournament";
+import { DEFAULT_ELO } from "../../../lib/config";
 import { AppError } from "../../../shared/errors";
 import type { GamePlayMode } from "../../../types/domain/game";
 import { recomputeTournamentGlickoRatingsThroughRound } from "./recomputeTournamentGlickoRatings";
@@ -21,6 +22,28 @@ type ScoreValue = number | "wo";
 
 function isObjectId(value: unknown): value is Types.ObjectId {
   return value instanceof Types.ObjectId;
+}
+
+function normalizeSnapshotVolatility(game: mongoose.HydratedDocument<IGame>) {
+  const sides = [game.side1, game.side2];
+  for (const side of sides) {
+    if (!Array.isArray(side?.playerSnapshots)) {
+      continue;
+    }
+
+    for (const snapshot of side.playerSnapshots) {
+      if (!snapshot) {
+        continue;
+      }
+
+      if (!Number.isFinite(snapshot.vol) || snapshot.vol <= 0) {
+        snapshot.vol = DEFAULT_ELO.vol;
+      }
+      if (!Number.isFinite(snapshot.tau) || snapshot.tau <= 0) {
+        snapshot.tau = DEFAULT_ELO.tau;
+      }
+    }
+  }
 }
 
 function scoreToOutcomes(playerOneScore: ScoreValue, playerTwoScore: ScoreValue) {
@@ -190,6 +213,7 @@ export async function recordTournamentMatchScoreFlow(
 
       const now = new Date();
       game.startTime = game.startTime ?? now;
+      normalizeSnapshotVolatility(game);
 
       const setsRequired = requiredSetCount(game.playMode);
       if (
