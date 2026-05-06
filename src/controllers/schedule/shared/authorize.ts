@@ -28,6 +28,15 @@ export async function authorizeScheduleAccess(
   return ok({ clubId }, { status: 200, message: "Authorized" });
 }
 
+/** True when the user may schedule or manage scores as tournament/club staff (not only as a player). */
+export async function hasTournamentScheduleAccess(
+  tournament: TournamentScheduleContext,
+  session: AuthenticatedSession
+): Promise<boolean> {
+  const result = await authorizeScheduleAccess(tournament, session);
+  return result.status === 200;
+}
+
 /**
  * Staff scheduling permission, or (if `matchId` is set) the user is a player on that match.
  * Avoids duplicating staff checks vs participant checks across controllers.

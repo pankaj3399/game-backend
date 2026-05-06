@@ -2,7 +2,12 @@ import type { Response } from "express";
 import { logger } from "../../../lib/logger";
 import type { AuthenticatedRequest } from "../../../shared/authContext";
 import { AppError, buildErrorPayload } from "../../../shared/errors";
-import { authorizeScheduleOrMatchParticipant } from "../../schedule/shared/authorize";
+import { getTournamentOrganiserScoreEditGraceDays } from "../../../lib/config";
+import Tournament from "../../../models/Tournament";
+import {
+  authorizeScheduleOrMatchParticipant,
+  hasTournamentScheduleAccess,
+} from "../../schedule/shared/authorize";
 import { fetchTournamentScheduleContext } from "../../schedule/shared/queries";
 import { recordTournamentMatchScoreFlow } from "./handler";
 import { recordMatchScoreParamsSchema, recordMatchScoreSchema } from "./validation";
@@ -46,7 +51,26 @@ export async function recordMatchScore(req: AuthenticatedRequest, res: Response)
       return;
     }
 
-    const result = await recordTournamentMatchScoreFlow(tournamentId, matchIdParam, parsedBody.data);
+    const isOrganiser = await hasTournamentScheduleAccess(tournament, req.user);
+    let completedAt: Date | null = null;
+    if (isOrganiser) {
+      const meta = await Tournament.findById(tournamentId)
+        .select("completedAt")
+        .lean<{ completedAt?: Date | null } | null>()
+        .exec();
+      completedAt = meta?.completedAt ?? null;
+    }
+
+    const graceDays = getTournamentOrganiserScoreEditGraceDays();
+    const organiserGraceExpired =
+      isOrganiser &&
+      completedAt instanceof Date &&
+      Date.now() > completedAt.getTime() + graceDays * 24 * 60 * 60 * 1000;
+
+    const result = await recordTournamentMatchScoreFlow(tournamentId, matchIdParam, parsedBody.data, {
+      actor: isOrganiser ? "organiser" : "participant",
+      organiserGraceExpired,
+    });
 
     const responseMessage =
       result.matchStatus === "completed"

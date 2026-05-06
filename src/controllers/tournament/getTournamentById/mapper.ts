@@ -1,5 +1,6 @@
 import type { TournamentPopulated } from "../../../types/api/tournament";
 import { ROLES } from "../../../constants/roles";
+import { getTournamentOrganiserScoreEditGraceDays } from "../../../lib/config";
 import type { DetailViewContext } from "../shared/authorizeGetById";
 import { computeSpotsTotal } from "../computeSpotsTotal";
 import type { TournamentLeaveBlockers } from "../shared/fetchTournamentById";
@@ -94,6 +95,8 @@ export interface TournamentDetailResponse {
   createdAt: string | null;
   updatedAt: string | null;
   completedAt?: string | null;
+  /** Last instant organisers may adjust scores (completedAt + grace). Null when the tournament is not completed yet. */
+  organiserScoreEditDeadline?: string | null;
 }
 
 /* =========================
@@ -284,6 +287,16 @@ export function mapTournamentDetail(
 
   const effectiveTimezone = tournament.timezone ?? DEFAULT_TOURNAMENT_TIMEZONE;
 
+  const completedAtIso =
+    tournament.completedAt instanceof Date ? tournament.completedAt.toISOString() : null;
+  const organiserScoreEditDeadline =
+    tournament.completedAt instanceof Date && Number.isFinite(tournament.completedAt.getTime())
+      ? new Date(
+          tournament.completedAt.getTime() +
+            getTournamentOrganiserScoreEditGraceDays() * 24 * 60 * 60 * 1000
+        ).toISOString()
+      : null;
+
   return {
     id: tournamentId,
     name: tournament.name,
@@ -338,6 +351,7 @@ export function mapTournamentDetail(
     },
     createdAt: tournament.createdAt instanceof Date ? tournament.createdAt.toISOString() : null,
     updatedAt: tournament.updatedAt instanceof Date ? tournament.updatedAt.toISOString() : null,
-    completedAt: tournament.completedAt instanceof Date ? tournament.completedAt.toISOString() : null,
+    completedAt: completedAtIso,
+    organiserScoreEditDeadline,
   };
 }
