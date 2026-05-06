@@ -2,7 +2,10 @@ import mongoose from "mongoose";
 import Game from "../../../models/Game";
 import Schedule from "../../../models/Schedule.js";
 import Tournament from "../../../models/Tournament";
+import User from "../../../models/User";
+import { DEFAULT_ELO } from "../../../lib/config";
 import type { GameStatus } from "../../../types/domain/game";
+import { recomputeTournamentGlickoRatingsThroughRound } from "../../tournament/recordMatchScore/recomputeTournamentGlickoRatings";
 import {
   buildRoundPairs,
   ensureMinimumParticipants,
@@ -12,10 +15,12 @@ import {
   computeMatchStartTime,
   getParticipantOrder,
 } from "../shared/helpers";
-import { parseDurationMinutes, resolveTimedGameStatus } from "../../../shared/matchTiming";
+import { parseDurationMinutes } from "../../../shared/matchTiming";
 import { isValidIanaTimeZone, resolveTournamentTimeZone } from "../../../shared/timezone";
+import { ensurePreviousRoundFinished } from "./ensurePreviousRoundFinished";
 import type {
   GenerateScheduleBody,
+  ScheduleParticipantInfo,
   TournamentScheduleContext,
 } from "../shared/types";
 type ScheduleRoundEntryLike = {
@@ -33,6 +38,8 @@ type ReplaceableGame = {
   _id: mongoose.Types.ObjectId;
   status: GameStatus;
   score?: { playerOneScores?: Array<number | "wo">; playerTwoScores?: Array<number | "wo"> } | null;
+  side1?: { playerSnapshots?: Array<{ player: mongoose.Types.ObjectId; rating: number; rd: number; vol?: number; tau?: number }> } | null;
+  side2?: { playerSnapshots?: Array<{ player: mongoose.Types.ObjectId; rating: number; rd: number; vol?: number; tau?: number }> } | null;
 };
 
 function hasScoresOrRelevantStatus(
@@ -46,84 +53,6 @@ function hasScoresOrRelevantStatus(
     return true;
   }
   return includeActiveStatus && game.status === "active";
-}
-
-async function ensurePreviousRoundFinished(
-  scheduleDoc: {
-    _id: mongoose.Types.ObjectId;
-    rounds: ScheduleRoundEntryLike[];
-  },
-  targetRound: number,
-  matchDurationMinutes: number,
-  session: mongoose.ClientSession
-) {
-  if (targetRound <= 1) {
-    return;
-  }
-
-  const previousRound = targetRound - 1;
-  const previousRoundEntries = scheduleDoc.rounds.filter(
-    (entry: ScheduleRoundEntryLike) => entry.round === previousRound
-  );
-
-  if (previousRoundEntries.length === 0) {
-    throw new Error(
-      `Round ${previousRound} has not been generated yet. Generate and complete it before creating round ${targetRound}.`
-    );
-  }
-
-  const previousRoundGameIds = previousRoundEntries.map((entry) => entry.game);
-  const previousRoundGames = await Game.find({
-    _id: { $in: previousRoundGameIds },
-    schedule: scheduleDoc._id,
-  })
-    .select("_id status startTime")
-    .session(session)
-    .lean<Array<{ _id: mongoose.Types.ObjectId; status: GameStatus; startTime?: Date | null }>>()
-    .exec();
-
-  const now = new Date();
-  const updates: Array<{ id: mongoose.Types.ObjectId; status: GameStatus }> = [];
-  const statusByGameId = new Map<string, GameStatus>();
-
-  for (const game of previousRoundGames) {
-    const nextStatus = resolveTimedGameStatus({
-      persistedStatus: game.status,
-      startTime: game.startTime ?? null,
-      matchDurationMinutes,
-      now,
-    });
-
-    statusByGameId.set(game._id.toString(), nextStatus);
-
-    if (nextStatus !== game.status) {
-      updates.push({ id: game._id, status: nextStatus });
-    }
-  }
-
-  if (updates.length > 0) {
-    await Game.bulkWrite(
-      updates.map((entry) => ({
-        updateOne: {
-          filter: { _id: entry.id },
-          update: { $set: { status: entry.status } },
-        },
-      })),
-      { session }
-    );
-  }
-
-  const hasUnfinishedMatch = previousRoundEntries.some((entry) => {
-    const status = statusByGameId.get(entry.game.toString());
-    // Tournament progression ignores cancelled matches.
-    return status !== "finished" && status !== "cancelled";
-  });
-
-  if (hasUnfinishedMatch) {
-    throw new Error(
-      `Round ${previousRound} is not finished yet. Complete all match scores before generating round ${targetRound}.`
-    );
-  }
 }
 
 export async function persistScheduleRound(
@@ -155,7 +84,7 @@ export async function persistScheduleRound(
             select: "_id name",
           },
         })
-        .populate("participants", "name alias elo.rating elo.rd")
+        .populate("participants", "name alias elo.rating elo.rd elo.vol elo.tau")
         .session(session)
         .lean<TournamentScheduleContext | null>()
         .exec();
@@ -175,12 +104,6 @@ export async function persistScheduleRound(
       if (uniqueCourtIds.length === 0) {
         throw new Error("At least one valid court must be selected");
       }
-
-      const selectedParticipants = getParticipantOrder(
-        body.participantOrder,
-        freshTournament.participants
-      );
-      ensureMinimumParticipants(body.mode, selectedParticipants.length);
 
       let scheduleDoc = freshTournament.schedule
         ? await Schedule.findById(freshTournament.schedule).session(session).exec()
@@ -221,6 +144,11 @@ export async function persistScheduleRound(
         (entry: ScheduleRoundEntryLike) => entry.round === targetRound
       );
       const isRoundRegeneration = existingRoundEntries.length > 0;
+      if (isRoundRegeneration && targetRound !== scheduleDoc.currentRound) {
+        throw new Error(
+          `Cannot regenerate round ${targetRound} while later rounds exist. Cancel later rounds first.`
+        );
+      }
 
       const scheduleMatchDurationMinutes = parseDurationMinutes(
         scheduleDoc.matchDurationMinutes ?? null,
@@ -239,6 +167,12 @@ export async function persistScheduleRound(
           roundMatchDurationMinutes,
           session
         );
+
+        if (targetRound > 1) {
+          await recomputeTournamentGlickoRatingsThroughRound(scheduleDoc._id, targetRound - 1, {
+            session,
+          });
+        }
       }
 
       if (existingRoundEntries.length > 0) {
@@ -249,7 +183,7 @@ export async function persistScheduleRound(
           _id: { $in: gamesToReplaceIds },
           schedule: scheduleDoc._id,
         })
-          .select("_id status score")
+          .select("_id status score side1.playerSnapshots side2.playerSnapshots")
           .session(session)
           .lean<ReplaceableGame[]>()
           .exec();
@@ -321,7 +255,62 @@ export async function persistScheduleRound(
         scheduleDoc.rounds = scheduleDoc.rounds.filter(
           (entry: ScheduleRoundEntryLike) => entry.round !== targetRound
         );
+
+        if (targetRound === 1) {
+          const baselineByUserId = new Map<string, { rating: number; rd: number; vol?: number; tau?: number }>();
+          for (const game of gamesToReplace) {
+            const snapshots = [
+              ...(game.side1?.playerSnapshots ?? []),
+              ...(game.side2?.playerSnapshots ?? []),
+            ];
+            for (const snapshot of snapshots) {
+              baselineByUserId.set(snapshot.player.toString(), {
+                rating: snapshot.rating,
+                rd: snapshot.rd,
+                vol: snapshot.vol,
+                tau: snapshot.tau,
+              });
+            }
+          }
+
+          if (baselineByUserId.size > 0) {
+            await User.bulkWrite(
+              [...baselineByUserId.entries()].map(([userId, rating]) => ({
+                updateOne: {
+                  filter: { _id: userId },
+                  update: {
+                    $set: {
+                      "elo.rating": rating.rating,
+                      "elo.rd": rating.rd,
+                      "elo.vol": Number.isFinite(rating.vol) && rating.vol! > 0 ? rating.vol : DEFAULT_ELO.vol,
+                      "elo.tau": Number.isFinite(rating.tau) && rating.tau! > 0 ? rating.tau : DEFAULT_ELO.tau,
+                    },
+                  },
+                },
+              })),
+              { session }
+            );
+          }
+        }
       }
+
+      if (isRoundRegeneration && targetRound > 1) {
+        await recomputeTournamentGlickoRatingsThroughRound(scheduleDoc._id, targetRound - 1, {
+          session,
+        });
+      }
+
+      const participantIds = freshTournament.participants.map((participant) => participant._id);
+      const latestParticipants = await User.find({ _id: { $in: participantIds } })
+        .select("name alias elo.rating elo.rd elo.vol elo.tau")
+        .session(session)
+        .lean<ScheduleParticipantInfo[]>()
+        .exec();
+      const selectedParticipants = getParticipantOrder(
+        body.participantOrder,
+        latestParticipants
+      );
+      ensureMinimumParticipants(body.mode, selectedParticipants.length);
 
       const { pairs } = buildRoundPairs(
         selectedParticipants,
@@ -361,13 +350,75 @@ export async function persistScheduleRound(
         ? (freshTournament.timezone as string)
         : resolveTournamentTimeZone(freshTournament.timezone);
       const participantsById = new Map(
-        freshTournament.participants.map((participant) => [participant._id.toString(), participant])
+        latestParticipants.map((participant) => [participant._id.toString(), participant])
       );
 
+      type SlotAssignment = { slot: number; courtId: string };
+
+      function getPairParticipantIds(pair: MatchPair): string[] {
+        if (pair.kind === "singles") {
+          return [pair.teamOne[0].toString(), pair.teamTwo[0].toString()];
+        }
+
+        return [
+          pair.teamOne[0].toString(),
+          pair.teamOne[1].toString(),
+          pair.teamTwo[0].toString(),
+          pair.teamTwo[1].toString(),
+        ];
+      }
+
+      /**
+       * Assign matches to simultaneous slots such that no participant appears in
+       * more than one match in the same slot (prevents "A/B vs A/C" happening at once).
+       */
+      const slots: Array<{ usedPlayers: Set<string>; matchCount: number }> = [];
+      const slotAssignments: SlotAssignment[] = new Array(pairs.length);
+
+      for (let pairIndex = 0; pairIndex < pairs.length; pairIndex += 1) {
+        const pair = pairs[pairIndex];
+        const pairParticipantIds = Array.from(new Set(getPairParticipantIds(pair)));
+
+        let placed = false;
+        for (let slotIndex = 0; slotIndex < slots.length; slotIndex += 1) {
+          const slot = slots[slotIndex];
+          if (slot.matchCount >= matchesPerWave) {
+            continue;
+          }
+
+          const hasConflicts = pairParticipantIds.some((participantId) =>
+            slot.usedPlayers.has(participantId)
+          );
+          if (hasConflicts) {
+            continue;
+          }
+
+          const courtLocalIndex = slot.matchCount;
+          slot.matchCount += 1;
+          pairParticipantIds.forEach((participantId) => slot.usedPlayers.add(participantId));
+
+          slotAssignments[pairIndex] = {
+            slot: slotIndex + 1,
+            courtId: uniqueCourtIds[courtLocalIndex],
+          };
+          placed = true;
+          break;
+        }
+
+        if (!placed) {
+          const newSlotIndex = slots.length;
+          slots.push({ usedPlayers: new Set(pairParticipantIds), matchCount: 1 });
+          slotAssignments[pairIndex] = {
+            slot: newSlotIndex + 1,
+            courtId: uniqueCourtIds[0],
+          };
+        }
+      }
+
       const gameDocs = pairs.map((pair, index) => {
-        const slot = Math.floor(index / matchesPerWave) + 1;
+        const { slot, courtId } = slotAssignments[index]!;
         const common = {
-          court: new mongoose.Types.ObjectId(uniqueCourtIds[index % uniqueCourtIds.length]),
+          court: new mongoose.Types.ObjectId(courtId),
           tournament: freshTournament._id,
           schedule: scheduleDoc._id,
           score: {
@@ -396,9 +447,13 @@ export async function persistScheduleRound(
           const participant = participantsById.get(playerId.toString());
           const participantRating = participant?.elo?.rating;
           const participantRd = participant?.elo?.rd;
+          const participantVol = participant?.elo?.vol;
+          const participantTau = participant?.elo?.tau;
           const rating = Number.isFinite(participantRating) ? participantRating : 1500;
           const rd = Number.isFinite(participantRd) ? participantRd : 200;
-          return { player: playerId, rating, rd };
+          const vol = Number.isFinite(participantVol) && participantVol! > 0 ? participantVol! : 0.06;
+          const tau = Number.isFinite(participantTau) && participantTau! > 0 ? participantTau! : 0.5;
+          return { player: playerId, rating, rd, vol, tau };
         };
 
         if (pair.kind === "singles") {
@@ -429,7 +484,7 @@ export async function persistScheduleRound(
       const newRoundEntries = createdGames.map((game, index) => ({
         game: game._id,
         mode: body.mode,
-        slot: Math.floor(index / matchesPerWave) + 1,
+        slot: slotAssignments[index]!.slot,
         round: targetRound,
       }));
 

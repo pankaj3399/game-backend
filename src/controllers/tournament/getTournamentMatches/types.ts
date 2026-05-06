@@ -42,11 +42,11 @@ export interface GameForMatchesDoc {
   _id: Types.ObjectId;
   side1: {
     players: GameMatchPlayerSlot[];
-    playerSnapshots?: Array<{ player: Types.ObjectId; rating: number; rd: number }> | null;
+    playerSnapshots?: Array<{ player: Types.ObjectId; rating: number; rd: number; vol?: number; tau?: number }> | null;
   };
   side2: {
     players: GameMatchPlayerSlot[];
-    playerSnapshots?: Array<{ player: Types.ObjectId; rating: number; rd: number }> | null;
+    playerSnapshots?: Array<{ player: Types.ObjectId; rating: number; rd: number; vol?: number; tau?: number }> | null;
   };
   court?: PopulatedMatchCourtDoc | null;
   score?: {

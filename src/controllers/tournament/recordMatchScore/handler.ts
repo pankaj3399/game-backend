@@ -1,21 +1,23 @@
 import mongoose, { Types } from "mongoose";
-import { rateGlicko2HeadToHead, rateGlicko2Player } from "../../../lib/glicko2";
 import Game from "../../../models/Game";
 import Schedule from "../../../models/Schedule";
 import Tournament from "../../../models/Tournament";
-import User from "../../../models/User";
 import { AppError } from "../../../shared/errors";
 import type { GamePlayMode } from "../../../types/domain/game";
+import { recomputeTournamentGlickoRatingsThroughRound } from "./recomputeTournamentGlickoRatings";
 import type { RecordMatchScoreInput } from "./validation";
 
-type ScoreValue = number | "wo";
+export type TournamentScoreActor = "organiser" | "participant";
 
-interface RatingState {
-  rating: number;
-  rd: number;
-  vol: number;
-  tau: number;
-}
+export type RecordTournamentMatchScoreOptions = {
+  actor: TournamentScoreActor;
+  /** When true, organisers may no longer adjust scores (after grace period from tournament completion). */
+  organiserGraceExpired: boolean;
+  /** When true, participant score edits are closed because the tournament is complete. */
+  tournamentCompleted: boolean;
+};
+
+type ScoreValue = number | "wo";
 
 function isObjectId(value: unknown): value is Types.ObjectId {
   return value instanceof Types.ObjectId;
@@ -63,90 +65,6 @@ function flattenOutcomeSegments(input: RecordMatchScoreInput) {
   }
 
   return outcomes;
-}
-
-/** Matches glicko2.ts SCALE — combine RD in φ-space (equal weights, e.g. 0.5 each in doubles). */
-const GLICKO_RD_SCALE = 173.7178;
-
-function averageOpponentState(states: RatingState[]) {
-  const count = states.length;
-  if (count === 0) {
-    return {
-      rating: 1500,
-      rd: 200,
-      vol: 0.06,
-      tau: 0.5,
-    };
-  }
-
-  if (count === 1) {
-    const s = states[0];
-    return { ...s };
-  }
-
-  const weight = 1 / count;
-  let phiSqWeightedSum = 0;
-  let ratingSum = 0;
-  let volSum = 0;
-  let tauSum = 0;
-
-  for (const state of states) {
-    ratingSum += state.rating;
-    const phi = state.rd / GLICKO_RD_SCALE;
-    phiSqWeightedSum += weight * weight * phi * phi;
-    volSum += state.vol;
-    tauSum += state.tau;
-  }
-
-  return {
-    rating: ratingSum / count,
-    rd: Math.sqrt(phiSqWeightedSum) * GLICKO_RD_SCALE,
-    vol: volSum / count,
-    tau: tauSum / count,
-  };
-}
-
-function toRatingState(user: {
-  elo?: { rating?: number | null; rd?: number | null; vol?: number | null; tau?: number | null } | null;
-}) {
-  const rating = typeof user.elo?.rating === "number" ? user.elo.rating : 1500;
-  const rd = typeof user.elo?.rd === "number" ? user.elo.rd : 200;
-  const vol = typeof user.elo?.vol === "number" ? user.elo.vol : 0.06;
-  const tau = typeof user.elo?.tau === "number" ? user.elo.tau : 0.5;
-
-  return {
-    rating,
-    rd,
-    vol,
-    tau,
-  };
-}
-
-function getStateOrThrow(states: Map<string, RatingState>, id: string) {
-  const state = states.get(id);
-  if (!state) {
-    throw new AppError(`Invariant: missing rating state for participant ${id}`, 500);
-  }
-  return state;
-}
-
-function getSidePlayerIds(
-  game: { side1?: { players?: unknown[] }; side2?: { players?: unknown[] } },
-  side: "side1" | "side2"
-) {
-  const entry = game[side];
-  if (!entry || !Array.isArray(entry.players)) {
-    return [] as string[];
-  }
-
-  const ids: string[] = [];
-  for (const player of entry.players) {
-    if (isObjectId(player)) {
-      ids.push(player.toString());
-    }
-  }
-
-  return ids;
 }
 
 function compareSetScore(playerOneScore: ScoreValue, playerTwoScore: ScoreValue): number {
@@ -218,7 +136,8 @@ function decisiveSetsLength(playMode: GamePlayMode, input: RecordMatchScoreInput
 export async function recordTournamentMatchScoreFlow(
   tournamentId: string,
   matchId: string,
-  input: RecordMatchScoreInput
+  input: RecordMatchScoreInput,
+  options: RecordTournamentMatchScoreOptions
 ) {
   const session = await mongoose.startSession();
 
@@ -234,6 +153,39 @@ export async function recordTournamentMatchScoreFlow(
 
       if (!game) {
         throw new AppError("Tournament match not found", 404);
+      }
+
+      if (options.actor === "organiser" && options.organiserGraceExpired) {
+        throw new AppError(
+          "The organiser score edit period for this tournament has ended",
+          403
+        );
+      }
+      if (options.actor === "participant" && options.tournamentCompleted) {
+        throw new AppError("Scores can no longer be edited after the tournament is completed", 403);
+      }
+
+      const schedule = game.schedule
+        ? await Schedule.findById(game.schedule).session(session).exec()
+        : await Schedule.findOne({ tournament: tournamentId }).session(session).exec();
+      const roundEntry = schedule?.rounds.find((entry) => entry.game.toString() === game._id.toString());
+
+      const organiserMayEditAnyRound = options.actor === "organiser" && !options.organiserGraceExpired;
+      const isDetachedOrHistorical = game.isHistorical === true || game.detachedFromRound != null;
+      const isCurrentScheduledRound =
+        Boolean(schedule && roundEntry && roundEntry.round === schedule.currentRound);
+      const isScoreOnlyEdit =
+        organiserMayEditAnyRound &&
+        (game.status === "cancelled" || isDetachedOrHistorical || !isCurrentScheduledRound);
+
+      if (!roundEntry && !isDetachedOrHistorical) {
+        throw new AppError("Match is not part of this tournament schedule", 404);
+      }
+      if (!organiserMayEditAnyRound && (game.status === "cancelled" || isDetachedOrHistorical)) {
+        throw new AppError("Scores can only be edited for scheduled matches in this tournament", 409);
+      }
+      if (!organiserMayEditAnyRound && !isCurrentScheduledRound) {
+        throw new AppError("Scores can only be edited for matches in the current round", 409);
       }
 
       const now = new Date();
@@ -257,8 +209,10 @@ export async function recordTournamentMatchScoreFlow(
           playerOneScores: [...input.playerOneScores],
           playerTwoScores: [...input.playerTwoScores],
         };
-        game.status = "pendingScore";
-        game.endTime = undefined;
+        game.status = isScoreOnlyEdit && game.status === "cancelled" ? "cancelled" : "pendingScore";
+        if (game.status !== "cancelled") {
+          game.endTime = undefined;
+        }
         await game.save({ session });
 
         return {
@@ -267,6 +221,7 @@ export async function recordTournamentMatchScoreFlow(
           matchStatus: "pendingScore" as const,
           tournamentCompleted: false,
           updatedRatings: [] as Array<{ userId: string; rating: number; rd: number; vol: number }>,
+          ratingsRecomputed: false,
         };
       }
 
@@ -291,8 +246,8 @@ export async function recordTournamentMatchScoreFlow(
         throw new AppError("At least one score outcome is required", 400);
       }
 
-      game.status = "finished";
-      game.endTime = now;
+      game.status = isScoreOnlyEdit && game.status === "cancelled" ? "cancelled" : "finished";
+      game.endTime = game.status === "finished" ? now : game.endTime;
       await game.save({ session });
 
       const participantIds = [
@@ -305,111 +260,7 @@ export async function recordTournamentMatchScoreFlow(
         throw new AppError("Match is missing participants", 400);
       }
 
-      const users = await User.find({ _id: { $in: uniqueParticipantIds } })
-        .setOptions({ includeDeleted: true })
-        .select("_id elo")
-        .session(session)
-        .lean<Array<{ _id: Types.ObjectId; elo?: { rating?: number; rd?: number; vol?: number; tau?: number } }>>()
-        .exec();
-
-      const byUserId = new Map(users.map((user) => [user._id.toString(), user]));
-      if (byUserId.size !== uniqueParticipantIds.length) {
-        throw new AppError("One or more match participants no longer exist", 400);
-      }
-
-      const states = new Map<string, RatingState>();
-      for (const participantId of uniqueParticipantIds) {
-        const user = byUserId.get(participantId);
-        if (!user) {
-          throw new AppError(
-            `Invariant: missing user document while building rating state for participant ${participantId}`,
-            500
-          );
-        }
-        states.set(participantId, toRatingState(user));
-      }
-
-      const teamOneIds = getSidePlayerIds(game, "side1");
-      const teamTwoIds = getSidePlayerIds(game, "side2");
-
-      if (game.matchType === "singles") {
-        if (teamOneIds.length !== 1 || teamTwoIds.length !== 1) {
-          throw new AppError("Singles match must contain exactly one player per team", 400);
-        }
-
-        const playerOneId = teamOneIds[0];
-        const playerTwoId = teamTwoIds[0];
-
-        for (const score of outcomes) {
-          const playerOneState = getStateOrThrow(states, playerOneId);
-          const playerTwoState = getStateOrThrow(states, playerTwoId);
-
-          const updated = rateGlicko2HeadToHead(playerOneState, playerTwoState, score);
-          states.set(playerOneId, updated.playerOne);
-          states.set(playerTwoId, updated.playerTwo);
-        }
-      } else {
-        if (teamOneIds.length !== 2 || teamTwoIds.length !== 2) {
-          throw new AppError("Doubles match must contain exactly two players per team", 400);
-        }
-
-        for (const score of outcomes) {
-          const teamOneSnapshot = teamOneIds.map((id) => getStateOrThrow(states, id));
-          const teamTwoSnapshot = teamTwoIds.map((id) => getStateOrThrow(states, id));
-
-          const teamOneOpponent = averageOpponentState(teamTwoSnapshot);
-          const teamTwoOpponent = averageOpponentState(teamOneSnapshot);
-
-          for (let i = 0; i < teamOneIds.length; i += 1) {
-            const playerId = teamOneIds[i];
-            const playerState = teamOneSnapshot[i];
-            const updated = rateGlicko2Player(playerState, [
-              {
-                opponent: teamOneOpponent,
-                score,
-              },
-            ]);
-            states.set(playerId, updated);
-          }
-
-          for (let i = 0; i < teamTwoIds.length; i += 1) {
-            const playerId = teamTwoIds[i];
-            const playerState = teamTwoSnapshot[i];
-            const updated = rateGlicko2Player(playerState, [
-              {
-                opponent: teamTwoOpponent,
-                score: 1 - score,
-              },
-            ]);
-            states.set(playerId, updated);
-          }
-        }
-      }
-
       const updatedRatings: Array<{ userId: string; rating: number; rd: number; vol: number }> = [];
-      for (const participantId of uniqueParticipantIds) {
-        const nextState = getStateOrThrow(states, participantId);
-
-        await User.updateOne(
-          { _id: participantId },
-          {
-            $set: {
-              "elo.rating": nextState.rating,
-              "elo.rd": nextState.rd,
-              "elo.vol": nextState.vol,
-              "elo.tau": nextState.tau,
-            },
-          },
-          { session }
-        ).exec();
-
-        updatedRatings.push({
-          userId: participantId,
-          rating: Math.round(nextState.rating),
-          rd: Math.round(nextState.rd),
-          vol: Number(nextState.vol.toFixed(6)),
-        });
-      }
 
       let tournamentCompleted = false;
       const tournament = await Tournament.findById(tournamentId)
@@ -422,10 +273,6 @@ export async function recordTournamentMatchScoreFlow(
         typeof tournament?.totalRounds === "number" && Number.isFinite(tournament.totalRounds)
           ? Math.max(1, Math.trunc(tournament.totalRounds))
           : 1;
-
-      let schedule = tournament?.schedule
-        ? await Schedule.findById(tournament.schedule).session(session).exec()
-        : await Schedule.findOne({ tournament: tournamentId }).session(session).exec();
 
       if (schedule && schedule.currentRound >= configuredTotalRounds) {
         const relevantRoundEntries = schedule.rounds.filter((entry) => entry.round <= configuredTotalRounds);
@@ -440,12 +287,20 @@ export async function recordTournamentMatchScoreFlow(
             .exec();
 
           if (unfinishedCount === 0) {
+            if (!isScoreOnlyEdit && schedule && roundEntry) {
+              updatedRatings.push(
+                ...(await recomputeTournamentGlickoRatingsThroughRound(schedule._id, roundEntry.round, {
+                  session,
+                }))
+              );
+            }
+
             schedule.status = "finished";
             await schedule.save({ session });
 
             const completionDate = now;
             await Tournament.updateOne(
-              { _id: tournamentId },
+              { _id: tournamentId, completedAt: null },
               { $set: { completedAt: completionDate } },
               { session }
             ).exec();
@@ -461,6 +316,7 @@ export async function recordTournamentMatchScoreFlow(
         matchStatus: "completed" as const,
         tournamentCompleted,
         updatedRatings,
+        ratingsRecomputed: updatedRatings.length > 0,
       };
     });
 

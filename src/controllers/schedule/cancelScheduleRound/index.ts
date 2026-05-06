@@ -3,9 +3,12 @@ import mongoose from "mongoose";
 import Game from "../../../models/Game";
 import Schedule from "../../../models/Schedule";
 import Tournament from "../../../models/Tournament";
+import User from "../../../models/User";
+import { DEFAULT_ELO } from "../../../lib/config";
 import type { AuthenticatedRequest } from "../../../shared/authContext";
 import { buildErrorPayload } from "../../../shared/errors";
 import { guardIdParam } from "../../../shared/guards";
+import { recomputeTournamentGlickoRatingsThroughRound } from "../../tournament/recordMatchScore/recomputeTournamentGlickoRatings";
 import { authorizeScheduleAccess } from "../shared/authorize";
 import { fetchTournamentScheduleContext } from "../shared/queries";
 
@@ -51,9 +54,8 @@ export async function cancelScheduleRound(req: AuthenticatedRequest, res: Respon
     try {
       await session.withTransaction(async () => {
         const latestTournament = await Tournament.findById(idResult.data)
-          .select("_id schedule")
+          .select("_id schedule completedAt")
           .session(session)
-          .lean<{ _id: mongoose.Types.ObjectId; schedule: mongoose.Types.ObjectId | null }>()
           .exec();
 
         if (!latestTournament) {
@@ -86,9 +88,16 @@ export async function cancelScheduleRound(req: AuthenticatedRequest, res: Respon
             _id: { $in: gameIds },
             schedule: scheduleDoc._id,
           })
-            .select("_id status")
+            .select("_id status side1.playerSnapshots side2.playerSnapshots")
             .session(session)
-            .lean<Array<{ _id: mongoose.Types.ObjectId; status: string }>>()
+            .lean<
+              Array<{
+                _id: mongoose.Types.ObjectId;
+                status: string;
+                side1?: { playerSnapshots?: Array<{ player: mongoose.Types.ObjectId; rating: number; rd: number; vol?: number; tau?: number }> };
+                side2?: { playerSnapshots?: Array<{ player: mongoose.Types.ObjectId; rating: number; rd: number; vol?: number; tau?: number }> };
+              }>
+            >()
             .exec();
 
           const entryByGameId = new Map(
@@ -126,6 +135,64 @@ export async function cancelScheduleRound(req: AuthenticatedRequest, res: Respon
           remainingRounds.length > 0 ? Math.max(...remainingRounds) : 0;
         scheduleDoc.status = scheduleDoc.rounds.length > 0 ? "active" : "draft";
         await scheduleDoc.save({ session });
+        latestTournament.completedAt = null;
+        await latestTournament.save({ session });
+
+        if (scheduleDoc.currentRound > 0) {
+          await recomputeTournamentGlickoRatingsThroughRound(scheduleDoc._id, scheduleDoc.currentRound, {
+            session,
+          });
+        } else {
+          const baselineByUserId = new Map<string, { rating: number; rd: number; vol?: number; tau?: number }>();
+          const detachedGames = await Game.find({
+            tournament: latestTournament._id,
+            isHistorical: true,
+            detachedFromRound: round,
+          })
+            .select("side1.playerSnapshots side2.playerSnapshots")
+            .session(session)
+            .lean<
+              Array<{
+                side1?: { playerSnapshots?: Array<{ player: mongoose.Types.ObjectId; rating: number; rd: number; vol?: number; tau?: number }> };
+                side2?: { playerSnapshots?: Array<{ player: mongoose.Types.ObjectId; rating: number; rd: number; vol?: number; tau?: number }> };
+              }>
+            >()
+            .exec();
+
+          for (const game of detachedGames) {
+            const snapshots = [
+              ...(game.side1?.playerSnapshots ?? []),
+              ...(game.side2?.playerSnapshots ?? []),
+            ];
+            for (const snapshot of snapshots) {
+              baselineByUserId.set(snapshot.player.toString(), {
+                rating: snapshot.rating,
+                rd: snapshot.rd,
+                vol: snapshot.vol,
+                tau: snapshot.tau,
+              });
+            }
+          }
+
+          if (baselineByUserId.size > 0) {
+            await User.bulkWrite(
+              [...baselineByUserId.entries()].map(([userId, rating]) => ({
+                updateOne: {
+                  filter: { _id: userId },
+                  update: {
+                    $set: {
+                      "elo.rating": rating.rating,
+                      "elo.rd": rating.rd,
+                      "elo.vol": Number.isFinite(rating.vol) && rating.vol! > 0 ? rating.vol : DEFAULT_ELO.vol,
+                      "elo.tau": Number.isFinite(rating.tau) && rating.tau! > 0 ? rating.tau : DEFAULT_ELO.tau,
+                    },
+                  },
+                },
+              })),
+              { session }
+            );
+          }
+        }
       });
     } finally {
       await session.endSession();

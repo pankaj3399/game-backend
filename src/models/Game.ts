@@ -16,6 +16,8 @@ export interface IGameTeam {
 		player: mongoose.Types.ObjectId;
 		rating: number;
 		rd: number;
+		vol: number;
+		tau: number;
 	}>;
 }
 
@@ -69,6 +71,22 @@ const gameTeamSchema = new mongoose.Schema<IGameTeam>(
 						validate: {
 							validator: Number.isFinite,
 							message: 'rd must be a finite number'
+						}
+					},
+					vol: {
+						type: Number,
+						required: true,
+						validate: {
+							validator: (value: number) => Number.isFinite(value) && value > 0,
+							message: 'vol must be a finite positive number'
+						}
+					},
+					tau: {
+						type: Number,
+						required: true,
+						validate: {
+							validator: (value: number) => Number.isFinite(value) && value > 0,
+							message: 'tau must be a finite positive number'
 						}
 					}
 				}

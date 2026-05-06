@@ -4,7 +4,7 @@ import { LogError } from '../../lib/logger';
 import User, { type UserDocument } from '../../models/User';
 import UserAuth from '../../models/UserAuth';
 import { verifyPendingSignupToken } from './pendingToken';
-import { DEFAULT_ELO } from '../../constants/elo';
+import { DEFAULT_ELO } from '../../lib/config';
 import { isSignupComplete } from './utils';
 import { completeSignupSchema } from '../../validation/auth.schemas';
 import { createAuthToken, setAuthCookie } from '../../lib/jwtAuth';

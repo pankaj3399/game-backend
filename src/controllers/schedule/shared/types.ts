@@ -28,6 +28,8 @@ export interface ScheduleClubInfoRaw {
 export interface ScheduleParticipantElo {
   rating: number | null;
   rd: number | null;
+  vol?: number | null;
+  tau?: number | null;
 }
 
 export interface ScheduleParticipantInfo {
@@ -41,7 +43,7 @@ export interface ScheduleParticipantInfoRaw {
   _id?: DbIdLike | null;
   name?: string | null;
   alias?: string | null;
-  elo?: { rating?: number | null; rd?: number | null } | null;
+  elo?: { rating?: number | null; rd?: number | null; vol?: number | null; tau?: number | null } | null;
 }
 
 export interface TournamentScheduleContext {
