@@ -2,7 +2,7 @@ import type { Response } from "express";
 import { logger } from "../../../lib/logger";
 import type { AuthenticatedRequest } from "../../../shared/authContext";
 import { AppError, buildErrorPayload } from "../../../shared/errors";
-import { TOURNAMENT_ORGANISER_SCORE_EDIT_GRACE_HOURS } from "../../../constants/config";
+import { TOURNAMENT_ORGANISER_SCORE_EDIT_GRACE_HOURS } from "../../../lib/config";
 import Tournament from "../../../models/Tournament";
 import {
   authorizeScheduleOrMatchParticipant,
@@ -14,7 +14,9 @@ import { recordMatchScoreParamsSchema, recordMatchScoreSchema } from "./validati
 
 /**
  * PATCH /api/tournaments/:id/matches/:matchId/score
- * Records score. If the winner is decided, closes the match and applies Glicko2 updates.
+ * Records score. Ratings are applied at round boundaries for future scheduling,
+ * and after final-round completion. Organiser grace edits to old, detached,
+ * historical, or cancelled matches only update the stored score.
  */
 export async function recordMatchScore(req: AuthenticatedRequest, res: Response) {
   try {
@@ -85,6 +87,7 @@ export async function recordMatchScore(req: AuthenticatedRequest, res: Response)
         status: result.matchStatus,
       },
       tournamentCompleted: result.tournamentCompleted,
+      ratingsRecomputed: result.ratingsRecomputed,
       ratings: result.updatedRatings,
     });
   } catch (err) {

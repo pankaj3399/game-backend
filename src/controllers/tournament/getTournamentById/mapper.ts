@@ -1,6 +1,6 @@
 import type { TournamentPopulated } from "../../../types/api/tournament";
 import { ROLES } from "../../../constants/roles";
-import { TOURNAMENT_ORGANISER_SCORE_EDIT_GRACE_HOURS } from "../../../constants/config";
+import { TOURNAMENT_ORGANISER_SCORE_EDIT_GRACE_HOURS } from "../../../lib/config";
 import type { DetailViewContext } from "../shared/authorizeGetById";
 import { computeSpotsTotal } from "../computeSpotsTotal";
 import type { TournamentLeaveBlockers } from "../shared/fetchTournamentById";

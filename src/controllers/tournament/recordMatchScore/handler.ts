@@ -4,6 +4,7 @@ import Schedule from "../../../models/Schedule";
 import Tournament from "../../../models/Tournament";
 import { AppError } from "../../../shared/errors";
 import type { GamePlayMode } from "../../../types/domain/game";
+import { recomputeTournamentGlickoRatingsThroughRound } from "./recomputeTournamentGlickoRatings";
 import type { RecordMatchScoreInput } from "./validation";
 
 export type TournamentScoreActor = "organiser" | "participant";
@@ -152,10 +153,6 @@ export async function recordTournamentMatchScoreFlow(
         throw new AppError("Tournament match not found", 404);
       }
 
-      if (game.status === "cancelled") {
-        throw new AppError("Cannot record scores for a cancelled match", 400);
-      }
-
       if (options.actor === "organiser" && options.organiserGraceExpired) {
         throw new AppError(
           "The organiser score edit period for this tournament has ended",
@@ -168,18 +165,22 @@ export async function recordTournamentMatchScoreFlow(
         : await Schedule.findOne({ tournament: tournamentId }).session(session).exec();
       const roundEntry = schedule?.rounds.find((entry) => entry.game.toString() === game._id.toString());
 
-      if (game.isHistorical || game.detachedFromRound != null) {
-        throw new AppError("Scores can only be edited for scheduled matches in this tournament", 409);
-      }
-      if (!roundEntry) {
+      const organiserMayEditAnyRound = options.actor === "organiser" && !options.organiserGraceExpired;
+      const isDetachedOrHistorical = game.isHistorical === true || game.detachedFromRound != null;
+      const isCurrentScheduledRound =
+        Boolean(schedule && roundEntry && roundEntry.round === schedule.currentRound);
+      const isScoreOnlyEdit =
+        organiserMayEditAnyRound &&
+        (game.status === "cancelled" || isDetachedOrHistorical || !isCurrentScheduledRound);
+
+      if (!roundEntry && !isDetachedOrHistorical) {
         throw new AppError("Match is not part of this tournament schedule", 404);
       }
-
-      const organiserMayEditAnyRound = options.actor === "organiser" && !options.organiserGraceExpired;
-      if (!organiserMayEditAnyRound) {
-        if (schedule && roundEntry.round !== schedule.currentRound) {
-          throw new AppError("Scores can only be edited for matches in the current round", 409);
-        }
+      if (!organiserMayEditAnyRound && (game.status === "cancelled" || isDetachedOrHistorical)) {
+        throw new AppError("Scores can only be edited for scheduled matches in this tournament", 409);
+      }
+      if (!organiserMayEditAnyRound && !isCurrentScheduledRound) {
+        throw new AppError("Scores can only be edited for matches in the current round", 409);
       }
 
       const now = new Date();
@@ -203,8 +204,10 @@ export async function recordTournamentMatchScoreFlow(
           playerOneScores: [...input.playerOneScores],
           playerTwoScores: [...input.playerTwoScores],
         };
-        game.status = "pendingScore";
-        game.endTime = undefined;
+        game.status = isScoreOnlyEdit && game.status === "cancelled" ? "cancelled" : "pendingScore";
+        if (game.status !== "cancelled") {
+          game.endTime = undefined;
+        }
         await game.save({ session });
 
         return {
@@ -238,8 +241,8 @@ export async function recordTournamentMatchScoreFlow(
         throw new AppError("At least one score outcome is required", 400);
       }
 
-      game.status = "finished";
-      game.endTime = now;
+      game.status = isScoreOnlyEdit && game.status === "cancelled" ? "cancelled" : "finished";
+      game.endTime = game.status === "finished" ? now : game.endTime;
       await game.save({ session });
 
       const participantIds = [
@@ -279,6 +282,14 @@ export async function recordTournamentMatchScoreFlow(
             .exec();
 
           if (unfinishedCount === 0) {
+            if (!isScoreOnlyEdit && schedule && roundEntry) {
+              updatedRatings.push(
+                ...(await recomputeTournamentGlickoRatingsThroughRound(schedule._id, roundEntry.round, {
+                  session,
+                }))
+              );
+            }
+
             schedule.status = "finished";
             await schedule.save({ session });
 
@@ -300,7 +311,7 @@ export async function recordTournamentMatchScoreFlow(
         matchStatus: "completed" as const,
         tournamentCompleted,
         updatedRatings,
-        ratingsRecomputed: false,
+        ratingsRecomputed: updatedRatings.length > 0,
       };
     });
 

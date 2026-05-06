@@ -2,7 +2,9 @@ import mongoose from "mongoose";
 import Game from "../../../models/Game";
 import Schedule from "../../../models/Schedule.js";
 import Tournament from "../../../models/Tournament";
+import User from "../../../models/User";
 import type { GameStatus } from "../../../types/domain/game";
+import { recomputeTournamentGlickoRatingsThroughRound } from "../../tournament/recordMatchScore/recomputeTournamentGlickoRatings";
 import {
   buildRoundPairs,
   ensureMinimumParticipants,
@@ -12,10 +14,12 @@ import {
   computeMatchStartTime,
   getParticipantOrder,
 } from "../shared/helpers";
-import { parseDurationMinutes, resolveTimedGameStatus } from "../../../shared/matchTiming";
+import { parseDurationMinutes } from "../../../shared/matchTiming";
 import { isValidIanaTimeZone, resolveTournamentTimeZone } from "../../../shared/timezone";
+import { ensurePreviousRoundFinished } from "./ensurePreviousRoundFinished";
 import type {
   GenerateScheduleBody,
+  ScheduleParticipantInfo,
   TournamentScheduleContext,
 } from "../shared/types";
 type ScheduleRoundEntryLike = {
@@ -33,6 +37,8 @@ type ReplaceableGame = {
   _id: mongoose.Types.ObjectId;
   status: GameStatus;
   score?: { playerOneScores?: Array<number | "wo">; playerTwoScores?: Array<number | "wo"> } | null;
+  side1?: { playerSnapshots?: Array<{ player: mongoose.Types.ObjectId; rating: number; rd: number }> } | null;
+  side2?: { playerSnapshots?: Array<{ player: mongoose.Types.ObjectId; rating: number; rd: number }> } | null;
 };
 
 function hasScoresOrRelevantStatus(
@@ -46,84 +52,6 @@ function hasScoresOrRelevantStatus(
     return true;
   }
   return includeActiveStatus && game.status === "active";
-}
-
-async function ensurePreviousRoundFinished(
-  scheduleDoc: {
-    _id: mongoose.Types.ObjectId;
-    rounds: ScheduleRoundEntryLike[];
-  },
-  targetRound: number,
-  matchDurationMinutes: number,
-  session: mongoose.ClientSession
-) {
-  if (targetRound <= 1) {
-    return;
-  }
-
-  const previousRound = targetRound - 1;
-  const previousRoundEntries = scheduleDoc.rounds.filter(
-    (entry: ScheduleRoundEntryLike) => entry.round === previousRound
-  );
-
-  if (previousRoundEntries.length === 0) {
-    throw new Error(
-      `Round ${previousRound} has not been generated yet. Generate and complete it before creating round ${targetRound}.`
-    );
-  }
-
-  const previousRoundGameIds = previousRoundEntries.map((entry) => entry.game);
-  const previousRoundGames = await Game.find({
-    _id: { $in: previousRoundGameIds },
-    schedule: scheduleDoc._id,
-  })
-    .select("_id status startTime")
-    .session(session)
-    .lean<Array<{ _id: mongoose.Types.ObjectId; status: GameStatus; startTime?: Date | null }>>()
-    .exec();
-
-  const now = new Date();
-  const updates: Array<{ id: mongoose.Types.ObjectId; status: GameStatus }> = [];
-  const statusByGameId = new Map<string, GameStatus>();
-
-  for (const game of previousRoundGames) {
-    const nextStatus = resolveTimedGameStatus({
-      persistedStatus: game.status,
-      startTime: game.startTime ?? null,
-      matchDurationMinutes,
-      now,
-    });
-
-    statusByGameId.set(game._id.toString(), nextStatus);
-
-    if (nextStatus !== game.status) {
-      updates.push({ id: game._id, status: nextStatus });
-    }
-  }
-
-  if (updates.length > 0) {
-    await Game.bulkWrite(
-      updates.map((entry) => ({
-        updateOne: {
-          filter: { _id: entry.id },
-          update: { $set: { status: entry.status } },
-        },
-      })),
-      { session }
-    );
-  }
-
-  const hasUnfinishedMatch = previousRoundEntries.some((entry) => {
-    const status = statusByGameId.get(entry.game.toString());
-    // Tournament progression ignores cancelled matches.
-    return status !== "finished" && status !== "cancelled";
-  });
-
-  if (hasUnfinishedMatch) {
-    throw new Error(
-      `Round ${previousRound} is not finished yet. Complete all match scores before generating round ${targetRound}.`
-    );
-  }
 }
 
 export async function persistScheduleRound(
@@ -176,12 +104,6 @@ export async function persistScheduleRound(
         throw new Error("At least one valid court must be selected");
       }
 
-      const selectedParticipants = getParticipantOrder(
-        body.participantOrder,
-        freshTournament.participants
-      );
-      ensureMinimumParticipants(body.mode, selectedParticipants.length);
-
       let scheduleDoc = freshTournament.schedule
         ? await Schedule.findById(freshTournament.schedule).session(session).exec()
         : null;
@@ -221,6 +143,11 @@ export async function persistScheduleRound(
         (entry: ScheduleRoundEntryLike) => entry.round === targetRound
       );
       const isRoundRegeneration = existingRoundEntries.length > 0;
+      if (isRoundRegeneration && targetRound !== scheduleDoc.currentRound) {
+        throw new Error(
+          `Cannot regenerate round ${targetRound} while later rounds exist. Cancel later rounds first.`
+        );
+      }
 
       const scheduleMatchDurationMinutes = parseDurationMinutes(
         scheduleDoc.matchDurationMinutes ?? null,
@@ -239,6 +166,12 @@ export async function persistScheduleRound(
           roundMatchDurationMinutes,
           session
         );
+
+        if (targetRound > 1) {
+          await recomputeTournamentGlickoRatingsThroughRound(scheduleDoc._id, targetRound - 1, {
+            session,
+          });
+        }
       }
 
       if (existingRoundEntries.length > 0) {
@@ -249,7 +182,7 @@ export async function persistScheduleRound(
           _id: { $in: gamesToReplaceIds },
           schedule: scheduleDoc._id,
         })
-          .select("_id status score")
+          .select("_id status score side1.playerSnapshots side2.playerSnapshots")
           .session(session)
           .lean<ReplaceableGame[]>()
           .exec();
@@ -321,7 +254,58 @@ export async function persistScheduleRound(
         scheduleDoc.rounds = scheduleDoc.rounds.filter(
           (entry: ScheduleRoundEntryLike) => entry.round !== targetRound
         );
+
+        if (targetRound === 1) {
+          const baselineByUserId = new Map<string, { rating: number; rd: number }>();
+          for (const game of gamesToReplace) {
+            const snapshots = [
+              ...(game.side1?.playerSnapshots ?? []),
+              ...(game.side2?.playerSnapshots ?? []),
+            ];
+            for (const snapshot of snapshots) {
+              baselineByUserId.set(snapshot.player.toString(), {
+                rating: snapshot.rating,
+                rd: snapshot.rd,
+              });
+            }
+          }
+
+          if (baselineByUserId.size > 0) {
+            await User.bulkWrite(
+              [...baselineByUserId.entries()].map(([userId, rating]) => ({
+                updateOne: {
+                  filter: { _id: userId },
+                  update: {
+                    $set: {
+                      "elo.rating": rating.rating,
+                      "elo.rd": rating.rd,
+                    },
+                  },
+                },
+              })),
+              { session }
+            );
+          }
+        }
       }
+
+      if (isRoundRegeneration && targetRound > 1) {
+        await recomputeTournamentGlickoRatingsThroughRound(scheduleDoc._id, targetRound - 1, {
+          session,
+        });
+      }
+
+      const participantIds = freshTournament.participants.map((participant) => participant._id);
+      const latestParticipants = await User.find({ _id: { $in: participantIds } })
+        .select("name alias elo.rating elo.rd")
+        .session(session)
+        .lean<ScheduleParticipantInfo[]>()
+        .exec();
+      const selectedParticipants = getParticipantOrder(
+        body.participantOrder,
+        latestParticipants
+      );
+      ensureMinimumParticipants(body.mode, selectedParticipants.length);
 
       const { pairs } = buildRoundPairs(
         selectedParticipants,
