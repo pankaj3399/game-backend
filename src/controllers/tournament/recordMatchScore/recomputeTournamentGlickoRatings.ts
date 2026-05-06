@@ -11,6 +11,7 @@ type RatingResult = {
   rating: number;
   rd: number;
   vol: number;
+  tau: number;
 };
 
 type GameDocument = HydratedDocument<IGame>;

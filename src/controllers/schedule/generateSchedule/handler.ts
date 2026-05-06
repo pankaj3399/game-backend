@@ -3,6 +3,7 @@ import Game from "../../../models/Game";
 import Schedule from "../../../models/Schedule.js";
 import Tournament from "../../../models/Tournament";
 import User from "../../../models/User";
+import { DEFAULT_ELO } from "../../../lib/config";
 import type { GameStatus } from "../../../types/domain/game";
 import { recomputeTournamentGlickoRatingsThroughRound } from "../../tournament/recordMatchScore/recomputeTournamentGlickoRatings";
 import {
@@ -281,8 +282,8 @@ export async function persistScheduleRound(
                     $set: {
                       "elo.rating": rating.rating,
                       "elo.rd": rating.rd,
-                      ...(Number.isFinite(rating.vol) && rating.vol! > 0 ? { "elo.vol": rating.vol } : {}),
-                      ...(Number.isFinite(rating.tau) && rating.tau! > 0 ? { "elo.tau": rating.tau } : {}),
+                      "elo.vol": Number.isFinite(rating.vol) && rating.vol! > 0 ? rating.vol : DEFAULT_ELO.vol,
+                      "elo.tau": Number.isFinite(rating.tau) && rating.tau! > 0 ? rating.tau : DEFAULT_ELO.tau,
                     },
                   },
                 },

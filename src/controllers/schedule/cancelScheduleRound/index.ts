@@ -4,6 +4,7 @@ import Game from "../../../models/Game";
 import Schedule from "../../../models/Schedule";
 import Tournament from "../../../models/Tournament";
 import User from "../../../models/User";
+import { DEFAULT_ELO } from "../../../lib/config";
 import type { AuthenticatedRequest } from "../../../shared/authContext";
 import { buildErrorPayload } from "../../../shared/errors";
 import { guardIdParam } from "../../../shared/guards";
@@ -182,8 +183,8 @@ export async function cancelScheduleRound(req: AuthenticatedRequest, res: Respon
                     $set: {
                       "elo.rating": rating.rating,
                       "elo.rd": rating.rd,
-                      ...(Number.isFinite(rating.vol) && rating.vol! > 0 ? { "elo.vol": rating.vol } : {}),
-                      ...(Number.isFinite(rating.tau) && rating.tau! > 0 ? { "elo.tau": rating.tau } : {}),
+                      "elo.vol": Number.isFinite(rating.vol) && rating.vol! > 0 ? rating.vol : DEFAULT_ELO.vol,
+                      "elo.tau": Number.isFinite(rating.tau) && rating.tau! > 0 ? rating.tau : DEFAULT_ELO.tau,
                     },
                   },
                 },
