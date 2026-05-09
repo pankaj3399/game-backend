@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router } from "express";
 import {
 	getTournaments,
 	getTournamentLiveMatch,
@@ -10,7 +10,12 @@ import {
 	createTournament,
 	updateTournament,
 	getDoublesPairs,
-	saveDoublesPairs
+	saveDoublesPairs,
+	generateScoreQr,
+	generateIndependentScoreQr,
+	getActiveScoreQr,
+	validateScoreQr,
+	confirmScoreQr,
 } from '../controllers/tournament/controller';
 import { requireOrganiserOrAbove, requirePlayerOrAbove } from '../middlewares/rbac';
 import { createAuthedRouter } from './authedRouter';
@@ -24,6 +29,13 @@ authed.get('/:id', requirePlayerOrAbove, getTournamentById);
 authed.get('/:id/doubles-pairs', requirePlayerOrAbove, getDoublesPairs);
 authed.get('/:id/matches', requirePlayerOrAbove, getTournamentMatches);
 authed.patch('/:id/matches/:matchId/score', requirePlayerOrAbove, recordMatchScore);
+
+authed.post('/:id/matches/:matchId/score/qr', requirePlayerOrAbove, generateScoreQr);
+authed.post('/score-qr/independent', requirePlayerOrAbove, generateIndependentScoreQr);
+authed.get('/score-qr/active', requirePlayerOrAbove, getActiveScoreQr);
+router.get('/score-qr/:token', validateScoreQr);
+authed.post('/score-qr/confirm', requirePlayerOrAbove, confirmScoreQr);
+
 authed.post('/:id/join', requirePlayerOrAbove, joinTournament);
 authed.post('/:id/leave', requirePlayerOrAbove, leaveTournament);
 authed.post('/', requireOrganiserOrAbove, createTournament);
