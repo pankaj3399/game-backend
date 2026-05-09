@@ -59,10 +59,26 @@ function compareSetScore(
   return 0;
 }
 
+function looksLike10PointSuperTieBreak(
+  one: number | "wo",
+  two: number | "wo",
+): boolean {
+  if (one === "wo" || two === "wo") return false;
+  const hi = Math.max(one, two);
+  const lo = Math.min(one, two);
+  return hi >= 10 && hi - lo >= 2;
+}
+
 function inferIndependentPlayMode(input: RecordMatchScoreInput): GamePlayMode {
   const sets = input.playerOneScores.length;
   if (sets >= 5) return "5set";
   if (sets >= 3) return "3set";
+  if (sets === 1) {
+    const one = input.playerOneScores[0];
+    const two = input.playerTwoScores[0];
+    if (looksLike10PointSuperTieBreak(one, two)) return "TieBreak10";
+    return "1set";
+  }
   return "TieBreak10";
 }
 

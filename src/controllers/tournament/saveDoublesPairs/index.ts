@@ -4,7 +4,7 @@ import Tournament from "../../../models/Tournament";
 import { logger } from "../../../lib/logger";
 import { AuthenticatedRequest, buildPermissionContext } from "../../../shared/authContext";
 import { guardIdParam } from "../../../shared/guards";
-import { buildErrorPayload } from "../../../shared/errors";
+import { buildErrorPayload, buildZodErrorPayload } from "../../../shared/errors";
 import { userCanManageClub } from "../../../lib/permissions";
 import { ROLES } from "../../../constants/roles";
 import { authorizeGetById } from "../shared/authorizeGetById";
@@ -85,8 +85,7 @@ export async function saveDoublesPairs(req: AuthenticatedRequest, res: Response)
 
     const parsedBody = saveDoublesPairsSchema.safeParse(req.body);
     if (!parsedBody.success) {
-      const message = parsedBody.error.issues.map((issue) => issue.message).join("; ");
-      res.status(400).json(buildErrorPayload(message));
+      res.status(400).json(buildZodErrorPayload(parsedBody.error));
       return;
     }
 

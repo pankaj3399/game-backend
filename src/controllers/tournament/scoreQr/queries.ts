@@ -294,19 +294,32 @@ export async function attachConfirmerToStandaloneMatchIfNeeded(input: {
 
   const requesterSide = requesterInSide1 ? "side1" : "side2";
   const opponentSide = requesterSide === "side1" ? "side2" : "side1";
-  const opponentPlayers = Array.isArray(game[opponentSide]?.players)
-    ? game[opponentSide].players
-    : [];
 
-  if (opponentPlayers.length > 0) {
+  const requesterOid = new Types.ObjectId(input.requestByUserId);
+  const confirmerOid = new Types.ObjectId(input.confirmerUserId);
+  const startTime = game.startTime ?? new Date();
+
+  const updated = await Game.findOneAndUpdate(
+    {
+      _id: input.requestMatchId,
+      gameMode: "standalone",
+      status: { $nin: ["finished", "cancelled"] },
+      [`${requesterSide}.players`]: requesterOid,
+      [`${opponentSide}.players`]: { $size: 0 },
+    },
+    {
+      $set: {
+        [`${opponentSide}.players`]: [confirmerOid],
+        matchType: input.matchType,
+        playMode: input.playMode,
+        status: "pendingScore",
+        startTime,
+      },
+    },
+    { new: true },
+  ).exec();
+
+  if (!updated) {
     throw new AppError("Independent match already has an opponent", 409);
   }
-
-  game[opponentSide].players = [new Types.ObjectId(input.confirmerUserId)];
-  game.matchType = input.matchType;
-  game.playMode = input.playMode;
-  game.status = "pendingScore";
-  game.startTime = game.startTime ?? new Date();
-
-  await game.save();
 }

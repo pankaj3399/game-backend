@@ -30,7 +30,12 @@ import {
   getOpponentUserIdFromGame,
   markRequestExpiredIfPending,
 } from "./queries";
-import { normalizeMatchStatus, requiredSetCount, resolveWinnerBySets } from "./scoreHelpers";
+import {
+  normalizeIndependentPlayMode,
+  normalizeMatchStatus,
+  requiredSetCount,
+  resolveWinnerBySets,
+} from "./scoreHelpers";
 import type {
   ConfirmScoreQrInput,
   ConfirmScoreQrResult,
@@ -49,8 +54,21 @@ export async function generateScoreQrFlow(
     throw new AppError("Invalid requester user id", 400);
   }
 
-  const isTournamentFlow =
-    Boolean(input.tournamentId?.trim()) && Boolean(input.matchId?.trim());
+  const tidTrimmed = input.tournamentId?.trim() ?? "";
+  const midTrimmed = input.matchId?.trim() ?? "";
+  const hasTournamentId = tidTrimmed.length > 0;
+  const hasMatchId = midTrimmed.length > 0;
+
+  if (hasTournamentId !== hasMatchId) {
+    throw new AppError(
+      hasTournamentId
+        ? "matchId is required when tournamentId is provided"
+        : "tournamentId is required when matchId is provided",
+      400,
+    );
+  }
+
+  const isTournamentFlow = hasTournamentId && hasMatchId;
 
   let flow: ScoreQrFlowKind = "independent";
   let tournamentId: string | null = null;
@@ -60,8 +78,8 @@ export async function generateScoreQrFlow(
   let opponentUserId: string | null;
 
   if (isTournamentFlow) {
-    const tid = input.tournamentId?.trim() ?? "";
-    const mid = input.matchId?.trim() ?? "";
+    const tid = tidTrimmed;
+    const mid = midTrimmed;
 
     if (!Types.ObjectId.isValid(tid) || !Types.ObjectId.isValid(mid)) {
       throw new AppError("Invalid tournament or match id", 400);
@@ -79,13 +97,37 @@ export async function generateScoreQrFlow(
       );
     }
 
+    playMode = game.playMode;
+    matchType = game.matchType;
+
+    const maxSets = requiredSetCount(playMode);
+    if (
+      input.input.playerOneScores.length > maxSets ||
+      input.input.playerTwoScores.length > maxSets
+    ) {
+      throw new AppError(`Too many sets for ${playMode}. Maximum is ${maxSets}`, 400);
+    }
+
     flow = "tournament";
     tournamentId = tid;
     matchId = mid;
-    playMode = game.playMode;
-    matchType = game.matchType;
     opponentUserId = getOpponentUserIdFromGame(game, input.requesterUserId);
   } else {
+    const resolvedPlayMode = normalizeIndependentPlayMode(
+      input.input,
+      input.independentPlayMode,
+    );
+    const maxSets = requiredSetCount(resolvedPlayMode);
+    if (
+      input.input.playerOneScores.length > maxSets ||
+      input.input.playerTwoScores.length > maxSets
+    ) {
+      throw new AppError(
+        `Too many sets for ${resolvedPlayMode}. Maximum is ${maxSets}`,
+        400,
+      );
+    }
+
     const created = await createStandaloneMatchForQr({
       requesterUserId: input.requesterUserId,
       scoreInput: input.input,
@@ -99,14 +141,6 @@ export async function generateScoreQrFlow(
     playMode = created.playMode;
     matchType = created.matchType;
     opponentUserId = created.opponentUserId;
-  }
-
-  const maxSets = requiredSetCount(playMode);
-  if (
-    input.input.playerOneScores.length > maxSets ||
-    input.input.playerTwoScores.length > maxSets
-  ) {
-    throw new AppError(`Too many sets for ${playMode}. Maximum is ${maxSets}`, 400);
   }
 
   await expireStalePendingRequests({
@@ -462,6 +496,9 @@ export async function confirmScoreQrFlow(
           consumedAt: null,
           consumedBy: null,
         },
+        ...(request.flow === "independent" && !request.opponentUserId
+          ? { $unset: { opponentUser: "" } }
+          : {}),
       },
     ).exec();
 

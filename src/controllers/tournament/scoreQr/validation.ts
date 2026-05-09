@@ -58,8 +58,8 @@ export const scoreQrTokenParamsSchema = z
 export const activeScoreQrQuerySchema = z
   .object({
     flow: z.enum(["tournament", "independent"]).optional(),
-    tournamentId: z.string().trim().optional(),
-    matchId: z.string().trim().optional(),
+    tournamentId: z.string().trim().min(1).optional(),
+    matchId: z.string().trim().min(1).optional(),
     playMode: z
       .enum(["TieBreak10", "1set", "3setTieBreak10", "3set", "5set"])
       .optional(),

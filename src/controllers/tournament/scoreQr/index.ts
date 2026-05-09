@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import { logger } from "../../../lib/logger";
 import type { AuthenticatedRequest } from "../../../shared/authContext";
-import { AppError, buildErrorPayload } from "../../../shared/errors";
+import { AppError, buildErrorPayload, buildZodErrorPayload } from "../../../shared/errors";
 import { parseRouteObjectId, readRouteParam } from "../../../shared/validation";
 import { authorizeScheduleOrMatchParticipant } from "../../schedule/shared/authorize";
 import { fetchTournamentScheduleContext } from "../../schedule/shared/queries";
@@ -44,10 +44,7 @@ export async function generateScoreQr(
 
     const parsedBody = generateScoreQrBodySchema.safeParse(req.body);
     if (!parsedBody.success) {
-      const message = parsedBody.error.issues
-        .map((issue) => issue.message)
-        .join("; ");
-      res.status(400).json(buildErrorPayload(message));
+      res.status(400).json(buildZodErrorPayload(parsedBody.error));
       return;
     }
 
@@ -121,10 +118,7 @@ export async function generateIndependentScoreQr(
   try {
     const parsedBody = generateIndependentScoreQrBodySchema.safeParse(req.body);
     if (!parsedBody.success) {
-      const message = parsedBody.error.issues
-        .map((issue) => issue.message)
-        .join("; ");
-      res.status(400).json(buildErrorPayload(message));
+      res.status(400).json(buildZodErrorPayload(parsedBody.error));
       return;
     }
 
@@ -181,10 +175,7 @@ export async function validateScoreQr(req: Request, res: Response) {
       token: readRouteParam(req.params.token),
     });
     if (!paramsResult.success) {
-      const message = paramsResult.error.issues
-        .map((issue) => issue.message)
-        .join("; ");
-      res.status(400).json(buildErrorPayload(message));
+      res.status(400).json(buildZodErrorPayload(paramsResult.error));
       return;
     }
 
@@ -223,11 +214,24 @@ export async function validateScoreQr(req: Request, res: Response) {
       return;
     }
 
+    const r = validation.request;
+    const safeRequest = {
+      id: r.id,
+      flow: r.flow,
+      tournamentId: r.tournamentId,
+      matchId: r.matchId,
+      playerOneScores: r.playerOneScores,
+      playerTwoScores: r.playerTwoScores,
+      playMode: r.playMode,
+      matchType: r.matchType,
+      expiresAt: r.expiresAt,
+    };
+
     res.status(200).json({
       message: "QR token is valid",
       valid: true,
       reason: validation.reason,
-      request: validation.request,
+      request: safeRequest,
     });
   } catch (err) {
     if (err instanceof AppError) {
@@ -253,10 +257,7 @@ export async function confirmScoreQr(req: AuthenticatedRequest, res: Response) {
   try {
     const parsedBody = confirmScoreQrBodySchema.safeParse(req.body);
     if (!parsedBody.success) {
-      const message = parsedBody.error.issues
-        .map((issue) => issue.message)
-        .join("; ");
-      res.status(400).json(buildErrorPayload(message));
+      res.status(400).json(buildZodErrorPayload(parsedBody.error));
       return;
     }
 
@@ -308,10 +309,7 @@ export async function getActiveScoreQr(req: AuthenticatedRequest, res: Response)
   try {
     const parsedQuery = activeScoreQrQuerySchema.safeParse(req.query);
     if (!parsedQuery.success) {
-      const message = parsedQuery.error.issues
-        .map((issue) => issue.message)
-        .join("; ");
-      res.status(400).json(buildErrorPayload(message));
+      res.status(400).json(buildZodErrorPayload(parsedQuery.error));
       return;
     }
 

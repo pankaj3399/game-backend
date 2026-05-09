@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import { logger } from "../../../lib/logger";
 import { guardIdParam } from "../../../shared/guards";
-import { buildErrorPayload } from "../../../shared/errors";
+import { buildErrorPayload, buildZodErrorPayload } from "../../../shared/errors";
 import { AuthenticatedRequest, type AuthenticatedSession } from "../../../shared/authContext";
 import {
   updateDraftSchema,
@@ -22,7 +22,7 @@ import {
 function normalizePublishCandidateWithValidation(publishCandidate: Record<string, unknown>) {
   const publishValidation = publishSchema.safeParse(publishCandidate);
   if (!publishValidation.success) {
-    const message = publishValidation.error.issues.map((issue) => issue.message).join("; ");
+    const { message } = buildZodErrorPayload(publishValidation.error);
     throw new Error(`publish validation failed: ${message || "Tournament publish validation failed"}`);
   }
 
@@ -48,8 +48,7 @@ export async function updateTournament(req: AuthenticatedRequest ,res: Response)
 
     const bodyParse = updateDraftSchema.safeParse(req.body);
     if (!bodyParse.success) {
-      const message = bodyParse.error.issues.map((i) => i.message).join("; ");
-      res.status(400).json(buildErrorPayload(message));
+      res.status(400).json(buildZodErrorPayload(bodyParse.error));
       return;
     }
 
