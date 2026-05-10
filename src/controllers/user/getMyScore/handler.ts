@@ -4,34 +4,21 @@ import {
 	fetchCompletedTournamentGamesForUser,
 	fetchUserRatingSnapshot,
 } from './queries';
-import type { MyScoreResponse } from './types';
+import type { MyScoreEntry, MyScoreResponse } from './types';
 import type { MyScoreQuery } from './validation';
 
-function isInRequestedRange(playedAtIso: string, range: MyScoreQuery['range'], now: Date): boolean {
-	if (range === 'allTime') {
-		return true;
-	}
-
-	const playedAt = new Date(playedAtIso);
-	if (!Number.isFinite(playedAt.getTime())) {
-		return false;
-	}
-
-	const cutoff = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-	return playedAt >= cutoff;
-}
-
-function matchesMode(mode: MyScoreQuery['mode'], matchMode: 'singles' | 'doubles'): boolean {
-	if (mode === 'all') {
-		return true;
-	}
-
-	return mode === matchMode;
-}
-
 export async function getMyScoreFlow(userId: string, query: MyScoreQuery) {
-	const [games, ratingSnapshot] = await Promise.all([
-		fetchCompletedTournamentGamesForUser(userId),
+	const now = new Date();
+
+	const [gamesPage, ratingSnapshot] = await Promise.all([
+		fetchCompletedTournamentGamesForUser({
+			userId,
+			mode: query.mode,
+			range: query.range,
+			page: query.page,
+			limit: query.limit,
+			now,
+		}),
 		fetchUserRatingSnapshot(userId),
 	]);
 
@@ -39,25 +26,14 @@ export async function getMyScoreFlow(userId: string, query: MyScoreQuery) {
 		return error(404, 'User not found');
 	}
 
-	const now = new Date();
-	const mappedEntries = games
-		.map((game) => mapGameToMyScoreEntry(game, userId))
-		.filter((entry): entry is NonNullable<typeof entry> => entry != null)
-		.filter((entry) => matchesMode(query.mode, entry.mode))
-		.filter((entry) => isInRequestedRange(entry.playedAt, query.range, now))
-		.sort((left, right) => {
-			if (left.playedAt !== right.playedAt) {
-				return right.playedAt.localeCompare(left.playedAt);
-			}
-			return left.id.localeCompare(right.id);
-		});
+	const { entries: rawEntries, totalEntries, totalWins } = gamesPage;
 
-	const totalEntries = mappedEntries.length;
-	const totalWins = mappedEntries.filter((entry) => entry.didWin === true).length;
+	const mappedEntries = rawEntries
+		.map((game) => mapGameToMyScoreEntry(game, userId))
+		.filter((entry): entry is MyScoreEntry => entry != null);
+
 	const totalPages = Math.max(1, Math.ceil(totalEntries / query.limit));
 	const page = Math.min(query.page, totalPages);
-	const startIndex = (page - 1) * query.limit;
-	const paginatedEntries = mappedEntries.slice(startIndex, startIndex + query.limit);
 
 	const response: MyScoreResponse = {
 		summary: {
@@ -78,7 +54,7 @@ export async function getMyScoreFlow(userId: string, query: MyScoreQuery) {
 			total: totalEntries,
 			totalPages,
 		},
-		entries: paginatedEntries,
+		entries: mappedEntries,
 	};
 
 	return ok(response, { status: 200, message: 'My score fetched successfully' });
