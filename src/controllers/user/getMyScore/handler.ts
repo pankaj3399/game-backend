@@ -1,3 +1,4 @@
+import { logger } from '../../../lib/logger';
 import { error, ok } from '../../../shared/helpers';
 import { mapGameToMyScoreEntry } from './mapper';
 import {
@@ -28,9 +29,18 @@ export async function getMyScoreFlow(userId: string, query: MyScoreQuery) {
 
 	const { entries: rawEntries, totalEntries, estimatedWins, winsTruncated, page } = gamesPage;
 
-	const mappedEntries = rawEntries
-		.map((game) => mapGameToMyScoreEntry(game, userId))
-		.filter((entry): entry is MyScoreEntry => entry != null);
+	const mappedEntries: MyScoreEntry[] = [];
+	for (const game of rawEntries) {
+		const entry = mapGameToMyScoreEntry(game, userId);
+		if (!entry) {
+			logger.error('getMyScore: unmappable game after list filter', {
+				gameId: game._id.toString(),
+				userId,
+			});
+			return error(500, 'Unable to load score history');
+		}
+		mappedEntries.push(entry);
+	}
 
 	const totalPages = Math.max(1, Math.ceil(totalEntries / query.limit));
 

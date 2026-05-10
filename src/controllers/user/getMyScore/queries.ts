@@ -113,8 +113,11 @@ function buildBaseFilter(
 /** Aligns list/count queries with rows mapGameToMyScoreEntry returns (non-null). */
 function withMappableGameShapeConstraints(filter: Record<string, unknown>): Record<string, unknown> {
 	const shapeConstraints: Record<string, unknown>[] = [
-		{ 'side1.players.0': { $exists: true } },
-		{ 'side2.players.0': { $exists: true } },
+		{ side1: { $exists: true, $ne: null } },
+		{ side2: { $exists: true, $ne: null } },
+		// Exclude sparse [null] slots so getTeamIds never sees only null players.
+		{ 'side1.players.0': { $exists: true, $ne: null } },
+		{ 'side2.players.0': { $exists: true, $ne: null } },
 	];
 
 	const modeIsSinglesOrDoubles =
