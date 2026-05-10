@@ -97,6 +97,15 @@ function isWalkover(value: unknown): value is 'wo' {
 	return typeof value === 'string' && value.toLowerCase() === 'wo';
 }
 
+export function determineDidWinFromSetScores(
+	mySetScores: unknown[] | undefined,
+	opponentSetScores: unknown[] | undefined
+): boolean | null {
+	const myBreakdown = toScoreBreakdown(mySetScores);
+	const opponentBreakdown = toScoreBreakdown(opponentSetScores);
+	return resolveDidWin(myBreakdown, opponentBreakdown, mySetScores, opponentSetScores);
+}
+
 function toScoreBreakdown(scoreValues: unknown[] | undefined): ScoreBreakdown {
 	if (!Array.isArray(scoreValues)) {
 		return {

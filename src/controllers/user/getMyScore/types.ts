@@ -20,7 +20,8 @@ export interface MyScoreEntry {
 export interface MyScoreResponse {
 	summary: {
 		totalMatches: number;
-		totalWins: number;
+		estimatedWins: number;
+		winsTruncated: boolean;
 		glicko2: {
 			rating: number;
 			rd: number;
@@ -29,6 +30,12 @@ export interface MyScoreResponse {
 	filters: {
 		mode: 'all' | MyScoreMatchMode;
 		range: 'last30Days' | 'allTime';
+	};
+	pagination: {
+		page: number;
+		limit: number;
+		total: number;
+		totalPages: number;
 	};
 	entries: MyScoreEntry[];
 }

@@ -33,7 +33,9 @@ function isPopulatedPlayer(value: unknown): value is PopulatedPlayer {
   return typeof value === "object" && value !== null && "_id" in value;
 }
 
-function mapPlayer(value: PopulatedPlayer | Types.ObjectId): MatchPlayerResponse {
+function mapPlayer(
+  value: PopulatedPlayer | Types.ObjectId,
+): MatchPlayerResponse {
   if (isPopulatedPlayer(value)) {
     return {
       id: value._id.toString(),
@@ -57,7 +59,9 @@ function mapTeamPlayers(team: {
   }
 
   return team.players
-    .filter((player): player is PopulatedPlayer | Types.ObjectId => player != null)
+    .filter(
+      (player): player is PopulatedPlayer | Types.ObjectId => player != null,
+    )
     .map((player) => mapPlayer(player));
 }
 
@@ -65,7 +69,7 @@ function resolveTeamsForUser(game: LiveMatchGameDoc, userId: string) {
   const mappedTeams = [mapTeamPlayers(game.side1), mapTeamPlayers(game.side2)];
 
   const userTeamIndex = mappedTeams.findIndex((team) =>
-    team.some((player) => player.id === userId)
+    team.some((player) => player.id === userId),
   );
 
   if (userTeamIndex === -1) {
@@ -83,14 +87,17 @@ function resolveTeamsForUser(game: LiveMatchGameDoc, userId: string) {
   };
 }
 
-export function mapLiveMatchItem(game: LiveMatchGameDoc, userId: string): LiveMatchResponseItem {
+export function mapLiveMatchItem(
+  game: LiveMatchGameDoc,
+  userId: string,
+): LiveMatchResponseItem {
   const tournamentId = game.tournament?._id?.toString() ?? null;
   const tournamentNameTrimmed = game.tournament?.name?.trim();
 
   if (!tournamentId || !tournamentNameTrimmed) {
     LogWarning(
       "getTournamentLiveMatch",
-      `Missing tournament name or id on in-flight game ${game._id.toString()}`
+      `Missing tournament name or id on in-flight game ${game._id.toString()}`,
     );
   }
 
@@ -99,6 +106,7 @@ export function mapLiveMatchItem(game: LiveMatchGameDoc, userId: string): LiveMa
   return {
     id: game._id.toString(),
     mode: game.matchType,
+    playMode: game.playMode,
     status: toResponseStatus(game.status),
     startTime: game.startTime ? game.startTime.toISOString() : null,
     tournament: {

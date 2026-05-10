@@ -17,7 +17,9 @@ export async function fetchLiveMatchGames(userId: Types.ObjectId) {
     $or: [{ "side1.players": userId }, { "side2.players": userId }],
     startTime: { $ne: null, $gte: startTimeLowerBound },
   })
-    .select("_id status startTime matchType side1 side2 tournament schedule court")
+    .select(
+      "_id status startTime matchType playMode side1 side2 tournament schedule court",
+    )
     .populate("side1.players", "name alias")
     .populate("side2.players", "name alias")
     .populate("tournament", "name duration")
@@ -33,7 +35,7 @@ export async function fetchLiveMatchGames(userId: Types.ObjectId) {
  */
 export async function applyResolvedTimedStatuses(
   games: LiveMatchGameDoc[],
-  now: Date
+  now: Date,
 ): Promise<void> {
   const statusUpdates: Array<{
     id: Types.ObjectId;
@@ -42,7 +44,8 @@ export async function applyResolvedTimedStatuses(
   }> = [];
 
   for (const game of games) {
-    const durationMinutes = game.schedule?.matchDurationMinutes ?? game.tournament?.duration ?? 60;
+    const durationMinutes =
+      game.schedule?.matchDurationMinutes ?? game.tournament?.duration ?? 60;
 
     const nextStatus = resolveTimedGameStatus({
       persistedStatus: game.status,
@@ -65,7 +68,9 @@ export async function applyResolvedTimedStatuses(
   }
 
   const appliedUpdates = await updateGameStatuses(statusUpdates);
-  const statusById = new Map(appliedUpdates.map((u) => [u.id.toString(), u.status]));
+  const statusById = new Map(
+    appliedUpdates.map((u) => [u.id.toString(), u.status]),
+  );
   for (const game of games) {
     const persisted = statusById.get(game._id.toString());
     if (persisted !== undefined) {
