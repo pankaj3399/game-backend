@@ -14,5 +14,6 @@ export {
   generateScoreQr,
   generateIndependentScoreQr,
   validateScoreQr,
+  validateScoreQrConfirmContext,
   confirmScoreQr,
 } from './scoreQr/index';

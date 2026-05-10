@@ -20,8 +20,7 @@ export interface MyScoreEntry {
 export interface MyScoreResponse {
 	summary: {
 		totalMatches: number;
-		estimatedWins: number;
-		winsTruncated: boolean;
+		totalWins: number;
 		glicko2: {
 			rating: number;
 			rd: number;

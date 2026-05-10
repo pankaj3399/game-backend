@@ -16,6 +16,8 @@ export interface LiveMatchResponseItem {
   mode: MatchType;
   playMode: GamePlayMode;
   status: MatchStatusResponse;
+  /** Schedule round when known (from tournament schedule or detached replay). */
+  round: number | null;
   startTime: string | null;
   tournament: {
     id: string | null;
@@ -52,9 +54,15 @@ export interface LiveMatchGameDoc {
     name?: string | null;
     duration?: number | null;
   } | null;
+  detachedFromRound?: number | null;
   schedule?: {
     _id: Types.ObjectId;
     matchDurationMinutes?: number | null;
+    rounds?: Array<{
+      game: Types.ObjectId;
+      round: number;
+      slot: number;
+    }>;
   } | null;
   court?: {
     _id: Types.ObjectId;

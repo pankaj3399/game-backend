@@ -1,6 +1,8 @@
-import { Types } from "mongoose";
-import Game from "../../../models/Game";
+import { type HydratedDocument, Types } from "mongoose";
+import Game, { type IGame } from "../../../models/Game";
 import ScoreValidationRequest from "../../../models/ScoreValidationRequest";
+import User from "../../../models/User";
+import { DEFAULT_ELO } from "../../../lib/config";
 import { AppError } from "../../../shared/errors";
 import type { GamePlayMode, MatchType } from "../../../types/domain/game";
 import type { RecordMatchScoreInput } from "../recordMatchScore/validation";
@@ -12,6 +14,72 @@ import type {
   ScoreValidationRequestLean,
   TournamentGameForScoreQr,
 } from "./types";
+
+export async function buildGlickoSnapshotForUser(
+  userId: string | Types.ObjectId,
+): Promise<{
+  player: Types.ObjectId;
+  rating: number;
+  rd: number;
+  vol: number;
+  tau: number;
+}> {
+  const oid = typeof userId === "string" ? new Types.ObjectId(userId) : userId;
+  const user = await User.findById(oid)
+    .select("elo")
+    .lean<{ elo?: { rating?: number; rd?: number; vol?: number; tau?: number } } | null>()
+    .exec();
+  const elo = user?.elo;
+  const rating =
+    typeof elo?.rating === "number" && Number.isFinite(elo.rating)
+      ? elo.rating
+      : DEFAULT_ELO.rating;
+  const rd =
+    typeof elo?.rd === "number" && Number.isFinite(elo.rd)
+      ? elo.rd
+      : DEFAULT_ELO.rd;
+  const volRaw = elo?.vol;
+  const tauRaw = elo?.tau;
+  const vol =
+    typeof volRaw === "number" && Number.isFinite(volRaw) && volRaw > 0
+      ? volRaw
+      : DEFAULT_ELO.vol;
+  const tau =
+    typeof tauRaw === "number" && Number.isFinite(tauRaw) && tauRaw > 0
+      ? tauRaw
+      : DEFAULT_ELO.tau;
+  return { player: oid, rating, rd, vol, tau };
+}
+
+/** Ensures each populated side has one Glicko snapshot per player (standalone / independent QR flow). */
+export async function ensureStandaloneGameSnapshots(
+  game: HydratedDocument<IGame>,
+): Promise<void> {
+  if (game.gameMode !== "standalone") return;
+
+  const sides = ["side1", "side2"] as const;
+  for (const sideKey of sides) {
+    const side = game[sideKey];
+    const players = Array.isArray(side.players) ? side.players : [];
+    if (players.length === 0) continue;
+
+    const snapshots = Array.isArray(side.playerSnapshots)
+      ? side.playerSnapshots
+      : [];
+    const snapshotOk =
+      snapshots.length === players.length &&
+      players.every((pid) =>
+        snapshots.some((s) => s.player?.toString() === pid.toString()),
+      );
+    if (snapshotOk) continue;
+
+    const repairedSnapshots = await Promise.all(
+      players.map((pid) => buildGlickoSnapshotForUser(pid)),
+    );
+    game.set(`${sideKey}.playerSnapshots`, repairedSnapshots);
+    game.markModified(`${sideKey}.playerSnapshots`);
+  }
+}
 
 export async function findTournamentGame(input: {
   tournamentId: string;
@@ -41,9 +109,14 @@ export async function createStandaloneMatchForQr(input: {
   const matchType = normalizeIndependentMatchType(input.matchType);
   const playMode = normalizeIndependentPlayMode(input.scoreInput, input.playMode);
 
+  const requesterSnapshot = await buildGlickoSnapshotForUser(input.requesterUserId);
+
   const game = await Game.create({
-    side1: { players: [new Types.ObjectId(input.requesterUserId)] },
-    side2: { players: [] },
+    side1: {
+      players: [new Types.ObjectId(input.requesterUserId)],
+      playerSnapshots: [requesterSnapshot],
+    },
+    side2: { players: [], playerSnapshots: [] },
     score: {
       playerOneScores: [],
       playerTwoScores: [],
@@ -139,6 +212,57 @@ export async function assertTournamentConfirmerEligibility(input: {
   }
 
   if (!confirmerInSide1 && !confirmerInSide2) {
+    throw new AppError("You are not allowed to confirm this score.", 403);
+  }
+}
+
+export async function assertStandaloneConfirmerEligibility(input: {
+  requestMatchId: string;
+  requestByUserId: string;
+  confirmerUserId: string;
+}): Promise<void> {
+  const game = await Game.findById(input.requestMatchId)
+    .select("_id gameMode side1 side2 status")
+    .lean<{
+      _id: Types.ObjectId;
+      gameMode: "tournament" | "standalone";
+      side1: { players: Types.ObjectId[] };
+      side2: { players: Types.ObjectId[] };
+      status: string;
+    } | null>()
+    .exec();
+
+  if (!game) {
+    throw new AppError("Independent match not found", 404);
+  }
+
+  if (game.gameMode !== "standalone") {
+    throw new AppError("Invalid independent match context", 409);
+  }
+
+  if (game.status === "finished" || game.status === "cancelled") {
+    throw new AppError("Match is already closed", 409);
+  }
+
+  const side1 = (game.side1?.players ?? []).map((id) => id.toString());
+  const side2 = (game.side2?.players ?? []).map((id) => id.toString());
+  const requesterInSide1 = side1.includes(input.requestByUserId);
+  const requesterInSide2 = side2.includes(input.requestByUserId);
+
+  if (!requesterInSide1 && !requesterInSide2) {
+    throw new AppError("Requester is not a participant in this match", 403);
+  }
+
+  if (input.confirmerUserId === input.requestByUserId) {
+    throw new AppError("Requester cannot confirm their own independent QR", 403);
+  }
+
+  const opponentSide = requesterInSide1 ? side2 : side1;
+  if (opponentSide.length === 0) {
+    return;
+  }
+
+  if (!opponentSide.includes(input.confirmerUserId)) {
     throw new AppError("You are not allowed to confirm this score.", 403);
   }
 }
@@ -299,6 +423,11 @@ export async function attachConfirmerToStandaloneMatchIfNeeded(input: {
   const confirmerOid = new Types.ObjectId(input.confirmerUserId);
   const startTime = game.startTime ?? new Date();
 
+  const [requesterSnap, confirmerSnap] = await Promise.all([
+    buildGlickoSnapshotForUser(input.requestByUserId),
+    buildGlickoSnapshotForUser(input.confirmerUserId),
+  ]);
+
   const updated = await Game.findOneAndUpdate(
     {
       _id: input.requestMatchId,
@@ -310,13 +439,15 @@ export async function attachConfirmerToStandaloneMatchIfNeeded(input: {
     {
       $set: {
         [`${opponentSide}.players`]: [confirmerOid],
+        [`${opponentSide}.playerSnapshots`]: [confirmerSnap],
+        [`${requesterSide}.playerSnapshots`]: [requesterSnap],
         matchType: input.matchType,
         playMode: input.playMode,
         status: "pendingScore",
         startTime,
       },
     },
-    { new: true },
+    { returnDocument: "after" },
   ).exec();
 
   if (!updated) {

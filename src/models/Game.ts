@@ -182,6 +182,9 @@ gameSchema.pre('validate', function (this: HydratedDocument<IGame>) {
 	}
 
 	const expectedSideSize = this.matchType === 'doubles' ? 2 : 1;
+	const allowIncompleteStandaloneSide =
+		this.gameMode === 'standalone' && this.status === 'pendingScore';
+
 	const allPlayers: string[] = [];
 	const sides: Array<{ key: 'side1' | 'side2'; value: IGameTeam | undefined }> = [
 		{ key: 'side1', value: this.side1 },
@@ -192,6 +195,16 @@ gameSchema.pre('validate', function (this: HydratedDocument<IGame>) {
 		const players = Array.isArray(side.value?.players) ? side.value.players : [];
 		const playerSnapshots = Array.isArray(side.value?.playerSnapshots) ? side.value.playerSnapshots : [];
 		const playerIds = players.map((p) => p?.toString()).filter((id) => Boolean(id));
+
+		if (allowIncompleteStandaloneSide && players.length === 0) {
+			if (playerSnapshots.length !== 0) {
+				this.invalidate(
+					`${side.key}.playerSnapshots`,
+					'playerSnapshots must be empty before opponents are assigned to this side'
+				);
+			}
+			continue;
+		}
 
 		if (players.length !== expectedSideSize) {
 			this.invalidate(
@@ -223,6 +236,10 @@ gameSchema.pre('validate', function (this: HydratedDocument<IGame>) {
 				);
 			}
 		}
+	}
+
+	if (allowIncompleteStandaloneSide && allPlayers.length === 0) {
+		this.invalidate('side1', 'standalone match must include at least one assigned player');
 	}
 
 	if (new Set(allPlayers).size !== allPlayers.length) {

@@ -9,8 +9,10 @@ import {
   confirmScoreQrFlow,
   getActiveScoreQrSessionFlow,
   generateScoreQrFlow,
+  validateScoreQrConfirmContextFlow,
   validateScoreQrTokenFlow,
 } from "./handler";
+import type { ValidateScoreQrTokenResult } from "./types";
 import {
   activeScoreQrQuerySchema,
   confirmScoreQrBodySchema,
@@ -18,6 +20,60 @@ import {
   generateScoreQrBodySchema,
   scoreQrTokenParamsSchema,
 } from "./validation";
+
+function validationFailurePayload(validation: ValidateScoreQrTokenResult) {
+  const statusByReason: Record<string, number> = {
+    expired: 410,
+    request_expired: 410,
+    request_not_found: 404,
+    request_not_pending: 409,
+    invalid_signature: 401,
+    malformed: 400,
+    request_match_mismatch: 409,
+    ok: 400,
+  };
+
+  const messageByReason: Record<string, string> = {
+    expired: "QR token has expired",
+    request_expired: "QR request has expired",
+    request_not_found: "QR request not found",
+    request_not_pending: "QR request already consumed/cancelled",
+    invalid_signature: "Invalid QR token signature",
+    malformed: "Malformed QR token",
+    request_match_mismatch: "QR token does not match persisted request",
+    ok: "QR token is invalid",
+  };
+
+  const status = statusByReason[validation.reason] ?? 400;
+  const message = messageByReason[validation.reason] ?? "QR token is invalid";
+
+  return {
+    status,
+    body: {
+      ...buildErrorPayload(message),
+      reason: validation.reason,
+    },
+  };
+}
+
+function safeValidationRequest(validation: ValidateScoreQrTokenResult) {
+  const r = validation.request;
+  if (!validation.valid || !r) return null;
+
+  return {
+    id: r.id,
+    flow: r.flow,
+    tournamentId: r.tournamentId,
+    matchId: r.matchId,
+    requestByUserId: r.requestByUserId,
+    opponentUserId: r.opponentUserId,
+    playerOneScores: r.playerOneScores,
+    playerTwoScores: r.playerTwoScores,
+    playMode: r.playMode,
+    matchType: r.matchType,
+    expiresAt: r.expiresAt,
+  };
+}
 
 /**
  * POST /api/tournaments/:id/matches/:matchId/score/qr
@@ -182,50 +238,12 @@ export async function validateScoreQr(req: Request, res: Response) {
     const { token } = paramsResult.data;
     const validation = await validateScoreQrTokenFlow(token);
 
-    if (!validation.valid || !validation.request) {
-      const statusByReason: Record<string, number> = {
-        expired: 410,
-        request_expired: 410,
-        request_not_found: 404,
-        request_not_pending: 409,
-        invalid_signature: 401,
-        malformed: 400,
-        request_match_mismatch: 409,
-      };
-
-      const messageByReason: Record<string, string> = {
-        expired: "QR token has expired",
-        request_expired: "QR request has expired",
-        request_not_found: "QR request not found",
-        request_not_pending: "QR request already consumed/cancelled",
-        invalid_signature: "Invalid QR token signature",
-        malformed: "Malformed QR token",
-        request_match_mismatch: "QR token does not match persisted request",
-      };
-
-      const status = statusByReason[validation.reason] ?? 400;
-      const message =
-        messageByReason[validation.reason] ?? "QR token is invalid";
-
-      res.status(status).json({
-        ...buildErrorPayload(message),
-        reason: validation.reason,
-      });
+    const safeRequest = safeValidationRequest(validation);
+    if (!safeRequest) {
+      const failure = validationFailurePayload(validation);
+      res.status(failure.status).json(failure.body);
       return;
     }
-
-    const r = validation.request;
-    const safeRequest = {
-      id: r.id,
-      flow: r.flow,
-      tournamentId: r.tournamentId,
-      matchId: r.matchId,
-      playerOneScores: r.playerOneScores,
-      playerTwoScores: r.playerTwoScores,
-      playMode: r.playMode,
-      matchType: r.matchType,
-      expiresAt: r.expiresAt,
-    };
 
     res.status(200).json({
       message: "QR token is valid",
@@ -245,6 +263,55 @@ export async function validateScoreQr(req: Request, res: Response) {
     }
 
     logger.error("Error validating score QR", { err });
+    res.status(500).json(buildErrorPayload("Failed to validate score QR"));
+  }
+}
+
+/**
+ * POST /api/tournaments/score-qr/confirm-context
+ * Validates a QR token for the authenticated confirmer before exposing score details.
+ */
+export async function validateScoreQrConfirmContext(
+  req: AuthenticatedRequest,
+  res: Response,
+) {
+  try {
+    const parsedBody = confirmScoreQrBodySchema.safeParse(req.body);
+    if (!parsedBody.success) {
+      res.status(400).json(buildZodErrorPayload(parsedBody.error));
+      return;
+    }
+
+    const validation = await validateScoreQrConfirmContextFlow({
+      token: parsedBody.data.token,
+      confirmerUserId: req.user._id.toString(),
+    });
+
+    const safeRequest = safeValidationRequest(validation);
+    if (!safeRequest) {
+      const failure = validationFailurePayload(validation);
+      res.status(failure.status).json(failure.body);
+      return;
+    }
+
+    res.status(200).json({
+      message: "QR token is valid for this confirmer",
+      valid: true,
+      reason: validation.reason,
+      request: safeRequest,
+    });
+  } catch (err) {
+    if (err instanceof AppError) {
+      if (err.statusCode >= 500) {
+        logger.error("Error validating score QR confirm context", { err });
+        res.status(500).json(buildErrorPayload("Internal server error"));
+        return;
+      }
+      res.status(err.statusCode).json(buildErrorPayload(err.message));
+      return;
+    }
+
+    logger.error("Error validating score QR confirm context", { err });
     res.status(500).json(buildErrorPayload("Failed to validate score QR"));
   }
 }

@@ -20,9 +20,11 @@ import { fetchTournamentScheduleContext } from "../../schedule/shared/queries";
 import { recordTournamentMatchScoreFlow } from "../recordMatchScore/handler";
 import {
   assertTournamentConfirmerEligibility,
+  assertStandaloneConfirmerEligibility,
   attachConfirmerToStandaloneMatchIfNeeded,
   cancelPendingRequests,
   createStandaloneMatchForQr,
+  ensureStandaloneGameSnapshots,
   expireStalePendingRequests,
   findLatestActivePendingRequestByContext,
   findScoreValidationRequestById,
@@ -46,6 +48,39 @@ import type {
   ValidateScoreQrTokenResult,
 } from "./types";
 
+type ValidScoreQrRequest = NonNullable<ValidateScoreQrTokenResult["request"]>;
+
+async function assertScoreQrConfirmEligibility(
+  request: ValidScoreQrRequest,
+  confirmerUserId: string,
+): Promise<void> {
+  if (request.flow === "tournament") {
+    if (!request.tournamentId) {
+      throw new AppError("Invalid tournament QR context", 409);
+    }
+
+    if (
+      request.opponentUserId &&
+      confirmerUserId !== request.opponentUserId
+    ) {
+      throw new AppError("You are not allowed to confirm this score.", 403);
+    }
+
+    await assertTournamentConfirmerEligibility({
+      matchId: request.matchId,
+      tournamentId: request.tournamentId,
+      requesterUserId: request.requestByUserId,
+      confirmerUserId,
+    });
+    return;
+  }
+
+  await assertStandaloneConfirmerEligibility({
+    requestMatchId: request.matchId,
+    requestByUserId: request.requestByUserId,
+    confirmerUserId,
+  });
+}
 
 export async function generateScoreQrFlow(
   input: GenerateScoreQrInput,
@@ -292,6 +327,23 @@ export async function validateScoreQrTokenFlow(
   };
 }
 
+export async function validateScoreQrConfirmContextFlow(input: {
+  token: string;
+  confirmerUserId: string;
+}): Promise<ValidateScoreQrTokenResult> {
+  const validation = await validateScoreQrTokenFlow(input.token);
+  if (!validation.valid || !validation.request) {
+    return validation;
+  }
+
+  await assertScoreQrConfirmEligibility(
+    validation.request,
+    input.confirmerUserId,
+  );
+
+  return validation;
+}
+
 export async function confirmScoreQrFlow(
   input: ConfirmScoreQrInput,
 ): Promise<ConfirmScoreQrResult> {
@@ -312,20 +364,7 @@ export async function confirmScoreQrFlow(
 
   const request = validation.request;
 
-  if (request.flow === "tournament") {
-    if (request.opponentUserId) {
-      if (input.confirmerUserId !== request.opponentUserId) {
-        throw new AppError("You are not allowed to confirm this score.", 403);
-      }
-    } else if (request.tournamentId) {
-      await assertTournamentConfirmerEligibility({
-        matchId: request.matchId,
-        tournamentId: request.tournamentId,
-        requesterUserId: request.requestByUserId,
-        confirmerUserId: input.confirmerUserId,
-      });
-    }
-  }
+  await assertScoreQrConfirmEligibility(request, input.confirmerUserId);
 
   if (request.flow === "independent") {
     await attachConfirmerToStandaloneMatchIfNeeded({
@@ -376,13 +415,13 @@ export async function confirmScoreQrFlow(
         status: "consumed",
         consumedAt: now,
         consumedBy: input.confirmerUserId,
-        ...(request.flow === "independent" && !request.opponentUserId
+        ...(!request.opponentUserId
           ? { opponentUser: input.confirmerUserId }
           : {}),
       },
     },
     {
-      new: true,
+      returnDocument: "after",
       select: "_id consumedAt",
     },
   )
@@ -459,6 +498,8 @@ export async function confirmScoreQrFlow(
       throw new AppError("Match is already closed", 409);
     }
 
+    await ensureStandaloneGameSnapshots(standalone);
+
     const winner = resolveWinnerBySets(request.playMode, {
       playerOneScores: request.playerOneScores,
       playerTwoScores: request.playerTwoScores,
@@ -472,6 +513,7 @@ export async function confirmScoreQrFlow(
     standalone.startTime = standalone.startTime ?? now;
     standalone.endTime = winner ? now : undefined;
 
+    await ensureStandaloneGameSnapshots(standalone);
     await standalone.save();
 
     return {
@@ -496,7 +538,7 @@ export async function confirmScoreQrFlow(
           consumedAt: null,
           consumedBy: null,
         },
-        ...(request.flow === "independent" && !request.opponentUserId
+        ...(!request.opponentUserId
           ? { $unset: { opponentUser: "" } }
           : {}),
       },
