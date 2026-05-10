@@ -1,4 +1,4 @@
-import { Types } from 'mongoose';
+import { Types, type PipelineStage } from 'mongoose';
 import Game from '../../../models/Game';
 import User from '../../../models/User';
 import { determineDidWinFromSetScores } from './mapper';
@@ -143,6 +143,26 @@ function withMappableGameShapeConstraints(filter: Record<string, unknown>): Reco
 	};
 }
 
+/** Coalesced instant used for last30Days $expr, list order, and wins scan — mirrors resolvePlayedAt date cascade (epoch if all missing). */
+const PLAYED_AT_EPOCH_FALLBACK = new Date(0);
+
+function coalescedPlayedAtExpr(): Record<string, unknown> {
+	return {
+		$ifNull: [
+			'$endTime',
+			{ $ifNull: ['$startTime', { $ifNull: ['$createdAt', PLAYED_AT_EPOCH_FALLBACK] }] },
+		],
+	};
+}
+
+/** Sort by resolved playedAt desc, then _id (same ordering intent as mapGameToMyScoreEntry playedAt). */
+function sortStagesByResolvedPlayedAt(): PipelineStage[] {
+	return [
+		{ $addFields: { __playedAtSort: coalescedPlayedAtExpr() } },
+		{ $sort: { __playedAtSort: -1, _id: -1 } },
+	];
+}
+
 export async function fetchCompletedTournamentGamesForUser(
 	options: FetchCompletedTournamentGamesOptions
 ): Promise<FetchCompletedTournamentGamesResult> {
@@ -159,7 +179,6 @@ export async function fetchCompletedTournamentGamesForUser(
 	const userObjectId = new Types.ObjectId(options.userId);
 	const baseFilter = buildBaseFilter(userObjectId, options);
 	const listFilter = withMappableGameShapeConstraints(baseFilter);
-	const sort = { endTime: -1, startTime: -1, createdAt: -1, _id: -1 } as const;
 
 	const totalEntries = await Game.countDocuments(listFilter).exec();
 	const limit = Math.max(1, options.limit);
@@ -168,16 +187,31 @@ export async function fetchCompletedTournamentGamesForUser(
 	const skip = Math.max(0, (page - 1) * limit);
 
 	const [entries, winsAggregate] = await Promise.all([
-		Game.find(listFilter)
-			.select('_id side1 side2 tournament score matchType playMode startTime endTime createdAt')
-			.populate('side1.players', 'name alias')
-			.populate('side2.players', 'name alias')
-			.populate('tournament', 'name')
-			.sort(sort)
-			.skip(skip)
-			.limit(limit)
-			.lean<MyScoreGameDoc[]>()
-			.exec(),
+		(async (): Promise<MyScoreGameDoc[]> => {
+			const idRows = await Game.aggregate<{ _id: Types.ObjectId }>([
+				{ $match: listFilter },
+				...sortStagesByResolvedPlayedAt(),
+				{ $skip: skip },
+				{ $limit: limit },
+				{ $project: { _id: 1 } },
+			]).exec();
+
+			const orderedIds = idRows.map((row) => row._id);
+			if (orderedIds.length === 0) {
+				return [];
+			}
+
+			const raw = await Game.find({ _id: { $in: orderedIds } })
+				.select('_id side1 side2 tournament score matchType playMode startTime endTime createdAt')
+				.populate('side1.players', 'name alias')
+				.populate('side2.players', 'name alias')
+				.populate('tournament', 'name')
+				.lean<MyScoreGameDoc[]>()
+				.exec();
+
+			const byId = new Map(raw.map((doc) => [doc._id.toString(), doc]));
+			return orderedIds.map((id) => byId.get(id.toString())).filter((doc): doc is MyScoreGameDoc => doc != null);
+		})(),
 		countTournamentWinsForUser(userObjectId, listFilter),
 	]);
 
@@ -192,12 +226,12 @@ async function countTournamentWinsForUser(
 ): Promise<{ estimatedWins: number; winsTruncated: boolean }> {
 	const userIdStr = userObjectId.toString();
 
-	const lightweight = await Game.find(filter)
-		.select('side1.players side2.players score')
-		.sort({ endTime: -1, startTime: -1, createdAt: -1, _id: -1 })
-		.limit(TOTALS_SCAN_CAP + 1)
-		.lean<LightweightGameDoc[]>()
-		.exec();
+	const lightweight = await Game.aggregate<LightweightGameDoc>([
+		{ $match: filter },
+		...sortStagesByResolvedPlayedAt(),
+		{ $limit: TOTALS_SCAN_CAP + 1 },
+		{ $project: { side1: 1, side2: 1, score: 1 } },
+	]).exec();
 
 	const winsTruncated = lightweight.length > TOTALS_SCAN_CAP;
 	const gamesToScore = winsTruncated ? lightweight.slice(0, TOTALS_SCAN_CAP) : lightweight;
