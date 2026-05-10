@@ -52,12 +52,14 @@ export interface FetchCompletedTournamentGamesOptions {
 export interface FetchCompletedTournamentGamesResult {
 	entries: MyScoreGameDoc[];
 	totalEntries: number;
-	totalWins: number;
+	estimatedWins: number;
+	winsTruncated: boolean;
+	page: number;
 }
 
 const RANGE_DAYS = 30;
-// Hard cap on docs scanned for the totals/wins aggregate to keep work bounded
-// even for users with very long histories. Pagination handles the page itself.
+// Hard cap on docs scanned for estimatedWins to keep work bounded even for users
+// with very long histories. winsTruncated is set when additional rows likely exist.
 const TOTALS_SCAN_CAP = 1000;
 
 interface LightweightGameDoc {
@@ -108,51 +110,92 @@ function buildBaseFilter(
 	return filter;
 }
 
+/** Aligns list/count queries with rows mapGameToMyScoreEntry returns (non-null). */
+function withMappableGameShapeConstraints(filter: Record<string, unknown>): Record<string, unknown> {
+	const shapeConstraints: Record<string, unknown>[] = [
+		{ 'side1.players.0': { $exists: true } },
+		{ 'side2.players.0': { $exists: true } },
+	];
+
+	const modeIsSinglesOrDoubles =
+		filter.matchType === 'singles' || filter.matchType === 'doubles';
+
+	if (!modeIsSinglesOrDoubles) {
+		shapeConstraints.push({ matchType: { $in: ['singles', 'doubles'] } });
+	}
+
+	const existingAnd = filter.$and;
+	if (Array.isArray(existingAnd)) {
+		return { ...filter, $and: [...existingAnd, ...shapeConstraints] };
+	}
+
+	return {
+		...filter,
+		$and: shapeConstraints,
+	};
+}
+
 export async function fetchCompletedTournamentGamesForUser(
 	options: FetchCompletedTournamentGamesOptions
 ): Promise<FetchCompletedTournamentGamesResult> {
 	if (!Types.ObjectId.isValid(options.userId)) {
-		return { entries: [], totalEntries: 0, totalWins: 0 };
+		return {
+			entries: [],
+			totalEntries: 0,
+			estimatedWins: 0,
+			winsTruncated: false,
+			page: 1,
+		};
 	}
 
 	const userObjectId = new Types.ObjectId(options.userId);
-	const filter = buildBaseFilter(userObjectId, options);
-	const skip = Math.max(0, (options.page - 1) * options.limit);
+	const baseFilter = buildBaseFilter(userObjectId, options);
+	const listFilter = withMappableGameShapeConstraints(baseFilter);
 	const sort = { endTime: -1, startTime: -1, createdAt: -1, _id: -1 } as const;
 
-	const [entries, totalEntries, totalWins] = await Promise.all([
-		Game.find(filter)
+	const totalEntries = await Game.countDocuments(listFilter).exec();
+	const limit = Math.max(1, options.limit);
+	const totalPages = Math.max(1, Math.ceil(totalEntries / limit));
+	const page = Math.min(Math.max(1, options.page), totalPages);
+	const skip = Math.max(0, (page - 1) * limit);
+
+	const [entries, winsAggregate] = await Promise.all([
+		Game.find(listFilter)
 			.select('_id side1 side2 tournament score matchType playMode startTime endTime createdAt')
 			.populate('side1.players', 'name alias')
 			.populate('side2.players', 'name alias')
 			.populate('tournament', 'name')
 			.sort(sort)
 			.skip(skip)
-			.limit(options.limit)
+			.limit(limit)
 			.lean<MyScoreGameDoc[]>()
 			.exec(),
-		Game.countDocuments(filter).exec(),
-		countTournamentWinsForUser(userObjectId, filter),
+		countTournamentWinsForUser(userObjectId, listFilter),
 	]);
 
-	return { entries, totalEntries, totalWins };
+	const { estimatedWins, winsTruncated } = winsAggregate;
+
+	return { entries, totalEntries, estimatedWins, winsTruncated, page };
 }
 
 async function countTournamentWinsForUser(
 	userObjectId: Types.ObjectId,
 	filter: Record<string, unknown>
-): Promise<number> {
+): Promise<{ estimatedWins: number; winsTruncated: boolean }> {
 	const userIdStr = userObjectId.toString();
 
 	const lightweight = await Game.find(filter)
 		.select('side1.players side2.players score')
 		.sort({ endTime: -1, startTime: -1, createdAt: -1, _id: -1 })
-		.limit(TOTALS_SCAN_CAP)
+		.limit(TOTALS_SCAN_CAP + 1)
 		.lean<LightweightGameDoc[]>()
 		.exec();
 
+	const winsTruncated = lightweight.length > TOTALS_SCAN_CAP;
+	const gamesToScore = winsTruncated ? lightweight.slice(0, TOTALS_SCAN_CAP) : lightweight;
+
 	let wins = 0;
-	for (const game of lightweight) {
+	for (const game of gamesToScore) {
 		const side1Players = Array.isArray(game.side1?.players) ? game.side1!.players! : [];
 		const side2Players = Array.isArray(game.side2?.players) ? game.side2!.players! : [];
 
@@ -170,7 +213,7 @@ async function countTournamentWinsForUser(
 		}
 	}
 
-	return wins;
+	return { estimatedWins: wins, winsTruncated };
 }
 
 export async function fetchUserRatingSnapshot(userId: string): Promise<UserRatingSnapshot | null> {
