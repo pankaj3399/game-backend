@@ -91,16 +91,21 @@ function buildBaseFilter(
 	if (options.range === 'last30Days') {
 		const now = options.now ?? new Date();
 		const cutoff = new Date(now.getTime() - RANGE_DAYS * 24 * 60 * 60 * 1000);
-		// Mirrors mapper.resolvePlayedAt fallback (endTime → startTime → createdAt):
-		// a doc qualifies if any of those dates falls within the cutoff window.
+		// Same cascade as mapGameToMyScoreEntry → resolvePlayedAt: endTime, else startTime, else createdAt.
 		filter.$and = [
 			userInSide,
 			{
-				$or: [
-					{ endTime: { $gte: cutoff } },
-					{ startTime: { $gte: cutoff } },
-					{ createdAt: { $gte: cutoff } },
-				],
+				$expr: {
+					$gte: [
+						{
+							$ifNull: [
+								'$endTime',
+								{ $ifNull: ['$startTime', '$createdAt'] },
+							],
+						},
+						cutoff,
+					],
+				},
 			},
 		];
 	} else {
