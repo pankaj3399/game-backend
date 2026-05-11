@@ -27,7 +27,13 @@ export async function getMyScoreFlow(userId: string, query: MyScoreQuery) {
 		return error(404, 'User not found');
 	}
 
-	const { entries: rawEntries, totalEntries, estimatedWins, winsTruncated, page } = gamesPage;
+	const {
+		entries: rawEntries,
+		totalEntries,
+		estimatedWins,
+		winsTruncated,
+		page,
+	} = gamesPage;
 
 	const mappedEntries: MyScoreEntry[] = [];
 	for (const game of rawEntries) {
@@ -47,7 +53,7 @@ export async function getMyScoreFlow(userId: string, query: MyScoreQuery) {
 	const response: MyScoreResponse = {
 		summary: {
 			totalMatches: totalEntries,
-			estimatedWins,
+			totalWins: estimatedWins,
 			winsTruncated,
 			glicko2: {
 				rating: Math.round(ratingSnapshot.rating),

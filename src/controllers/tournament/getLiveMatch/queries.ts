@@ -14,16 +14,17 @@ export async function fetchLiveMatchGames(userId: Types.ObjectId) {
   return Game.find({
     gameMode: "tournament",
     status: { $nin: ["finished", "cancelled"] },
-    $or: [{ "side1.players": userId }, { "side2.players": userId }],
     startTime: { $ne: null, $gte: startTimeLowerBound },
+    isHistorical: { $ne: true },
+    $or: [{ "side1.players": userId }, { "side2.players": userId }],
   })
     .select(
-      "_id status startTime matchType playMode side1 side2 tournament schedule court",
+      "_id status startTime matchType playMode side1 side2 tournament schedule court detachedFromRound",
     )
     .populate("side1.players", "name alias")
     .populate("side2.players", "name alias")
     .populate("tournament", "name duration")
-    .populate("schedule", "matchDurationMinutes")
+    .populate("schedule", "matchDurationMinutes rounds")
     .populate("court", "name")
     .sort({ startTime: 1 })
     .lean<LiveMatchGameDoc[]>()
