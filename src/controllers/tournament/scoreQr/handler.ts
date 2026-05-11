@@ -415,9 +415,6 @@ export async function confirmScoreQrFlow(
         status: "consumed",
         consumedAt: now,
         consumedBy: input.confirmerUserId,
-        ...(!request.opponentUserId
-          ? { opponentUser: input.confirmerUserId }
-          : {}),
       },
     },
     {
@@ -537,9 +534,6 @@ export async function confirmScoreQrFlow(
           consumedAt: null,
           consumedBy: null,
         },
-        ...(!request.opponentUserId
-          ? { $unset: { opponentUser: "" } }
-          : {}),
       },
     ).exec();
 
