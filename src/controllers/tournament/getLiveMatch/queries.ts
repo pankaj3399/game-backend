@@ -16,16 +16,7 @@ export async function fetchLiveMatchGames(userId: Types.ObjectId) {
     status: { $nin: ["finished", "cancelled"] },
     startTime: { $ne: null, $gte: startTimeLowerBound },
     isHistorical: { $ne: true },
-    $and: [
-      { $or: [{ "side1.players": userId }, { "side2.players": userId }] },
-      {
-        // Superseded copies when a round is rescheduled; keep only current schedule-backed games.
-        $or: [
-          { detachedFromRound: { $exists: false } },
-          { detachedFromRound: null },
-        ],
-      },
-    ],
+    $or: [{ "side1.players": userId }, { "side2.players": userId }],
   })
     .select(
       "_id status startTime matchType playMode side1 side2 tournament schedule court detachedFromRound",

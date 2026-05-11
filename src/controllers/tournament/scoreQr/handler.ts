@@ -513,7 +513,6 @@ export async function confirmScoreQrFlow(
     standalone.startTime = standalone.startTime ?? now;
     standalone.endTime = winner ? now : undefined;
 
-    await ensureStandaloneGameSnapshots(standalone);
     await standalone.save();
 
     return {

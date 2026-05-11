@@ -21,6 +21,8 @@ export interface MyScoreResponse {
 	summary: {
 		totalMatches: number;
 		totalWins: number;
+		/** True when win total was computed from a capped scan (see TOTALS_SCAN_CAP in queries). */
+		winsTruncated: boolean;
 		glicko2: {
 			rating: number;
 			rd: number;
