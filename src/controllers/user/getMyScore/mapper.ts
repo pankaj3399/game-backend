@@ -79,6 +79,16 @@ function resolveTournamentName(game: MyScoreGameDoc): string {
 }
 
 function resolvePlayedAt(game: MyScoreGameDoc): Date {
+	const playedAt = game.playedAt;
+	if (playedAt instanceof Date && Number.isFinite(playedAt.getTime())) {
+		return playedAt;
+	}
+	if (typeof playedAt === 'string') {
+		const parsedPlayedAt = new Date(playedAt);
+		if (Number.isFinite(parsedPlayedAt.getTime())) {
+			return parsedPlayedAt;
+		}
+	}
 	for (const value of [game.endTime, game.startTime, game.createdAt]) {
 		if (value instanceof Date && Number.isFinite(value.getTime())) {
 			return value;

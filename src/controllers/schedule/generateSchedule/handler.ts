@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import Game from "../../../models/Game";
+import Game, { computeGamePlayedAt } from "../../../models/Game";
 import Schedule from "../../../models/Schedule.js";
 import Tournament from "../../../models/Tournament";
 import User from "../../../models/User";
@@ -417,6 +417,19 @@ export async function persistScheduleRound(
 
       const gameDocs = pairs.map((pair, index) => {
         const { slot, courtId } = slotAssignments[index]!;
+        const startTime = computeMatchStartTime(
+          freshTournament.date,
+          body.startTime,
+          slot,
+          {
+            matchDurationMinutes: resolvedMatchDurationMinutes,
+            breakTimeMinutes: resolvedBreakTimeMinutes,
+          },
+          {
+            windowEndTime: freshTournament.endTime ?? null,
+            tournamentTimezone,
+          },
+        );
         const common = {
           court: new mongoose.Types.ObjectId(courtId),
           tournament: freshTournament._id,
@@ -425,19 +438,8 @@ export async function persistScheduleRound(
             playerOneScores: [],
             playerTwoScores: [],
           },
-          startTime: computeMatchStartTime(
-            freshTournament.date,
-            body.startTime,
-            slot,
-            {
-              matchDurationMinutes: resolvedMatchDurationMinutes,
-              breakTimeMinutes: resolvedBreakTimeMinutes,
-            },
-            {
-              windowEndTime: freshTournament.endTime ?? null,
-              tournamentTimezone,
-            }
-          ),
+          startTime,
+          playedAt: computeGamePlayedAt({ startTime }),
           status: "draft" as const,
           gameMode: "tournament" as const,
           playMode: freshTournament.playMode,

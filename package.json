@@ -10,7 +10,8 @@
     "build": "tsc",
     "test": "jest --passWithNoTests",
     "test:watch": "jest --watchAll",
-    "test:coverage": "jest --coverage"
+    "test:coverage": "jest --coverage",
+    "migrate:playedAt": "tsx scripts/backfill-game-playedAt.ts"
   },
   "repository": {
     "type": "git",

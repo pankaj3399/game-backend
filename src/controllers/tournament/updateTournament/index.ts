@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import { logger } from "../../../lib/logger";
 import { guardIdParam } from "../../../shared/guards";
-import { buildErrorPayload, buildZodErrorPayload } from "../../../shared/errors";
+import { AppError, buildErrorPayload, buildZodErrorPayload } from "../../../shared/errors";
 import { AuthenticatedRequest, type AuthenticatedSession } from "../../../shared/authContext";
 import {
   updateDraftSchema,
@@ -22,7 +22,10 @@ function normalizePublishCandidateWithValidation(publishCandidate: Record<string
   const publishValidation = publishSchema.safeParse(publishCandidate);
   if (!publishValidation.success) {
     const { message } = buildZodErrorPayload(publishValidation.error);
-    throw new Error(`publish validation failed: ${message || "Tournament publish validation failed"}`);
+    throw new AppError(
+      `publish validation failed: ${message || "Tournament publish validation failed"}`,
+      400,
+    );
   }
 
   return {
@@ -191,11 +194,13 @@ export async function updateTournament(req: AuthenticatedRequest ,res: Response)
       res.status(400).json(buildErrorPayload(err.message));
       return;
     }
-    if (err instanceof Error) {
-      if (err.message.startsWith("publish validation failed:")) {
+    if (err instanceof AppError) {
+      if (err.statusCode === 400 && err.message.startsWith("publish validation failed:")) {
         res.status(400).json(buildErrorPayload(err.message));
         return;
       }
+    }
+    if (err instanceof Error) {
       if (err.message.includes("Selected club has no courts")) {
         res.status(400).json(buildErrorPayload(err.message));
         return;

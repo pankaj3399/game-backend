@@ -1,4 +1,4 @@
-import { Types, type PipelineStage } from 'mongoose';
+import { Types } from 'mongoose';
 import Game from '../../../models/Game';
 import User from '../../../models/User';
 import { determineDidWinFromSetScores } from './mapper';
@@ -33,6 +33,7 @@ export interface MyScoreGameDoc {
 	startTime?: Date | null;
 	endTime?: Date | null;
 	createdAt?: Date | null;
+	playedAt?: Date | null;
 }
 
 interface UserRatingSnapshot {
@@ -91,23 +92,7 @@ function buildBaseFilter(
 	if (options.range === 'last30Days') {
 		const now = options.now ?? new Date();
 		const cutoff = new Date(now.getTime() - RANGE_DAYS * 24 * 60 * 60 * 1000);
-		// Same cascade as mapGameToMyScoreEntry → resolvePlayedAt: endTime, else startTime, else createdAt.
-		filter.$and = [
-			userInSide,
-			{
-				$expr: {
-					$gte: [
-						{
-							$ifNull: [
-								'$endTime',
-								{ $ifNull: ['$startTime', '$createdAt'] },
-							],
-						},
-						cutoff,
-					],
-				},
-			},
-		];
+		filter.$and = [userInSide, { playedAt: { $gte: cutoff } }];
 	} else {
 		Object.assign(filter, userInSide);
 	}
@@ -120,9 +105,8 @@ function withMappableGameShapeConstraints(filter: Record<string, unknown>): Reco
 	const shapeConstraints: Record<string, unknown>[] = [
 		{ side1: { $exists: true, $ne: null } },
 		{ side2: { $exists: true, $ne: null } },
-		// Exclude sparse [null] slots so getTeamIds never sees only null players.
-		{ 'side1.players.0': { $exists: true, $ne: null } },
-		{ 'side2.players.0': { $exists: true, $ne: null } },
+		{ side1: { players: { $elemMatch: { $ne: null } } } },
+		{ side2: { players: { $elemMatch: { $ne: null } } } },
 	];
 
 	const modeIsSinglesOrDoubles =
@@ -141,26 +125,6 @@ function withMappableGameShapeConstraints(filter: Record<string, unknown>): Reco
 		...filter,
 		$and: shapeConstraints,
 	};
-}
-
-/** Coalesced instant used for last30Days $expr, list order, and wins scan — mirrors resolvePlayedAt date cascade (epoch if all missing). */
-const PLAYED_AT_EPOCH_FALLBACK = new Date(0);
-
-function coalescedPlayedAtExpr(): Record<string, unknown> {
-	return {
-		$ifNull: [
-			'$endTime',
-			{ $ifNull: ['$startTime', { $ifNull: ['$createdAt', PLAYED_AT_EPOCH_FALLBACK] }] },
-		],
-	};
-}
-
-/** Sort by resolved playedAt desc, then _id (same ordering intent as mapGameToMyScoreEntry playedAt). */
-function sortStagesByResolvedPlayedAt(): PipelineStage[] {
-	return [
-		{ $addFields: { __playedAtSort: coalescedPlayedAtExpr() } },
-		{ $sort: { __playedAtSort: -1, _id: -1 } },
-	];
 }
 
 export async function fetchCompletedTournamentGamesForUser(
@@ -190,7 +154,7 @@ export async function fetchCompletedTournamentGamesForUser(
 		(async (): Promise<MyScoreGameDoc[]> => {
 			const idRows = await Game.aggregate<{ _id: Types.ObjectId }>([
 				{ $match: listFilter },
-				...sortStagesByResolvedPlayedAt(),
+				{ $sort: { playedAt: -1, _id: -1 } },
 				{ $skip: skip },
 				{ $limit: limit },
 				{ $project: { _id: 1 } },
@@ -202,7 +166,7 @@ export async function fetchCompletedTournamentGamesForUser(
 			}
 
 			const raw = await Game.find({ _id: { $in: orderedIds } })
-				.select('_id side1 side2 tournament score matchType playMode startTime endTime createdAt')
+				.select('_id side1 side2 tournament score matchType playMode startTime endTime createdAt playedAt')
 				.populate('side1.players', 'name alias')
 				.populate('side2.players', 'name alias')
 				.populate('tournament', 'name')
@@ -228,7 +192,7 @@ async function countTournamentWinsForUser(
 
 	const lightweight = await Game.aggregate<LightweightGameDoc>([
 		{ $match: filter },
-		...sortStagesByResolvedPlayedAt(),
+		{ $sort: { playedAt: -1, _id: -1 } },
 		{ $limit: TOTALS_SCAN_CAP + 1 },
 		{ $project: { side1: 1, side2: 1, score: 1 } },
 	]).exec();

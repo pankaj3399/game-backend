@@ -1,5 +1,5 @@
 import { type HydratedDocument, Types } from "mongoose";
-import Game, { type IGame } from "../../../models/Game";
+import Game, { computeGamePlayedAt, type IGame } from "../../../models/Game";
 import ScoreValidationRequest from "../../../models/ScoreValidationRequest";
 import User from "../../../models/User";
 import { DEFAULT_ELO } from "../../../lib/config";
@@ -51,7 +51,10 @@ export async function buildGlickoSnapshotForUser(
   return { player: oid, rating, rd, vol, tau };
 }
 
-/** Ensures each populated side has one Glicko snapshot per player (standalone / independent QR flow). */
+/**
+ * Ensures each populated side has one Glicko snapshot per player (standalone / independent QR flow).
+ * Mutates the in-memory document only; does not persist — the caller must `save()` (or otherwise write) the game.
+ */
 export async function ensureStandaloneGameSnapshots(
   game: HydratedDocument<IGame>,
 ): Promise<void> {
@@ -377,7 +380,7 @@ export async function attachConfirmerToStandaloneMatchIfNeeded(input: {
   matchType: MatchType;
 }): Promise<void> {
   const game = await Game.findById(input.requestMatchId)
-    .select("_id gameMode side1 side2 status playMode matchType")
+    .select("_id gameMode side1 side2 status playMode matchType startTime endTime createdAt")
     .exec();
 
   if (!game) {
@@ -445,6 +448,11 @@ export async function attachConfirmerToStandaloneMatchIfNeeded(input: {
         playMode: input.playMode,
         status: "pendingScore",
         startTime,
+        playedAt: computeGamePlayedAt({
+          endTime: game.endTime,
+          startTime,
+          createdAt: game.createdAt,
+        }),
       },
     },
     { returnDocument: "after" },

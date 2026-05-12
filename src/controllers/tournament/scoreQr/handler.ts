@@ -199,14 +199,22 @@ export async function generateScoreQrFlow(
     opponentUserId,
   });
 
-  const initialTokenHash = crypto
-    .createHash("sha256")
-    .update(`pending:${crypto.randomUUID()}:${Date.now()}:${matchId}`)
-    .digest("hex");
+  const requestId = new Types.ObjectId();
+  const token = signScoreQrToken({
+    jti: crypto.randomBytes(16).toString("hex"),
+    sid: requestId.toString(),
+    flow,
+    tid: tournamentId,
+    mid: matchId,
+    rby: input.requesterUserId,
+    opp: opponentUserId,
+  });
+  const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
 
   const pendingDoc = await ScoreValidationRequest.create({
-    token: `pending:${crypto.randomUUID()}`,
-    tokenHash: initialTokenHash,
+    _id: requestId,
+    token,
+    tokenHash,
     requestByUser: input.requesterUserId,
     opponentUser: opponentUserId,
     tournament: tournamentId,
@@ -220,22 +228,6 @@ export async function generateScoreQrFlow(
     consumedAt: null,
     consumedBy: null,
   });
-
-  const token = signScoreQrToken({
-    jti: crypto.randomBytes(16).toString("hex"),
-    sid: pendingDoc._id.toString(),
-    flow,
-    tid: tournamentId,
-    mid: matchId,
-    rby: input.requesterUserId,
-    opp: opponentUserId,
-  });
-
-  const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
-  await ScoreValidationRequest.updateOne(
-    { _id: pendingDoc._id, status: "pending" },
-    { $set: { token, tokenHash } },
-  ).exec();
 
   const validationUrl = buildScoreQrValidationUrl(token, input.publicBaseUrl);
   const qrDataUrl = await QRCode.toDataURL(validationUrl, {

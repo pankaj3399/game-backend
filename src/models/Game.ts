@@ -1,4 +1,4 @@
-import mongoose, { type HydratedDocument } from 'mongoose';
+import mongoose, { type Document, type HydratedDocument } from 'mongoose';
 import {
 	GAME_MODES,
 	GAME_PLAY_MODES,
@@ -34,6 +34,8 @@ export interface IGame extends Document {
 	};
 	startTime?: Date;
 	endTime?: Date;
+	/** Materialized endTime → startTime → createdAt for indexed “when played” queries. */
+	playedAt?: Date;
 	detachedFromRound?: number;
 	detachedFromSlot?: number;
 	isHistorical?: boolean;
@@ -128,6 +130,7 @@ const gameSchema = new mongoose.Schema<IGame>(
 		},
 		startTime: { type: Date },
 		endTime: { type: Date },
+		playedAt: { type: Date },
 		detachedFromRound: { type: Number, index: true, sparse: true },
 		detachedFromSlot: { type: Number, sparse: true },
 		isHistorical: { type: Boolean, default: false },
@@ -256,6 +259,26 @@ gameSchema.pre('validate', function (this: HydratedDocument<IGame>) {
 	}
 });
 
+/** Same cascade as my-score listing: endTime, else startTime, else createdAt (epoch if none). */
+export function computeGamePlayedAt(input: {
+	endTime?: Date | null;
+	startTime?: Date | null;
+	createdAt?: Date | null;
+}): Date {
+	const candidates = [input.endTime, input.startTime, input.createdAt];
+	for (const value of candidates) {
+		if (value instanceof Date && Number.isFinite(value.getTime())) {
+			return value;
+		}
+	}
+	return new Date(0);
+}
+
+gameSchema.pre('save', function (this: HydratedDocument<IGame>) {
+	this.playedAt = computeGamePlayedAt(this);
+});
+
+gameSchema.index({ gameMode: 1, status: 1, playedAt: -1 });
 gameSchema.index({ tournament: 1, status: 1, createdAt: -1 });
 gameSchema.index({ schedule: 1, status: 1, createdAt: -1 });
 gameSchema.index({ gameMode: 1, status: 1, 'side1.players': 1, createdAt: -1 });
