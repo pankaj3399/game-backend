@@ -21,10 +21,11 @@ import {
 function normalizePublishCandidateWithValidation(publishCandidate: Record<string, unknown>) {
   const publishValidation = publishSchema.safeParse(publishCandidate);
   if (!publishValidation.success) {
-    const { message } = buildZodErrorPayload(publishValidation.error);
+    const payload = buildZodErrorPayload(publishValidation.error);
     throw new AppError(
-      `publish validation failed: ${message || "Tournament publish validation failed"}`,
+      `publish validation failed: ${payload.message || "Tournament publish validation failed"}`,
       400,
+      payload,
     );
   }
 
@@ -195,8 +196,8 @@ export async function updateTournament(req: AuthenticatedRequest ,res: Response)
       return;
     }
     if (err instanceof AppError) {
-      if (err.statusCode === 400 && err.message.startsWith("publish validation failed:")) {
-        res.status(400).json(buildErrorPayload(err.message));
+      if (err.statusCode === 400 && err.details !== undefined) {
+        res.status(400).json(err.details);
         return;
       }
     }

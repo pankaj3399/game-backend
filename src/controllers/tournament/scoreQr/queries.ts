@@ -112,6 +112,13 @@ export async function createStandaloneMatchForQr(input: {
   const matchType = normalizeIndependentMatchType(input.matchType);
   const playMode = normalizeIndependentPlayMode(input.scoreInput, input.playMode);
 
+  if (matchType === "doubles") {
+    throw new AppError(
+      "Doubles scoring via independent QR requires a tournament match with full teams",
+      400,
+    );
+  }
+
   const requesterSnapshot = await buildGlickoSnapshotForUser(input.requesterUserId);
 
   const game = await Game.create({
@@ -128,7 +135,6 @@ export async function createStandaloneMatchForQr(input: {
     gameMode: "standalone",
     matchType,
     playMode,
-    startTime: new Date(),
   });
 
   return {
@@ -272,41 +278,53 @@ export async function assertStandaloneConfirmerEligibility(input: {
 
 export async function expireStalePendingRequests(input: {
   tournamentId: string | null;
-  matchId: string;
+  /** Omit for standalone pre-create: all independent pendings for this requester/opponent pair. */
+  matchId?: string | null;
   requesterUserId: string;
   opponentUserId: string | null;
 }): Promise<void> {
   const now = new Date();
+  const filter: Record<string, unknown> = {
+    requestByUser: input.requesterUserId,
+    opponentUser: input.opponentUserId,
+    status: "pending",
+    expiresAt: { $lte: now },
+  };
+  if (input.tournamentId !== null) {
+    filter.tournament = input.tournamentId;
+    filter.match = input.matchId;
+  } else {
+    filter.tournament = null;
+    if (input.matchId != null && input.matchId !== "") {
+      filter.match = input.matchId;
+    }
+  }
 
-  await ScoreValidationRequest.updateMany(
-    {
-      tournament: input.tournamentId,
-      match: input.matchId,
-      requestByUser: input.requesterUserId,
-      opponentUser: input.opponentUserId,
-      status: "pending",
-      expiresAt: { $lte: now },
-    },
-    { $set: { status: "expired" } },
-  ).exec();
+  await ScoreValidationRequest.updateMany(filter, { $set: { status: "expired" } }).exec();
 }
 
 export async function cancelPendingRequests(input: {
   tournamentId: string | null;
-  matchId: string;
+  matchId?: string | null;
   requesterUserId: string;
   opponentUserId: string | null;
 }): Promise<void> {
-  await ScoreValidationRequest.updateMany(
-    {
-      tournament: input.tournamentId,
-      match: input.matchId,
-      requestByUser: input.requesterUserId,
-      opponentUser: input.opponentUserId,
-      status: "pending",
-    },
-    { $set: { status: "cancelled" } },
-  ).exec();
+  const filter: Record<string, unknown> = {
+    requestByUser: input.requesterUserId,
+    opponentUser: input.opponentUserId,
+    status: "pending",
+  };
+  if (input.tournamentId !== null) {
+    filter.tournament = input.tournamentId;
+    filter.match = input.matchId;
+  } else {
+    filter.tournament = null;
+    if (input.matchId != null && input.matchId !== "") {
+      filter.match = input.matchId;
+    }
+  }
+
+  await ScoreValidationRequest.updateMany(filter, { $set: { status: "cancelled" } }).exec();
 }
 
 export async function findScoreValidationRequestById(

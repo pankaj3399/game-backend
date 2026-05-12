@@ -154,6 +154,20 @@ export async function generateScoreQrFlow(
     tournamentId = tid;
     matchId = mid;
     opponentUserId = getOpponentUserIdFromGame(game, input.requesterUserId);
+
+    await expireStalePendingRequests({
+      tournamentId: tid,
+      matchId: mid,
+      requesterUserId: input.requesterUserId,
+      opponentUserId,
+    });
+
+    await cancelPendingRequests({
+      tournamentId: tid,
+      matchId: mid,
+      requesterUserId: input.requesterUserId,
+      opponentUserId,
+    });
   } else {
     const resolvedPlayMode = normalizeIndependentPlayMode(
       input.input,
@@ -170,6 +184,18 @@ export async function generateScoreQrFlow(
       );
     }
 
+    await expireStalePendingRequests({
+      tournamentId: null,
+      requesterUserId: input.requesterUserId,
+      opponentUserId: null,
+    });
+
+    await cancelPendingRequests({
+      tournamentId: null,
+      requesterUserId: input.requesterUserId,
+      opponentUserId: null,
+    });
+
     const created = await createStandaloneMatchForQr({
       requesterUserId: input.requesterUserId,
       scoreInput: input.input,
@@ -184,20 +210,6 @@ export async function generateScoreQrFlow(
     matchType = created.matchType;
     opponentUserId = created.opponentUserId;
   }
-
-  await expireStalePendingRequests({
-    tournamentId,
-    matchId,
-    requesterUserId: input.requesterUserId,
-    opponentUserId,
-  });
-
-  await cancelPendingRequests({
-    tournamentId,
-    matchId,
-    requesterUserId: input.requesterUserId,
-    opponentUserId,
-  });
 
   const requestId = new Types.ObjectId();
   const token = signScoreQrToken({

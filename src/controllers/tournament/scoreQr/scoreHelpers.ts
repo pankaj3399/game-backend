@@ -22,6 +22,7 @@ function inferIndependentPlayMode(input: RecordMatchScoreInput): GamePlayMode {
   const sets = input.playerOneScores.length;
   if (sets >= 5) return "5set";
   if (sets >= 3) return "3set";
+  if (sets === 2) return "3set";
   if (sets === 1) {
     const one = input.playerOneScores[0];
     const two = input.playerTwoScores[0];

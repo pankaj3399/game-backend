@@ -105,8 +105,8 @@ function withMappableGameShapeConstraints(filter: Record<string, unknown>): Reco
 	const shapeConstraints: Record<string, unknown>[] = [
 		{ side1: { $exists: true, $ne: null } },
 		{ side2: { $exists: true, $ne: null } },
-		{ side1: { players: { $elemMatch: { $ne: null } } } },
-		{ side2: { players: { $elemMatch: { $ne: null } } } },
+		{ 'side1.players': { $elemMatch: { $ne: null } } },
+		{ 'side2.players': { $elemMatch: { $ne: null } } },
 	];
 
 	const modeIsSinglesOrDoubles =

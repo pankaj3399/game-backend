@@ -12,7 +12,9 @@ async function main(): Promise<void> {
   await connectToDatabase();
   const epoch = new Date(0);
   const result = await Game.collection.updateMany(
-    {},
+    {
+      $or: [{ playedAt: { $exists: false } }, { playedAt: null }],
+    },
     [
       {
         $set: {

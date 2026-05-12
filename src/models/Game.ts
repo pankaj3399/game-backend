@@ -281,10 +281,10 @@ gameSchema.pre('save', function (this: HydratedDocument<IGame>) {
 gameSchema.index({ gameMode: 1, status: 1, playedAt: -1 });
 gameSchema.index({ tournament: 1, status: 1, createdAt: -1 });
 gameSchema.index({ schedule: 1, status: 1, createdAt: -1 });
-gameSchema.index({ gameMode: 1, status: 1, 'side1.players': 1, createdAt: -1 });
-gameSchema.index({ gameMode: 1, status: 1, 'side2.players': 1, createdAt: -1 });
-gameSchema.index({ gameMode: 1, status: 1, 'side1.players': 1, startTime: 1 });
-gameSchema.index({ gameMode: 1, status: 1, 'side2.players': 1, startTime: 1 });
+gameSchema.index({ gameMode: 1, status: 1, 'side1.players': 1, playedAt: -1 });
+gameSchema.index({ gameMode: 1, status: 1, 'side2.players': 1, playedAt: -1 });
+gameSchema.index({ gameMode: 1, status: 1, isHistorical: 1, startTime: 1, 'side1.players': 1 });
+gameSchema.index({ gameMode: 1, status: 1, isHistorical: 1, startTime: 1, 'side2.players': 1 });
 gameSchema.index({ matchType: 1, status: 1, createdAt: -1 });
 
 const Game = mongoose.model<IGame>('Game', gameSchema);
