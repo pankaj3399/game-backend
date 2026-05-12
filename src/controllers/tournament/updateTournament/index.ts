@@ -195,11 +195,9 @@ export async function updateTournament(req: AuthenticatedRequest ,res: Response)
       res.status(400).json(buildErrorPayload(err.message));
       return;
     }
-    if (err instanceof AppError) {
-      if (err.statusCode === 400 && err.details !== undefined) {
-        res.status(400).json(err.details);
-        return;
-      }
+    if (err instanceof AppError && err.statusCode === 400 && err.details !== undefined) {
+      res.status(400).json(err.details);
+      return;
     }
     if (err instanceof Error) {
       if (err.message.includes("Selected club has no courts")) {
