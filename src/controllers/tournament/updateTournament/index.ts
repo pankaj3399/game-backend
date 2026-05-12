@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import { logger } from "../../../lib/logger";
 import { guardIdParam } from "../../../shared/guards";
-import { buildErrorPayload } from "../../../shared/errors";
+import { AppError, buildErrorPayload, buildZodErrorPayload } from "../../../shared/errors";
 import { AuthenticatedRequest, type AuthenticatedSession } from "../../../shared/authContext";
 import {
   updateDraftSchema,
@@ -11,7 +11,6 @@ import { authorizeUpdate } from "./authorize";
 import { fetchTournamentForUpdate } from "./queries";
 import { updateTournamentFlow } from "./handler";
 import { computeEffectiveSponsor } from "./computeEffectiveSponsor";
-import { validateActiveTournamentEnrolledUpdate } from "./activeEnrolledUpdate";
 import { validateScheduleActivationEnrollment } from "./scheduleActivationEnrollment";
 import { publishSchema } from "../../../validation/tournament.schemas";
 import {
@@ -22,8 +21,12 @@ import {
 function normalizePublishCandidateWithValidation(publishCandidate: Record<string, unknown>) {
   const publishValidation = publishSchema.safeParse(publishCandidate);
   if (!publishValidation.success) {
-    const message = publishValidation.error.issues.map((issue) => issue.message).join("; ");
-    throw new Error(`publish validation failed: ${message || "Tournament publish validation failed"}`);
+    const payload = buildZodErrorPayload(publishValidation.error);
+    throw new AppError(
+      `publish validation failed: ${payload.message || "Tournament publish validation failed"}`,
+      400,
+      payload,
+    );
   }
 
   return {
@@ -48,8 +51,7 @@ export async function updateTournament(req: AuthenticatedRequest ,res: Response)
 
     const bodyParse = updateDraftSchema.safeParse(req.body);
     if (!bodyParse.success) {
-      const message = bodyParse.error.issues.map((i) => i.message).join("; ");
-      res.status(400).json(buildErrorPayload(message));
+      res.status(400).json(buildZodErrorPayload(bodyParse.error));
       return;
     }
 
@@ -91,15 +93,6 @@ export async function updateTournament(req: AuthenticatedRequest ,res: Response)
         : {
             ...bodyParse.data,
           };
-
-    const enrolledGuard = validateActiveTournamentEnrolledUpdate(
-      tournament.data,
-      bodyParse.data
-    );
-    if (!enrolledGuard.ok) {
-      res.status(enrolledGuard.status).json(buildErrorPayload(enrolledGuard.message));
-      return;
-    }
 
     const scheduleEnrollmentGuard = validateScheduleActivationEnrollment(
       tournament.data,
@@ -202,11 +195,11 @@ export async function updateTournament(req: AuthenticatedRequest ,res: Response)
       res.status(400).json(buildErrorPayload(err.message));
       return;
     }
+    if (err instanceof AppError && err.statusCode === 400 && err.details !== undefined) {
+      res.status(400).json(err.details);
+      return;
+    }
     if (err instanceof Error) {
-      if (err.message.startsWith("publish validation failed:")) {
-        res.status(400).json(buildErrorPayload(err.message));
-        return;
-      }
       if (err.message.includes("Selected club has no courts")) {
         res.status(400).json(buildErrorPayload(err.message));
         return;

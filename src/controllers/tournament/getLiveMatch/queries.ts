@@ -14,14 +14,18 @@ export async function fetchLiveMatchGames(userId: Types.ObjectId) {
   return Game.find({
     gameMode: "tournament",
     status: { $nin: ["finished", "cancelled"] },
-    $or: [{ "side1.players": userId }, { "side2.players": userId }],
     startTime: { $ne: null, $gte: startTimeLowerBound },
+    isHistorical: { $ne: true },
+    $or: [{ "side1.players": userId }, { "side2.players": userId }],
   })
-    .select("_id status startTime matchType side1 side2 tournament schedule court")
+    .select(
+      "_id status startTime matchType playMode side1 side2 tournament schedule court detachedFromRound",
+    )
     .populate("side1.players", "name alias")
     .populate("side2.players", "name alias")
     .populate("tournament", "name duration")
-    .populate("schedule", "matchDurationMinutes")
+    // `rounds` are embedded on Schedule; project only fields used by resolveMatchRound (mapper).
+    .populate("schedule", "matchDurationMinutes rounds.game rounds.round rounds.slot")
     .populate("court", "name")
     .sort({ startTime: 1 })
     .lean<LiveMatchGameDoc[]>()
@@ -33,7 +37,7 @@ export async function fetchLiveMatchGames(userId: Types.ObjectId) {
  */
 export async function applyResolvedTimedStatuses(
   games: LiveMatchGameDoc[],
-  now: Date
+  now: Date,
 ): Promise<void> {
   const statusUpdates: Array<{
     id: Types.ObjectId;
@@ -42,7 +46,8 @@ export async function applyResolvedTimedStatuses(
   }> = [];
 
   for (const game of games) {
-    const durationMinutes = game.schedule?.matchDurationMinutes ?? game.tournament?.duration ?? 60;
+    const durationMinutes =
+      game.schedule?.matchDurationMinutes ?? game.tournament?.duration ?? 60;
 
     const nextStatus = resolveTimedGameStatus({
       persistedStatus: game.status,
@@ -65,7 +70,9 @@ export async function applyResolvedTimedStatuses(
   }
 
   const appliedUpdates = await updateGameStatuses(statusUpdates);
-  const statusById = new Map(appliedUpdates.map((u) => [u.id.toString(), u.status]));
+  const statusById = new Map(
+    appliedUpdates.map((u) => [u.id.toString(), u.status]),
+  );
   for (const game of games) {
     const persisted = statusById.get(game._id.toString());
     if (persisted !== undefined) {

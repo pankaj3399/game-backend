@@ -1,4 +1,4 @@
-import mongoose, { type HydratedDocument } from 'mongoose';
+import mongoose, { type Document, type HydratedDocument } from 'mongoose';
 import {
 	GAME_MODES,
 	GAME_PLAY_MODES,
@@ -34,6 +34,8 @@ export interface IGame extends Document {
 	};
 	startTime?: Date;
 	endTime?: Date;
+	/** Materialized endTime → startTime → createdAt for indexed “when played” queries. */
+	playedAt?: Date;
 	detachedFromRound?: number;
 	detachedFromSlot?: number;
 	isHistorical?: boolean;
@@ -128,6 +130,7 @@ const gameSchema = new mongoose.Schema<IGame>(
 		},
 		startTime: { type: Date },
 		endTime: { type: Date },
+		playedAt: { type: Date },
 		detachedFromRound: { type: Number, index: true, sparse: true },
 		detachedFromSlot: { type: Number, sparse: true },
 		isHistorical: { type: Boolean, default: false },
@@ -182,6 +185,9 @@ gameSchema.pre('validate', function (this: HydratedDocument<IGame>) {
 	}
 
 	const expectedSideSize = this.matchType === 'doubles' ? 2 : 1;
+	const allowIncompleteStandaloneSide =
+		this.gameMode === 'standalone' && this.status === 'pendingScore';
+
 	const allPlayers: string[] = [];
 	const sides: Array<{ key: 'side1' | 'side2'; value: IGameTeam | undefined }> = [
 		{ key: 'side1', value: this.side1 },
@@ -192,6 +198,16 @@ gameSchema.pre('validate', function (this: HydratedDocument<IGame>) {
 		const players = Array.isArray(side.value?.players) ? side.value.players : [];
 		const playerSnapshots = Array.isArray(side.value?.playerSnapshots) ? side.value.playerSnapshots : [];
 		const playerIds = players.map((p) => p?.toString()).filter((id) => Boolean(id));
+
+		if (allowIncompleteStandaloneSide && players.length === 0) {
+			if (playerSnapshots.length !== 0) {
+				this.invalidate(
+					`${side.key}.playerSnapshots`,
+					'playerSnapshots must be empty before opponents are assigned to this side'
+				);
+			}
+			continue;
+		}
 
 		if (players.length !== expectedSideSize) {
 			this.invalidate(
@@ -225,6 +241,10 @@ gameSchema.pre('validate', function (this: HydratedDocument<IGame>) {
 		}
 	}
 
+	if (allowIncompleteStandaloneSide && allPlayers.length === 0) {
+		this.invalidate('side1', 'standalone match must include at least one assigned player');
+	}
+
 	if (new Set(allPlayers).size !== allPlayers.length) {
 		this.invalidate('side1', 'all match participants must be unique across both sides');
 		this.invalidate('side2', 'all match participants must be unique across both sides');
@@ -239,12 +259,32 @@ gameSchema.pre('validate', function (this: HydratedDocument<IGame>) {
 	}
 });
 
+/** Same cascade as my-score listing: endTime, else startTime, else createdAt (epoch if none). */
+export function computeGamePlayedAt(input: {
+	endTime?: Date | null;
+	startTime?: Date | null;
+	createdAt?: Date | null;
+}): Date {
+	const candidates = [input.endTime, input.startTime, input.createdAt];
+	for (const value of candidates) {
+		if (value instanceof Date && Number.isFinite(value.getTime())) {
+			return value;
+		}
+	}
+	return new Date(0);
+}
+
+gameSchema.pre('save', function (this: HydratedDocument<IGame>) {
+	this.playedAt = computeGamePlayedAt(this);
+});
+
+gameSchema.index({ gameMode: 1, status: 1, playedAt: -1 });
 gameSchema.index({ tournament: 1, status: 1, createdAt: -1 });
 gameSchema.index({ schedule: 1, status: 1, createdAt: -1 });
-gameSchema.index({ gameMode: 1, status: 1, 'side1.players': 1, createdAt: -1 });
-gameSchema.index({ gameMode: 1, status: 1, 'side2.players': 1, createdAt: -1 });
-gameSchema.index({ gameMode: 1, status: 1, 'side1.players': 1, startTime: 1 });
-gameSchema.index({ gameMode: 1, status: 1, 'side2.players': 1, startTime: 1 });
+gameSchema.index({ gameMode: 1, status: 1, 'side1.players': 1, playedAt: -1 });
+gameSchema.index({ gameMode: 1, status: 1, 'side2.players': 1, playedAt: -1 });
+gameSchema.index({ gameMode: 1, status: 1, isHistorical: 1, startTime: 1, 'side1.players': 1 });
+gameSchema.index({ gameMode: 1, status: 1, isHistorical: 1, startTime: 1, 'side2.players': 1 });
 gameSchema.index({ matchType: 1, status: 1, createdAt: -1 });
 
 const Game = mongoose.model<IGame>('Game', gameSchema);

@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 import type { AuthenticatedSession } from "../../../shared";
 import { error, ok } from "../../../shared/helpers";
 import Tournament from "../../../models/Tournament";
-import Game from "../../../models/Game";
+import Game, { computeGamePlayedAt } from "../../../models/Game";
 
 const CONCURRENT_MATCH_UPDATE_ERROR = "CONCURRENT_MATCH_UPDATE";
 type TournamentParticipantStateLean = {
@@ -115,6 +115,7 @@ export async function leaveTournamentFlow(
               score,
               status: "finished" as const,
               endTime: now,
+              playedAt: computeGamePlayedAt({ endTime: now }),
             },
           },
           { session: mongoSession }

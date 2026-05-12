@@ -9,3 +9,11 @@ export { createTournament } from './createTournament/index';
 export { updateTournament } from './updateTournament/index';
 export { getDoublesPairs } from './getDoublesPairs/index';
 export { saveDoublesPairs } from './saveDoublesPairs/index';
+export {
+  getActiveScoreQr,
+  generateScoreQr,
+  generateIndependentScoreQr,
+  validateScoreQr,
+  validateScoreQrConfirmContext,
+  confirmScoreQr,
+} from './scoreQr/index';

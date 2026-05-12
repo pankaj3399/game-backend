@@ -2,9 +2,11 @@ import mongoose, { Types } from "mongoose";
 import Game, { type IGame } from "../../../models/Game";
 import Schedule from "../../../models/Schedule";
 import Tournament from "../../../models/Tournament";
+import User from "../../../models/User";
 import { DEFAULT_ELO } from "../../../lib/config";
 import { AppError } from "../../../shared/errors";
 import type { GamePlayMode } from "../../../types/domain/game";
+import { compareSetScore } from "../shared/compareSetScore";
 import { recomputeTournamentGlickoRatingsThroughRound } from "./recomputeTournamentGlickoRatings";
 import type { RecordMatchScoreInput } from "./validation";
 
@@ -43,6 +45,68 @@ function normalizeSnapshotVolatility(game: mongoose.HydratedDocument<IGame>) {
         snapshot.tau = DEFAULT_ELO.tau;
       }
     }
+  }
+}
+
+async function buildPlayerSnapshot(
+  playerId: Types.ObjectId,
+  session: mongoose.ClientSession,
+) {
+  const user = await User.findById(playerId)
+    .select("elo")
+    .session(session)
+    .lean<{ elo?: { rating?: number; rd?: number; vol?: number; tau?: number } } | null>()
+    .exec();
+  const elo = user?.elo;
+  const rating =
+    typeof elo?.rating === "number" && Number.isFinite(elo.rating)
+      ? elo.rating
+      : DEFAULT_ELO.rating;
+  const rd =
+    typeof elo?.rd === "number" && Number.isFinite(elo.rd)
+      ? elo.rd
+      : DEFAULT_ELO.rd;
+  const vol =
+    typeof elo?.vol === "number" && Number.isFinite(elo.vol) && elo.vol > 0
+      ? elo.vol
+      : DEFAULT_ELO.vol;
+  const tau =
+    typeof elo?.tau === "number" && Number.isFinite(elo.tau) && elo.tau > 0
+      ? elo.tau
+      : DEFAULT_ELO.tau;
+
+  return { player: playerId, rating, rd, vol, tau };
+}
+
+async function ensurePlayerSnapshots(
+  game: mongoose.HydratedDocument<IGame>,
+  session: mongoose.ClientSession,
+) {
+  const sides = ["side1", "side2"] as const;
+
+  for (const sideKey of sides) {
+    const side = game[sideKey];
+    const players = Array.isArray(side?.players)
+      ? side.players.filter(isObjectId)
+      : [];
+    const snapshots = Array.isArray(side?.playerSnapshots)
+      ? side.playerSnapshots
+      : [];
+    const snapshotOk =
+      snapshots.length === players.length &&
+      players.every((playerId) =>
+        snapshots.some(
+          (snapshot) => snapshot?.player?.toString() === playerId.toString(),
+        ),
+      );
+
+    if (snapshotOk) continue;
+
+    const repairedSnapshots = await Promise.all(
+      players.map((playerId) => buildPlayerSnapshot(playerId, session)),
+    );
+    game.set(`${sideKey}.playerSnapshots`, repairedSnapshots);
+    game.markModified(`${sideKey}.playerSnapshots`);
   }
 }
 
@@ -90,26 +154,6 @@ function flattenOutcomeSegments(input: RecordMatchScoreInput) {
   return outcomes;
 }
 
-function compareSetScore(playerOneScore: ScoreValue, playerTwoScore: ScoreValue): number {
-  if (playerOneScore === "wo" && playerTwoScore === "wo") {
-    return 0;
-  }
-
-  if (playerOneScore === "wo") {
-    return -1;
-  }
-
-  if (playerTwoScore === "wo") {
-    return 1;
-  }
-
-  if (playerOneScore === playerTwoScore) {
-    return 0;
-  }
-
-  return playerOneScore > playerTwoScore ? 1 : -1;
-}
-
 function requiredSetCount(playMode: GamePlayMode): number {
   if (playMode === "5set") {
     return 5;
@@ -141,7 +185,7 @@ function decisiveSetsLength(playMode: GamePlayMode, input: RecordMatchScoreInput
       continue;
     }
 
-    const setResult = compareSetScore(playerOneScore, playerTwoScore);
+    const setResult = compareSetScore(playerOneScore, playerTwoScore, playMode, index);
     if (setResult > 0) {
       playerOneSetWins += 1;
     } else if (setResult < 0) {
@@ -213,6 +257,7 @@ export async function recordTournamentMatchScoreFlow(
 
       const now = new Date();
       game.startTime = game.startTime ?? now;
+      await ensurePlayerSnapshots(game, session);
       normalizeSnapshotVolatility(game);
 
       const setsRequired = requiredSetCount(game.playMode);

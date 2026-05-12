@@ -1,7 +1,7 @@
 import type { Response } from "express";
 import { logger } from "../../../lib/logger";
 import type { AuthenticatedRequest } from "../../../shared/authContext";
-import { AppError, buildErrorPayload } from "../../../shared/errors";
+import { AppError, buildErrorPayload, buildZodErrorPayload } from "../../../shared/errors";
 import { TOURNAMENT_ORGANISER_SCORE_EDIT_GRACE_HOURS } from "../../../lib/config";
 import Tournament from "../../../models/Tournament";
 import {
@@ -25,8 +25,7 @@ export async function recordMatchScore(req: AuthenticatedRequest, res: Response)
       matchId: Array.isArray(req.params.matchId) ? req.params.matchId[0] : req.params.matchId,
     });
     if (!paramsResult.success) {
-      const message = paramsResult.error.issues.map((issue) => issue.message).join("; ");
-      res.status(400).json(buildErrorPayload(message));
+      res.status(400).json(buildZodErrorPayload(paramsResult.error));
       return;
     }
 
@@ -34,8 +33,7 @@ export async function recordMatchScore(req: AuthenticatedRequest, res: Response)
 
     const parsedBody = recordMatchScoreSchema.safeParse(req.body);
     if (!parsedBody.success) {
-      const message = parsedBody.error.issues.map((issue) => issue.message).join("; ");
-      res.status(400).json(buildErrorPayload(message));
+      res.status(400).json(buildZodErrorPayload(parsedBody.error));
       return;
     }
 
