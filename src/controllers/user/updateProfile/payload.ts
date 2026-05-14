@@ -11,6 +11,10 @@ export function buildProfileUpdatePayload(input: UpdateProfileInput) {
 		updatePayload.alias = input.alias.trim() || null;
 	}
 
+	if (input.profilePictureUrl !== undefined) {
+		updatePayload.profilePictureUrl = input.profilePictureUrl?.trim() || null;
+	}
+
 	if (input.dateOfBirth !== undefined) {
 		updatePayload.dateOfBirth = input.dateOfBirth;
 	}

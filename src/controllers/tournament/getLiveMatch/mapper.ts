@@ -46,6 +46,7 @@ function mapPlayer(
       id: value._id.toString(),
       name: normalizeDisplayName(value.name),
       alias: normalizeDisplayName(value.alias),
+      profilePictureUrl: value.profilePictureUrl ?? null,
     };
   }
 
@@ -53,6 +54,7 @@ function mapPlayer(
     id: value.toString(),
     name: null,
     alias: null,
+    profilePictureUrl: null,
   };
 }
 

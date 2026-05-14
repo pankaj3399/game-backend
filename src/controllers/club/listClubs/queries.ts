@@ -27,6 +27,7 @@ export type ClubListItem = {
 	_id: Types.ObjectId;
 	name: string;
 	address: string;
+	logoUrl?: string | null;
 	website?: string | null;
 };
 
@@ -60,6 +61,7 @@ export async function listActiveClubsPage(
 							_id: 1,
 							name: 1,
 							address: 1,
+							logoUrl: 1,
 							website: 1
 						}
 					}

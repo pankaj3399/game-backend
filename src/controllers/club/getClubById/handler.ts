@@ -27,6 +27,7 @@ export async function getClubByIdFlow(clubId: string, session: Session) {
 			club: {
 				id: club._id,
 				name: club.name,
+				logoUrl: club.logoUrl ?? null,
 				address: club.address,
 				website: club.website ?? null,
 				bookingSystemUrl: club.bookingSystemUrl ?? null,

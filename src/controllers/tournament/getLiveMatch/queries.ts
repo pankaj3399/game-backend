@@ -21,8 +21,8 @@ export async function fetchLiveMatchGames(userId: Types.ObjectId) {
     .select(
       "_id status startTime matchType playMode side1 side2 tournament schedule court detachedFromRound",
     )
-    .populate("side1.players", "name alias")
-    .populate("side2.players", "name alias")
+    .populate("side1.players", "name alias profilePictureUrl")
+    .populate("side2.players", "name alias profilePictureUrl")
     .populate("tournament", "name duration")
     // `rounds` are embedded on Schedule; project only fields used by resolveMatchRound (mapper).
     .populate("schedule", "matchDurationMinutes rounds.game rounds.round rounds.slot")

@@ -44,8 +44,8 @@ export async function fetchGamesForScheduleRounds(
     $or: orConditions,
   })
     .select("_id side1 side2 court status matchType playMode startTime score isHistorical detachedFromRound detachedFromSlot")
-    .populate("side1.players", "name alias")
-    .populate("side2.players", "name alias")
+    .populate("side1.players", "name alias profilePictureUrl")
+    .populate("side2.players", "name alias profilePictureUrl")
     .populate("court", "name")
     .lean<GameForMatchesDoc[]>()
     .exec();

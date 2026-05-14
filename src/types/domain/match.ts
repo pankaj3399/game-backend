@@ -15,6 +15,7 @@ export interface MatchPlayerResponse {
   id: string;
   name: string | null;
   alias: string | null;
+  profilePictureUrl?: string | null;
   snapshotElo?: MatchPlayerRatingResponse | null;
   elo?: MatchPlayerRatingResponse | null;
 }

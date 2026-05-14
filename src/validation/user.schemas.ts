@@ -4,6 +4,7 @@ import { objectId } from './base-helpers';
 export const updateProfileSchema = z.object({
 	alias: z.string().trim().optional(),
 	name: z.string().trim().optional(),
+	profilePictureUrl: z.string().trim().nullable().optional(),
 	dateOfBirth: z
 		.union([
 			z.string().refine((s) => !Number.isNaN(new Date(s).getTime()) && s.length >= 10, { message: 'Invalid date format' }),

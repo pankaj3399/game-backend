@@ -141,6 +141,8 @@ interface OAuthProviderConfig {
 	conflictMessage: string;
 	linkMessage: string;
 	signInByProviderMessage: string;
+	/** Profile picture URL from the OAuth provider (e.g. Google avatar). */
+	providerPictureUrl?: string | null;
 	/** Extra fields to include in success log (e.g. usedPlaceholder for Apple) */
 	extraLogFields?: Record<string, unknown>;
 }
@@ -161,7 +163,15 @@ async function handleOAuthCallback(
 			.session(session);
 
 		if (byProviderId?.user) {
-			const reactivatedUser = await reactivateUserIfDeleted(byProviderId.user, session);
+			let reactivatedUser = await reactivateUserIfDeleted(byProviderId.user, session);
+			// Backfill picture from OAuth provider if the user doesn't have one yet
+			if (config.providerPictureUrl && !reactivatedUser.profilePictureUrl) {
+				reactivatedUser = await User.findByIdAndUpdate(
+					reactivatedUser._id,
+					{ profilePictureUrl: config.providerPictureUrl },
+					{ returnDocument: 'after', session }
+				) as UserDocument ?? reactivatedUser;
+			}
 			await session.commitTransaction();
 			logger.info(config.signInByProviderMessage, { [config.providerIdField]: config.providerId });
 			return done(null, reactivatedUser);
@@ -200,15 +210,28 @@ async function handleOAuthCallback(
 				await UserAuth.create([{ user: existingUser._id, [config.providerIdField]: config.providerId }], { session });
 			}
 
+			// Backfill picture from OAuth provider if user has none yet
+			let finalExistingUser: UserDocument = existingUser;
+			if (config.providerPictureUrl && !existingUser.profilePictureUrl) {
+				finalExistingUser = await User.findByIdAndUpdate(
+					existingUser._id,
+					{ profilePictureUrl: config.providerPictureUrl },
+					{ returnDocument: 'after', session }
+				) as UserDocument ?? existingUser;
+			}
+
 			await session.commitTransaction();
 			logger.info(`${config.providerName} sign-in by email`, {
 				userId: existingUser._id,
 				...config.extraLogFields,
 			});
-			return done(null, existingUser);
+			return done(null, finalExistingUser);
 		}
 
-		const [newUser] = await User.create([{ email: normalizedEmail }], { session });
+		const [newUser] = await User.create(
+			[{ email: normalizedEmail, ...(config.providerPictureUrl ? { profilePictureUrl: config.providerPictureUrl } : {}) }],
+			{ session }
+		);
 		if (!newUser) throw new Error('User creation failed');
 		await UserAuth.create([{ user: newUser._id, [config.providerIdField]: config.providerId }], { session });
 
@@ -232,6 +255,7 @@ async function handleOAuthCallback(
 interface GoogleProfile {
 	id: string;
 	emails?: Array<{ value?: string }>;
+	photos?: Array<{ value?: string }>;
 }
 
 function registerGoogleStrategy(): void {
@@ -256,12 +280,15 @@ function registerGoogleStrategy(): void {
 					return done(new Error('No email returned from Google - ensure email scope is granted'));
 				}
 
+				const providerPictureUrl = profile.photos?.[0]?.value ?? null;
+
 				void handleOAuthCallback(
 					{
 						provider: 'google',
 						providerId: profile.id,
 						providerIdField: 'googleId',
 						email,
+						providerPictureUrl,
 						providerName: 'Google',
 						conflictMessage: 'Google account conflict: this email is already linked to a different Google account',
 						linkMessage: 'Linked googleId to existing user',

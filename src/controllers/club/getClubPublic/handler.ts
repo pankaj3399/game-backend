@@ -62,6 +62,7 @@ export async function getClubPublicFlow(clubId: string) {
 			id: club._id.toString(),
 			name: club.name,
 			description: club.description ?? null,
+			logoUrl: club.logoUrl ?? null,
 			address: club.address,
 			website: club.website ?? null,
 			bookingSystemUrl: club.bookingSystemUrl ?? null,

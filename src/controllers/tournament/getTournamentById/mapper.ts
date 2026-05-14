@@ -51,6 +51,7 @@ export interface ParticipantInfo {
   id: string;
   name: string | null;
   alias: string | null;
+  profilePictureUrl: string | null;
 }
 
 export interface ProgressInfo {
@@ -165,6 +166,7 @@ export function mapTournamentDetail(
       id,
       name: p.name ?? null,
       alias: p.alias ?? null,
+      profilePictureUrl: p.profilePictureUrl ?? null,
     });
   }
 

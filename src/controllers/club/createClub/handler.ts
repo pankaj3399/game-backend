@@ -23,6 +23,7 @@ export async function createClubFlow(data: CreateClubInput, userId: string) {
     const club = await createClubWithSession(
       {
         name: data.name.trim(),
+        logoUrl: data.logoUrl?.trim() || null,
         address: data.address.trim(),
         website: data.website?.trim() || null,
         bookingSystemUrl: data.bookingSystemUrl?.trim() || null,
@@ -72,6 +73,7 @@ export async function createClubFlow(data: CreateClubInput, userId: string) {
         club: {
           id: club._id,
           name: club.name,
+          logoUrl: club.logoUrl ?? null,
           address: club.address,
           website: club.website,
           bookingSystemUrl: club.bookingSystemUrl,

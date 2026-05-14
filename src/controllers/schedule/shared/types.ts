@@ -36,6 +36,7 @@ export interface ScheduleParticipantInfo {
   _id: Types.ObjectId;
   name: string | null;
   alias: string | null;
+  profilePictureUrl: string | null;
   elo: ScheduleParticipantElo;
 }
 
@@ -43,6 +44,7 @@ export interface ScheduleParticipantInfoRaw {
   _id?: DbIdLike | null;
   name?: string | null;
   alias?: string | null;
+  profilePictureUrl?: string | null;
   elo?: { rating?: number | null; rd?: number | null; vol?: number | null; tau?: number | null } | null;
 }
 
@@ -103,6 +105,7 @@ export interface ScheduleParticipantResponse {
   id: string;
   name: string;
   alias: string | null;
+  profilePictureUrl: string | null;
   skillLabel: string;
   rating: number;
   rd: number;

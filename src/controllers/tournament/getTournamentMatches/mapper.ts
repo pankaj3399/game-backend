@@ -102,6 +102,7 @@ function mapPlayer(player: GameMatchPlayerSlot, snapshot: { rating: number; rd: 
     id: player._id.toString(),
     name: player.name ?? null,
     alias: player.alias ?? null,
+    profilePictureUrl: player.profilePictureUrl ?? null,
     snapshotElo: snapshot ? { rating: snapshot.rating, rd: snapshot.rd } : null,
     elo: null,
   };

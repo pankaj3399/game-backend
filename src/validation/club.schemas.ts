@@ -38,6 +38,7 @@ const noDuplicateCourts = (courts: Array<{ name: string }>) => {
 export const createClubSchema = z
 	.object({
 		name: z.string().trim().min(1, 'Club name is required'),
+		logoUrl: z.string().trim().optional().nullable(),
 		website: z.string().trim().optional().nullable(),
 		bookingSystemUrl: z.string().trim().optional().nullable(),
 		address: z.string().trim().min(1, 'Address is required'),
@@ -52,6 +53,7 @@ export const createClubSchema = z
 export const updateClubSchema = z
 	.object({
 		name: z.string().trim().min(1).optional(),
+		logoUrl: z.string().trim().optional().nullable(),
 		website: z.string().trim().optional().nullable(),
 		bookingSystemUrl: z.string().trim().optional().nullable(),
 		address: z.string().trim().min(1).optional(),

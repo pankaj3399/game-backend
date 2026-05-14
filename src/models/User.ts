@@ -14,6 +14,7 @@ export interface IUser {
 	email: string;
 	name?: string | null;
 	alias?: string | null;
+	profilePictureUrl?: string | null;
 	dateOfBirth?: Date | null;
 	gender: "male" | "female" | "other" | null;
 	/** RBAC role: Player, Organiser, Club Admin, Super Admin */
@@ -43,6 +44,10 @@ const userSchema = new mongoose.Schema<IUser>(
 			default: null
 		},
 		name: {
+			type: String,
+			default: null
+		},
+		profilePictureUrl: {
 			type: String,
 			default: null
 		},
