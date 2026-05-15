@@ -23,6 +23,7 @@ export interface PopulatedMatchPlayerDoc {
   _id: Types.ObjectId;
   name?: string | null;
   alias?: string | null;
+  profilePictureUrl?: string | null;
 }
 
 /**

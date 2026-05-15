@@ -12,6 +12,7 @@ export function mapAdminClubsResponse(
 		clubs: clubs.map((club) => ({
 			id: id(club),
 			name: club.name,
+			logoUrl: club.logoUrl ?? null,
 			courtCount: courtCountMap.get(id(club)) ?? 0,
 			membersCount: membersCountMap.get(id(club)) ?? 0,
 			eventsCount: eventsCountMap.get(id(club)) ?? 0

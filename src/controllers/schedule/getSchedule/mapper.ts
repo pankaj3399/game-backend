@@ -24,6 +24,7 @@ export function mapScheduleViewResponse(
       id: participant._id.toString(),
       name: participantDisplayName(participant, `Player ${index + 1}`),
       alias: participant.alias,
+      profilePictureUrl: participant.profilePictureUrl,
       skillLabel: "glicko2",
       rating: participant.elo?.rating ?? 1500,
       rd: participant.elo?.rd ?? 200,

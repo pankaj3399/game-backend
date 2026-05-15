@@ -35,6 +35,7 @@ export interface PopulatedPlayer {
   _id: Types.ObjectId;
   name?: string | null;
   alias?: string | null;
+  profilePictureUrl?: string | null;
 }
 
 export interface LiveMatchGameDoc {

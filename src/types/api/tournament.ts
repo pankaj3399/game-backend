@@ -93,6 +93,7 @@ export type TournamentPopulated = Omit<
 		_id: mongoose.Types.ObjectId;
 		name?: string | null;
 		alias?: string | null;
+		profilePictureUrl?: string | null;
 	}>;
   /** Set when `schedule` is populated (lean); `null` if ref is broken; omit if no ref. */
   schedule?: SchedulePopulatedLean | null;

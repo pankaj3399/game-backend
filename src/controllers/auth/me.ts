@@ -10,7 +10,7 @@ export async function getMe(req: Request, res: Response) {
 	}
 
 	const user = await User.findById(sessionUser._id)
-		.select('_id email name alias dateOfBirth gender role')
+		.select('_id email name alias profilePictureUrl dateOfBirth gender role')
 		.lean()
 		.exec();
 
@@ -25,6 +25,7 @@ export async function getMe(req: Request, res: Response) {
 			email: user.email,
 			name: user.name,
 			alias: user.alias,
+			profilePictureUrl: user.profilePictureUrl ?? null,
 			dateOfBirth: user.dateOfBirth,
 			gender: user.gender,
 			role: user.role

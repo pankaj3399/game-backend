@@ -45,14 +45,14 @@ export async function findUserAdminClubs(userId: string, options?: FindUserAdmin
 		User.findById(userId)
 			.populate({
 				path: 'adminOf',
-				select: '_id name',
+				select: '_id name logoUrl',
 				model: 'Club'
 			})
 			.select('adminOf role')
 			.lean<UserAdminMembershipDoc>()
 			.exec(),
 		Club.find({ organiserIds: userId })
-			.select('_id name')
+			.select('_id name logoUrl')
 			.lean<AdminClubDoc[]>()
 			.exec()
 	]);
@@ -63,7 +63,7 @@ export async function findUserAdminClubs(userId: string, options?: FindUserAdmin
 
 	if (user.role === ROLES.SUPER_ADMIN) {
 		return Club.find({})
-			.select('_id name')
+			.select('_id name logoUrl')
 			.sort({ name: 1, _id: 1 })
 			.skip(superAdminOffset)
 			.limit(superAdminLimit)

@@ -41,7 +41,7 @@ export async function fetchTournamentById(
       select: "currentRound rounds.round",
     })
     .populate("sponsor", "name logoUrl link")
-    .populate("participants", "name alias")
+    .populate("participants", "name alias profilePictureUrl")
     .lean<TournamentPopulated>()
     .exec();
 

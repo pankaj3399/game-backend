@@ -5,6 +5,7 @@ export type ClubPlan = 'free' | 'premium';
 export interface IClub {
 	name: string;
 	description?: string | null;
+	logoUrl?: string | null;
 	address: string;
 	coordinates: {
 		type: 'Point';
@@ -40,6 +41,10 @@ const clubSchema = new Schema<IClub>(
 			type: String,
 			trim:true,
 			maxLength:1000,
+			default: null
+		},
+		logoUrl: {
+			type: String,
 			default: null
 		},
 		address: {

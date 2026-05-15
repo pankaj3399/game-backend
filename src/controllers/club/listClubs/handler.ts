@@ -16,6 +16,7 @@ export async function listClubsFlow(query: ListClubsQuery) {
 				id: club._id.toString(),
 				name: club.name,
 				address: club.address,
+				logoUrl: club.logoUrl ?? null,
 				website: club.website ?? null
 			})),
 			pagination: {

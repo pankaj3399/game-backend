@@ -45,6 +45,7 @@ export const scheduleParticipantInfoSchema = z.object({
   _id: mongoObjectIdSchema,
   name: stringOrNull,
   alias: stringOrNull,
+  profilePictureUrl: stringOrNull,
   elo: scheduleParticipantEloSchema,
 });
 

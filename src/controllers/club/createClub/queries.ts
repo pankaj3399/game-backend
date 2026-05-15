@@ -10,6 +10,7 @@ export async function findClubByName(name: string) {
 export async function createClubWithSession(
 	payload: {
 		name: string;
+		logoUrl: string | null;
 		address: string;
 		website: string | null;
 		bookingSystemUrl: string | null;

@@ -84,7 +84,7 @@ export async function persistScheduleRound(
             select: "_id name",
           },
         })
-        .populate("participants", "name alias elo.rating elo.rd elo.vol elo.tau")
+        .populate("participants", "name alias profilePictureUrl elo.rating elo.rd elo.vol elo.tau")
         .session(session)
         .lean<TournamentScheduleContext | null>()
         .exec();
@@ -302,7 +302,7 @@ export async function persistScheduleRound(
 
       const participantIds = freshTournament.participants.map((participant) => participant._id);
       const latestParticipants = await User.find({ _id: { $in: participantIds } })
-        .select("name alias elo.rating elo.rd elo.vol elo.tau")
+        .select("name alias profilePictureUrl elo.rating elo.rd elo.vol elo.tau")
         .session(session)
         .lean<ScheduleParticipantInfo[]>()
         .exec();

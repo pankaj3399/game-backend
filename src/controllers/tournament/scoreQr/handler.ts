@@ -38,6 +38,7 @@ import {
   requiredSetCount,
   resolveWinnerBySets,
 } from "./scoreHelpers";
+import type { RecordMatchScoreInput } from "../recordMatchScore/validation";
 import type {
   ConfirmScoreQrInput,
   ConfirmScoreQrResult,
@@ -49,6 +50,40 @@ import type {
 } from "./types";
 
 type ValidScoreQrRequest = NonNullable<ValidateScoreQrTokenResult["request"]>;
+
+/**
+ * Tournament score UI is requester-relative ("my team" / "opponent team").
+ * Persist QR request scores in canonical game orientation (side1/side2),
+ * so the payload remains consistent regardless of who generated it.
+ */
+function mapRequesterInputToTournamentSides(
+  input: RecordMatchScoreInput,
+  game: {
+    side1?: { players?: Array<Types.ObjectId | string> | null } | null;
+    side2?: { players?: Array<Types.ObjectId | string> | null } | null;
+  },
+  requesterUserId: string,
+): RecordMatchScoreInput {
+  const side1Ids = (game.side1?.players ?? []).map((id) => id.toString());
+  const side2Ids = (game.side2?.players ?? []).map((id) => id.toString());
+  const requesterInSide1 = side1Ids.includes(requesterUserId);
+  const requesterInSide2 = side2Ids.includes(requesterUserId);
+
+  if (requesterInSide1 && requesterInSide2) {
+    throw new AppError("Invalid tournament match setup: requester is on both sides", 409);
+  }
+  if (!requesterInSide1 && !requesterInSide2) {
+    throw new AppError("Requester is not a participant in this match", 403);
+  }
+  if (requesterInSide1) {
+    return input;
+  }
+
+  return {
+    playerOneScores: [...input.playerTwoScores],
+    playerTwoScores: [...input.playerOneScores],
+  };
+}
 
 async function assertScoreQrConfirmEligibility(
   request: ValidScoreQrRequest,
@@ -118,6 +153,10 @@ export async function generateScoreQrFlow(
   let playMode: GamePlayMode;
   let matchType: MatchType;
   let opponentUserId: string | null;
+  let canonicalScoreInput: RecordMatchScoreInput = {
+    playerOneScores: [...input.input.playerOneScores],
+    playerTwoScores: [...input.input.playerTwoScores],
+  };
 
   if (isTournamentFlow) {
     const tid = tidTrimmed;
@@ -153,6 +192,11 @@ export async function generateScoreQrFlow(
     flow = "tournament";
     tournamentId = tid;
     matchId = mid;
+    canonicalScoreInput = mapRequesterInputToTournamentSides(
+      input.input,
+      game,
+      input.requesterUserId,
+    );
     opponentUserId = getOpponentUserIdFromGame(game, input.requesterUserId);
 
     await expireStalePendingRequests({
@@ -231,8 +275,8 @@ export async function generateScoreQrFlow(
     opponentUser: opponentUserId,
     tournament: tournamentId,
     match: matchId,
-    playerOneScores: input.input.playerOneScores,
-    playerTwoScores: input.input.playerTwoScores,
+    playerOneScores: canonicalScoreInput.playerOneScores,
+    playerTwoScores: canonicalScoreInput.playerTwoScores,
     playMode,
     matchType,
     status: "pending",

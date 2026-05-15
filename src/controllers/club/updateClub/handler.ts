@@ -27,6 +27,9 @@ export async function updateClubFlow(clubId: string, data: UpdateClubInput, sess
 	if (typeof data.name === 'string') {
 		club.name = data.name.trim();
 	}
+	if (data.logoUrl !== undefined) {
+		club.logoUrl = data.logoUrl?.trim() || null;
+	}
 	if (typeof data.address === 'string') {
 		club.address = data.address.trim();
 	}
@@ -85,6 +88,7 @@ export async function updateClubFlow(clubId: string, data: UpdateClubInput, sess
 		club: {
 			id: club._id,
 			name: club.name,
+			logoUrl: club.logoUrl ?? null,
 			address: club.address,
 			website: club.website,
 			bookingSystemUrl: club.bookingSystemUrl,
