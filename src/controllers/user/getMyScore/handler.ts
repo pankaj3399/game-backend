@@ -5,6 +5,7 @@ import {
 	fetchCompletedTournamentGamesForUser,
 	fetchStandaloneGamesForUser,
 	fetchUserRatingSnapshot,
+	MAX_STANDALONE_GAMES_FETCH,
 } from './queries';
 import type { MyScoreEntry, MyScoreResponse } from './types';
 import type { MyScoreQuery } from './validation';
@@ -12,21 +13,23 @@ import type { MyScoreQuery } from './validation';
 export async function getMyScoreFlow(userId: string, query: MyScoreQuery) {
 	const now = new Date();
 
+	const mergedSourceLimit = Math.min(query.page * query.limit + 50, MAX_STANDALONE_GAMES_FETCH);
+
 	const [gamesPage, standaloneGames, ratingSnapshot] = await Promise.all([
 		fetchCompletedTournamentGamesForUser({
 			userId,
 			mode: query.mode,
 			range: query.range,
 			page: 1,
-			// Fetch a generous page to allow merging with standalone entries before re-paginating.
-			// Tournament entries are still the bulk; standalone games are typically few.
-			limit: Math.min(query.page * query.limit + 50, 500),
+			// Fetch a generous slice to allow merging with standalone entries before re-paginating.
+			limit: mergedSourceLimit,
 			now,
 		}),
 		fetchStandaloneGamesForUser({
 			userId,
 			mode: query.mode,
 			range: query.range,
+			limit: mergedSourceLimit,
 			now,
 		}),
 		fetchUserRatingSnapshot(userId),
@@ -59,16 +62,16 @@ export async function getMyScoreFlow(userId: string, query: MyScoreQuery) {
 		tournamentEntries.push(entry);
 	}
 
-	// Merge and sort by playedAt descending, then paginate.
-	const allEntries = [...standaloneEntries, ...tournamentEntries].sort(
+	// Merge and sort by playedAt descending, then paginate on the materialized merged list.
+	const mergedEntries = [...standaloneEntries, ...tournamentEntries].sort(
 		(a, b) => new Date(b.playedAt).getTime() - new Date(a.playedAt).getTime(),
 	);
 
-	const totalEntries = gamesPage.totalEntries + standaloneEntries.length;
+	const totalEntries = mergedEntries.length;
 	const totalPages = Math.max(1, Math.ceil(totalEntries / query.limit));
 	const page = Math.min(Math.max(1, query.page), totalPages);
 	const skip = (page - 1) * query.limit;
-	const pagedEntries = allEntries.slice(skip, skip + query.limit);
+	const pagedEntries = mergedEntries.slice(skip, skip + query.limit);
 
 	const response: MyScoreResponse = {
 		summary: {

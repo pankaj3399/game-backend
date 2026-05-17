@@ -32,6 +32,9 @@ const scoreArraysSchema = z
     }
   });
 
+/** PATCH /score-qr/:requestId/scores — same score-array rules as QR generation. */
+export const updateScoreQrScoresBodySchema = scoreArraysSchema;
+
 export const generateScoreQrBodySchema = scoreArraysSchema;
 
 export const generateIndependentScoreQrBodySchema = scoreArraysSchema

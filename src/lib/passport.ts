@@ -34,6 +34,22 @@ async function reactivateUserIfDeleted(user: UserDocument, session: mongoose.Cli
 	return reactivatedUser;
 }
 
+async function backfillProfilePictureIfMissing(
+	user: UserDocument,
+	providerPictureUrl: string | null | undefined,
+	session: mongoose.ClientSession
+): Promise<UserDocument> {
+	if (!providerPictureUrl || user.profilePictureUrl) {
+		return user;
+	}
+	const updated = await User.findByIdAndUpdate(
+		user._id,
+		{ profilePictureUrl: providerPictureUrl },
+		{ returnDocument: 'after', session }
+	);
+	return (updated as UserDocument | null) ?? user;
+}
+
 // --- Apple-specific helpers ---
 
 const APPLE_PLACEHOLDER_EMAIL_PREFIX = 'apple-';
@@ -164,14 +180,11 @@ async function handleOAuthCallback(
 
 		if (byProviderId?.user) {
 			let reactivatedUser = await reactivateUserIfDeleted(byProviderId.user, session);
-			// Backfill picture from OAuth provider if the user doesn't have one yet
-			if (config.providerPictureUrl && !reactivatedUser.profilePictureUrl) {
-				reactivatedUser = await User.findByIdAndUpdate(
-					reactivatedUser._id,
-					{ profilePictureUrl: config.providerPictureUrl },
-					{ returnDocument: 'after', session }
-				) as UserDocument ?? reactivatedUser;
-			}
+			reactivatedUser = await backfillProfilePictureIfMissing(
+				reactivatedUser,
+				config.providerPictureUrl,
+				session
+			);
 			await session.commitTransaction();
 			logger.info(config.signInByProviderMessage, { [config.providerIdField]: config.providerId });
 			return done(null, reactivatedUser);
@@ -210,15 +223,11 @@ async function handleOAuthCallback(
 				await UserAuth.create([{ user: existingUser._id, [config.providerIdField]: config.providerId }], { session });
 			}
 
-			// Backfill picture from OAuth provider if user has none yet
-			let finalExistingUser: UserDocument = existingUser;
-			if (config.providerPictureUrl && !existingUser.profilePictureUrl) {
-				finalExistingUser = await User.findByIdAndUpdate(
-					existingUser._id,
-					{ profilePictureUrl: config.providerPictureUrl },
-					{ returnDocument: 'after', session }
-				) as UserDocument ?? existingUser;
-			}
+			const finalExistingUser = await backfillProfilePictureIfMissing(
+				existingUser,
+				config.providerPictureUrl,
+				session
+			);
 
 			await session.commitTransaction();
 			logger.info(`${config.providerName} sign-in by email`, {

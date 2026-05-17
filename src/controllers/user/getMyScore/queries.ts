@@ -58,11 +58,16 @@ export interface FetchCompletedTournamentGamesResult {
 	page: number;
 }
 
+/** Upper bound for standalone rows loaded per request (aligned with merged tournament window). */
+export const MAX_STANDALONE_GAMES_FETCH = 500;
+
 export interface FetchStandaloneGamesOptions {
 	userId: string;
 	mode: MyScoreQuery['mode'];
 	range: MyScoreQuery['range'];
 	now?: Date;
+	/** Caps standalone history reads; defaults to {@link MAX_STANDALONE_GAMES_FETCH}. */
+	limit?: number;
 }
 
 export interface StandaloneGameDoc extends MyScoreGameDoc {
@@ -286,6 +291,7 @@ export async function fetchStandaloneGamesForUser(
 		.populate('side1.players', 'name alias')
 		.populate('side2.players', 'name alias')
 		.sort({ createdAt: -1 })
+		.limit(Math.min(options.limit ?? MAX_STANDALONE_GAMES_FETCH, MAX_STANDALONE_GAMES_FETCH))
 		.lean<(MyScoreGameDoc & { status: string })[]>()
 		.exec();
 

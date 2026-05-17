@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import QRCode from "qrcode";
-import { Types } from "mongoose";
+import mongoose, { Types } from "mongoose";
 import Game from "../../../models/Game";
 import ScoreValidationRequest from "../../../models/ScoreValidationRequest";
 import Tournament from "../../../models/Tournament";
@@ -645,26 +645,39 @@ export async function updateScoreQrSessionScoresFlow(input: {
   }
 
   // Update the request in-place — token/URL stay the same, so B doesn't need to re-scan.
-  await ScoreValidationRequest.updateOne(
-    { _id: request._id, status: "pending" },
-    {
-      $set: {
-        playerOneScores: input.playerOneScores,
-        playerTwoScores: input.playerTwoScores,
+  // Mirror onto Game in the same transaction so we never leave diverging state.
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  try {
+    await ScoreValidationRequest.updateOne(
+      { _id: request._id, status: "pending" },
+      {
+        $set: {
+          playerOneScores: input.playerOneScores,
+          playerTwoScores: input.playerTwoScores,
+        },
       },
-    },
-  ).exec();
+      { session },
+    ).exec();
 
-  // Mirror updated scores onto the Game so B's confirm page shows the latest values on refresh.
-  await Game.updateOne(
-    { _id: request.match },
-    {
-      $set: {
-        "score.playerOneScores": input.playerOneScores,
-        "score.playerTwoScores": input.playerTwoScores,
+    await Game.updateOne(
+      { _id: request.match },
+      {
+        $set: {
+          "score.playerOneScores": input.playerOneScores,
+          "score.playerTwoScores": input.playerTwoScores,
+        },
       },
-    },
-  ).exec();
+      { session },
+    ).exec();
+
+    await session.commitTransaction();
+  } catch (err) {
+    await session.abortTransaction();
+    throw err;
+  } finally {
+    await session.endSession().catch(() => {});
+  }
 
   return {
     requestId: request._id.toString(),

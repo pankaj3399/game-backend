@@ -22,6 +22,7 @@ import {
   generateIndependentScoreQrBodySchema,
   generateScoreQrBodySchema,
   scoreQrTokenParamsSchema,
+  updateScoreQrScoresBodySchema,
 } from "./validation";
 
 type RequesterProfile = {
@@ -461,23 +462,23 @@ export async function updateScoreQrScores(
   res: Response,
 ): Promise<void> {
   try {
-    const requestId = readRouteParam(req.params.requestId);
-    if (!requestId) {
-      res.status(400).json(buildErrorPayload("Missing requestId"));
+    const requestIdResult = parseRouteObjectId(req.params.requestId, "request ID");
+    if (requestIdResult.status !== 200) {
+      res.status(requestIdResult.status).json(buildErrorPayload(requestIdResult.message));
       return;
     }
 
-    const body = req.body as { playerOneScores?: unknown; playerTwoScores?: unknown };
-    if (!Array.isArray(body.playerOneScores) || !Array.isArray(body.playerTwoScores)) {
-      res.status(400).json(buildErrorPayload("playerOneScores and playerTwoScores must be arrays"));
+    const parsedBody = updateScoreQrScoresBodySchema.safeParse(req.body);
+    if (!parsedBody.success) {
+      res.status(400).json(buildZodErrorPayload(parsedBody.error));
       return;
     }
 
     const result = await updateScoreQrSessionScoresFlow({
-      requestId,
+      requestId: requestIdResult.data,
       requesterUserId: req.user._id.toString(),
-      playerOneScores: body.playerOneScores as Array<number | "wo">,
-      playerTwoScores: body.playerTwoScores as Array<number | "wo">,
+      playerOneScores: parsedBody.data.playerOneScores,
+      playerTwoScores: parsedBody.data.playerTwoScores,
     });
 
     res.status(200).json({
@@ -508,7 +509,7 @@ export const cancelActiveScoreQr = async (
 ) => {
   try {
     const authedReq = req as AuthenticatedRequest;
-    await cancelActiveScoreQrFlow(authedReq.user!.id);
+    await cancelActiveScoreQrFlow(authedReq.user!._id.toString());
     res.status(200).json({ success: true });
   } catch (err) {
     if (err instanceof AppError) {
