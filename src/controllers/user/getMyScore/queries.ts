@@ -1,5 +1,6 @@
 import { Types } from 'mongoose';
 import Game from '../../../models/Game';
+import ScoreValidationRequest from '../../../models/ScoreValidationRequest';
 import User from '../../../models/User';
 import { determineDidWinFromSetScores } from './mapper';
 import type { MyScoreQuery } from './validation';
@@ -167,6 +168,14 @@ function withStandaloneMappableGameShapeConstraints(
 		shapeConstraints.push({ matchType: { $in: ['singles', 'doubles'] } });
 	}
 
+	// At least one side has a player (opponent side may be empty while QR is pending).
+	shapeConstraints.push({
+		$or: [
+			{ 'side1.players': { $elemMatch: { $ne: null } } },
+			{ 'side2.players': { $elemMatch: { $ne: null } } },
+		],
+	});
+
 	const existingAnd = filter.$and;
 	if (Array.isArray(existingAnd)) {
 		return { ...filter, $and: [...existingAnd, ...shapeConstraints] };
@@ -176,6 +185,77 @@ function withStandaloneMappableGameShapeConstraints(
 		...filter,
 		$and: shapeConstraints,
 	};
+}
+
+export function buildStandaloneMyScoreListFilter(
+	userObjectId: Types.ObjectId,
+	options: Pick<FetchStandaloneGamesOptions, 'mode' | 'range' | 'now'>,
+): Record<string, unknown> {
+	const userInSide = {
+		$or: [{ 'side1.players': userObjectId }, { 'side2.players': userObjectId }],
+	};
+
+	const filter: Record<string, unknown> = {
+		gameMode: 'standalone',
+		status: { $in: ['pendingScore', 'finished'] },
+	};
+
+	if (options.mode === 'singles' || options.mode === 'doubles') {
+		filter.matchType = options.mode;
+	}
+
+	if (options.range === 'last30Days') {
+		const now = options.now ?? new Date();
+		const cutoff = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+		filter.$and = [userInSide, { playedAt: { $gte: cutoff } }];
+	} else {
+		Object.assign(filter, userInSide);
+	}
+
+	return withStandaloneMappableGameShapeConstraints(filter);
+}
+
+/**
+ * Standalone rows with no opponent on the roster are only meaningful while an
+ * independent score-QR request is still pending and unexpired. Otherwise they
+ * are abandoned drafts and must not appear in My Score.
+ */
+function standaloneMyScoreQrVisibilityStages(now: Date) {
+	const requestCollection = ScoreValidationRequest.collection.name;
+	return [
+		{
+			$lookup: {
+				from: requestCollection,
+				let: { gameId: '$_id' },
+				pipeline: [
+					{
+						$match: {
+							$expr: { $eq: ['$match', '$$gameId'] },
+							tournament: null,
+							status: 'pending',
+							expiresAt: { $gt: now },
+						},
+					},
+					{ $limit: 1 },
+				],
+				as: 'activeIndependentQr',
+			},
+		},
+		{
+			$match: {
+				$or: [
+					{ status: 'finished' },
+					{
+						$and: [
+							{ $expr: { $gt: [{ $size: { $ifNull: ['$side1.players', []] } }, 0] } },
+							{ $expr: { $gt: [{ $size: { $ifNull: ['$side2.players', []] } }, 0] } },
+						],
+					},
+					{ 'activeIndependentQr.0': { $exists: true } },
+				],
+			},
+		},
+	];
 }
 
 export async function fetchCompletedTournamentGamesForUser(
@@ -273,6 +353,45 @@ async function countTournamentWinsForUser(
 	return { estimatedWins: wins, winsTruncated };
 }
 
+export async function countStandaloneWinsForUser(
+	userObjectId: Types.ObjectId,
+	listFilter: Record<string, unknown>,
+): Promise<{ estimatedWins: number; winsTruncated: boolean }> {
+	const userIdStr = userObjectId.toString();
+	const finishedFilter = { ...listFilter, status: 'finished' };
+
+	const lightweight = await Game.aggregate<LightweightGameDoc>([
+		{ $match: finishedFilter },
+		{ $sort: { playedAt: -1, _id: -1 } },
+		{ $limit: TOTALS_SCAN_CAP + 1 },
+		{ $project: { side1: 1, side2: 1, score: 1 } },
+	]).exec();
+
+	const winsTruncated = lightweight.length > TOTALS_SCAN_CAP;
+	const gamesToScore = winsTruncated ? lightweight.slice(0, TOTALS_SCAN_CAP) : lightweight;
+
+	let wins = 0;
+	for (const game of gamesToScore) {
+		const side1Players = Array.isArray(game.side1?.players) ? game.side1!.players! : [];
+		const side2Players = Array.isArray(game.side2?.players) ? game.side2!.players! : [];
+
+		const userInSide1 = side1Players.some((id) => id?.toString?.() === userIdStr);
+		const userInSide2 = side2Players.some((id) => id?.toString?.() === userIdStr);
+		if (!userInSide1 && !userInSide2) {
+			continue;
+		}
+
+		const mySetScores = userInSide1 ? game.score?.playerOneScores : game.score?.playerTwoScores;
+		const oppSetScores = userInSide1 ? game.score?.playerTwoScores : game.score?.playerOneScores;
+
+		if (determineDidWinFromSetScores(mySetScores, oppSetScores) === true) {
+			wins += 1;
+		}
+	}
+
+	return { estimatedWins: wins, winsTruncated };
+}
+
 export async function fetchUserRatingSnapshot(userId: string): Promise<UserRatingSnapshot | null> {
 	const user = await User.findById(userId)
 		.select('elo.rating elo.rd')
@@ -303,44 +422,56 @@ export async function fetchStandaloneGamesForUser(
 	}
 
 	const userObjectId = new Types.ObjectId(options.userId);
-	const userInSide = {
-		$or: [{ 'side1.players': userObjectId }, { 'side2.players': userObjectId }],
-	};
+	const listFilter = buildStandaloneMyScoreListFilter(userObjectId, options);
+	const now = options.now ?? new Date();
+	const cap = Math.min(options.limit ?? MAX_STANDALONE_GAMES_FETCH, MAX_STANDALONE_GAMES_FETCH);
 
-	const filter: Record<string, unknown> = {
-		gameMode: 'standalone',
-		status: { $in: ['pendingScore', 'finished'] },
-	};
+	const visibilityStages = standaloneMyScoreQrVisibilityStages(now);
 
-	if (options.mode === 'singles' || options.mode === 'doubles') {
-		filter.matchType = options.mode;
+	const [facetRow] = await Game.aggregate<{
+		ids: { _id: Types.ObjectId }[];
+		totalCount: { n: number }[];
+	}>([
+		{ $match: listFilter },
+		...visibilityStages,
+		{
+			$facet: {
+				ids: [
+					{ $sort: { playedAt: -1, _id: -1 } },
+					{ $limit: cap },
+					{ $project: { _id: 1 } },
+				],
+				totalCount: [{ $count: 'n' }],
+			},
+		},
+	]).exec();
+
+	const rawCount = facetRow?.totalCount?.[0]?.n ?? 0;
+	const totalEntries = Math.min(rawCount, MAX_STANDALONE_GAMES_FETCH);
+	const idRows = facetRow?.ids ?? [];
+
+	const orderedIds = idRows.map((row) => row._id);
+	if (orderedIds.length === 0) {
+		return {
+			entries: [],
+			totalEntries,
+		};
 	}
 
-	if (options.range === 'last30Days') {
-		const now = options.now ?? new Date();
-		const cutoff = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-		filter.$and = [userInSide, { playedAt: { $gte: cutoff } }];
-	} else {
-		Object.assign(filter, userInSide);
-	}
-
-	const listFilter = withStandaloneMappableGameShapeConstraints(filter);
-	const totalEntries = Math.min(
-		await Game.countDocuments(listFilter).exec(),
-		MAX_STANDALONE_GAMES_FETCH
-	);
-
-	const raw = await Game.find(listFilter)
+	const raw = await Game.find({ _id: { $in: orderedIds } })
 		.select('_id side1 side2 tournament score matchType playMode startTime endTime createdAt playedAt status')
 		.populate('side1.players', 'name alias')
 		.populate('side2.players', 'name alias')
-		.sort({ playedAt: -1, _id: -1 })
-		.limit(Math.min(options.limit ?? MAX_STANDALONE_GAMES_FETCH, MAX_STANDALONE_GAMES_FETCH))
 		.lean<(MyScoreGameDoc & { status: string })[]>()
 		.exec();
 
+	const byId = new Map(raw.map((doc) => [doc._id.toString(), doc]));
+	const ordered = orderedIds
+		.map((id) => byId.get(id.toString()))
+		.filter((doc): doc is MyScoreGameDoc & { status: string } => doc != null);
+
 	return {
-		entries: raw.filter(
+		entries: ordered.filter(
 			(doc): doc is StandaloneGameDoc =>
 				doc.status === 'pendingScore' || doc.status === 'finished',
 		),

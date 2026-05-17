@@ -1,7 +1,10 @@
+import { Types } from 'mongoose';
 import { logger } from '../../../lib/logger';
 import { error, ok } from '../../../shared/helpers';
 import { mapGameToMyScoreEntry } from './mapper';
 import {
+	buildStandaloneMyScoreListFilter,
+	countStandaloneWinsForUser,
 	fetchCompletedTournamentGamesForUser,
 	fetchStandaloneGamesForUser,
 	fetchUserRatingSnapshot,
@@ -23,7 +26,14 @@ export async function getMyScoreFlow(userId: string, query: MyScoreQuery) {
 
 	const mergedSourceLimit = Math.min(requestedDepth + 50, MAX_STANDALONE_GAMES_FETCH);
 
-	const [gamesPage, standalonePage, ratingSnapshot] = await Promise.all([
+	const userObjectId = new Types.ObjectId(userId);
+	const standaloneListFilter = buildStandaloneMyScoreListFilter(userObjectId, {
+		mode: query.mode,
+		range: query.range,
+		now,
+	});
+
+	const [gamesPage, standalonePage, standaloneWinsAgg, ratingSnapshot] = await Promise.all([
 		fetchCompletedTournamentGamesForUser({
 			userId,
 			mode: query.mode,
@@ -40,6 +50,7 @@ export async function getMyScoreFlow(userId: string, query: MyScoreQuery) {
 			limit: mergedSourceLimit,
 			now,
 		}),
+		countStandaloneWinsForUser(userObjectId, standaloneListFilter),
 		fetchUserRatingSnapshot(userId),
 	]);
 
@@ -47,7 +58,7 @@ export async function getMyScoreFlow(userId: string, query: MyScoreQuery) {
 		return error(404, 'User not found');
 	}
 
-	// Map standalone games (excluded from summary stats — they don't affect ratings).
+	// Map standalone / independent QR matches (Glicko still reflects tournament play only).
 	const standaloneEntries: MyScoreEntry[] = [];
 	for (const game of standalonePage.entries) {
 		const entry = mapGameToMyScoreEntry(game, userId, game.status);
@@ -83,10 +94,9 @@ export async function getMyScoreFlow(userId: string, query: MyScoreQuery) {
 
 	const response: MyScoreResponse = {
 		summary: {
-			// Summary counts only tournament (rated) matches.
-			totalMatches: gamesPage.totalEntries,
-			totalWins: gamesPage.estimatedWins,
-			winsTruncated: gamesPage.winsTruncated,
+			totalMatches: gamesPage.totalEntries + standalonePage.totalEntries,
+			totalWins: gamesPage.estimatedWins + standaloneWinsAgg.estimatedWins,
+			winsTruncated: gamesPage.winsTruncated || standaloneWinsAgg.winsTruncated,
 			glicko2: {
 				rating: Math.round(ratingSnapshot.rating),
 				rd: Math.round(ratingSnapshot.rd),
