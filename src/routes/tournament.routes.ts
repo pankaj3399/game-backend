@@ -17,6 +17,8 @@ import {
 	validateScoreQr,
 	validateScoreQrConfirmContext,
 	confirmScoreQr,
+	updateScoreQrScores,
+	cancelActiveScoreQr,
 } from '../controllers/tournament/controller';
 import { requireOrganiserOrAbove, requirePlayerOrAbove } from '../middlewares/rbac';
 import { createAuthedRouter } from './authedRouter';
@@ -34,7 +36,9 @@ authed.patch('/:id/matches/:matchId/score', requirePlayerOrAbove, recordMatchSco
 authed.post('/:id/matches/:matchId/score/qr', requirePlayerOrAbove, generateScoreQr);
 authed.post('/score-qr/independent', requirePlayerOrAbove, generateIndependentScoreQr);
 authed.get('/score-qr/active', requirePlayerOrAbove, getActiveScoreQr);
+authed.delete('/score-qr/active', requirePlayerOrAbove, cancelActiveScoreQr);
 authed.post('/score-qr/confirm-context', requirePlayerOrAbove, validateScoreQrConfirmContext);
+authed.patch('/score-qr/:requestId/scores', requirePlayerOrAbove, updateScoreQrScores);
 router.get('/score-qr/:token', validateScoreQr);
 authed.post('/score-qr/confirm', requirePlayerOrAbove, confirmScoreQr);
 

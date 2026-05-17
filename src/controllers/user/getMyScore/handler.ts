@@ -3,6 +3,7 @@ import { error, ok } from '../../../shared/helpers';
 import { mapGameToMyScoreEntry } from './mapper';
 import {
 	fetchCompletedTournamentGamesForUser,
+	fetchStandaloneGamesForUser,
 	fetchUserRatingSnapshot,
 } from './queries';
 import type { MyScoreEntry, MyScoreResponse } from './types';
@@ -11,13 +12,21 @@ import type { MyScoreQuery } from './validation';
 export async function getMyScoreFlow(userId: string, query: MyScoreQuery) {
 	const now = new Date();
 
-	const [gamesPage, ratingSnapshot] = await Promise.all([
+	const [gamesPage, standaloneGames, ratingSnapshot] = await Promise.all([
 		fetchCompletedTournamentGamesForUser({
 			userId,
 			mode: query.mode,
 			range: query.range,
-			page: query.page,
-			limit: query.limit,
+			page: 1,
+			// Fetch a generous page to allow merging with standalone entries before re-paginating.
+			// Tournament entries are still the bulk; standalone games are typically few.
+			limit: Math.min(query.page * query.limit + 50, 500),
+			now,
+		}),
+		fetchStandaloneGamesForUser({
+			userId,
+			mode: query.mode,
+			range: query.range,
 			now,
 		}),
 		fetchUserRatingSnapshot(userId),
@@ -27,17 +36,19 @@ export async function getMyScoreFlow(userId: string, query: MyScoreQuery) {
 		return error(404, 'User not found');
 	}
 
-	const {
-		entries: rawEntries,
-		totalEntries,
-		estimatedWins,
-		winsTruncated,
-		page,
-	} = gamesPage;
+	// Map standalone games (excluded from summary stats — they don't affect ratings).
+	const standaloneEntries: MyScoreEntry[] = [];
+	for (const game of standaloneGames) {
+		const entry = mapGameToMyScoreEntry(game, userId, game.status);
+		if (entry) {
+			standaloneEntries.push(entry);
+		}
+	}
 
-	const mappedEntries: MyScoreEntry[] = [];
-	for (const game of rawEntries) {
-		const entry = mapGameToMyScoreEntry(game, userId);
+	// Map tournament games.
+	const tournamentEntries: MyScoreEntry[] = [];
+	for (const game of gamesPage.entries) {
+		const entry = mapGameToMyScoreEntry(game, userId, 'finished');
 		if (!entry) {
 			logger.error('getMyScore: unmappable game after list filter', {
 				gameId: game._id.toString(),
@@ -45,16 +56,26 @@ export async function getMyScoreFlow(userId: string, query: MyScoreQuery) {
 			});
 			return error(500, 'Unable to load score history');
 		}
-		mappedEntries.push(entry);
+		tournamentEntries.push(entry);
 	}
 
+	// Merge and sort by playedAt descending, then paginate.
+	const allEntries = [...standaloneEntries, ...tournamentEntries].sort(
+		(a, b) => new Date(b.playedAt).getTime() - new Date(a.playedAt).getTime(),
+	);
+
+	const totalEntries = gamesPage.totalEntries + standaloneEntries.length;
 	const totalPages = Math.max(1, Math.ceil(totalEntries / query.limit));
+	const page = Math.min(Math.max(1, query.page), totalPages);
+	const skip = (page - 1) * query.limit;
+	const pagedEntries = allEntries.slice(skip, skip + query.limit);
 
 	const response: MyScoreResponse = {
 		summary: {
-			totalMatches: totalEntries,
-			totalWins: estimatedWins,
-			winsTruncated,
+			// Summary counts only tournament (rated) matches.
+			totalMatches: gamesPage.totalEntries,
+			totalWins: gamesPage.estimatedWins,
+			winsTruncated: gamesPage.winsTruncated,
 			glicko2: {
 				rating: Math.round(ratingSnapshot.rating),
 				rd: Math.round(ratingSnapshot.rd),
@@ -70,7 +91,7 @@ export async function getMyScoreFlow(userId: string, query: MyScoreQuery) {
 			total: totalEntries,
 			totalPages,
 		},
-		entries: mappedEntries,
+		entries: pagedEntries,
 	};
 
 	return ok(response, { status: 200, message: 'My score fetched successfully' });

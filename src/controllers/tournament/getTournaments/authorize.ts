@@ -1,4 +1,5 @@
 
+import mongoose from "mongoose";
 import Club from "../../../models/Club";
 import User from "../../../models/User";
 import { type AuthenticatedSession } from "../../../shared/authContext";
@@ -12,6 +13,8 @@ export type ListFilterContext = {
   requesterUserId: string;
   manageableClubIds: string[];
   homeClubCoordinates: [number, number] | null;
+  /** Favourite club ids for this user (empty if none). */
+  favoriteClubIds: string[];
 };
 
 /**
@@ -38,16 +41,21 @@ export async function authorizeList(
   let homeClubCoordinates: [number, number] | null = null;
   const user = await User.findById(session._id)
     .populate({ path: "homeClub", select: "coordinates" })
-    .select("homeClub")
-    .lean<{ homeClub: { coordinates?: { coordinates?: [number, number] } } }>()
+    .select("homeClub favoriteClubs")
+    .lean<{
+      homeClub: { coordinates?: { coordinates?: [number, number] } } | null;
+      favoriteClubs?: mongoose.Types.ObjectId[];
+    }>()
     .exec();
+
+  const favoriteClubIds = (user?.favoriteClubs ?? []).map((id) => id.toString());
+
   if (user?.homeClub) {
-    const homeClub = user.homeClub 
-    const coords = homeClub?.coordinates?.coordinates;  
+    const homeClub = user.homeClub;
+    const coords = homeClub?.coordinates?.coordinates;
     if (coords) {
       homeClubCoordinates = [coords[0], coords[1]];
     }
-    
   }
 
   const filterContext: ListFilterContext = {
@@ -56,6 +64,7 @@ export async function authorizeList(
     requesterUserId: session._id.toString(),
     manageableClubIds,
     homeClubCoordinates,
+    favoriteClubIds,
   };
 
   return ok({ filterContext }, { status: 200, message: "Authorized" });

@@ -2,12 +2,21 @@ import type { ListClubsQuery } from './validation';
 import { ok,error} from '../../../shared/helpers';
 import { listActiveClubsPage } from './queries';
 import { logger } from '../../../lib/logger';
-export async function listClubsFlow(query: ListClubsQuery) {
+import { resolveAllowedClubIdsForList } from './resolveAllowedClubIds';
+
+export async function listClubsFlow(query: ListClubsQuery, userId: string) {
 	try{
-		const { page, limit, q } = query;
+		const { page, limit, q, clubScope, distance } = query;
 		const skip = (page - 1) * limit;
-	
-		const { totalCount, clubs } = await listActiveClubsPage(skip, limit, q);
+
+		const resolved = await resolveAllowedClubIdsForList(userId, { clubScope, distance });
+		if (!resolved.ok) {
+			return error(resolved.status, resolved.message);
+		}
+
+		const { totalCount, clubs } = await listActiveClubsPage(skip, limit, q, {
+			allowedClubIds: resolved.allowedClubIds
+		});
 	
 		const totalPages = Math.max(1, Math.ceil(totalCount / limit));
 	

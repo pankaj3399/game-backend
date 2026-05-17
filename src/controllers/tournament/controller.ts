@@ -16,4 +16,6 @@ export {
   validateScoreQr,
   validateScoreQrConfirmContext,
   confirmScoreQr,
+  updateScoreQrScores,
+  cancelActiveScoreQr,
 } from './scoreQr/index';

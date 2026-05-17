@@ -46,6 +46,7 @@ import type {
   GenerateScoreQrResult,
   ActiveScoreQrSessionResult,
   ScoreQrFlowKind,
+  UpdateScoreQrSessionScoresResult,
   ValidateScoreQrTokenResult,
 } from "./types";
 
@@ -346,7 +347,7 @@ export async function validateScoreQrTokenFlow(
     request.match.toString() !== payload.mid ||
     request.requestByUser.toString() !== payload.rby ||
     (request.tournament ? request.tournament.toString() : null) !== payload.tid ||
-    (request.opponentUser ? request.opponentUser.toString() : null) !== payload.opp
+    (payload.opp !== null && (request.opponentUser ? request.opponentUser.toString() : null) !== payload.opp)
   ) {
     return { valid: false, reason: "request_match_mismatch", request: null };
   }
@@ -395,6 +396,23 @@ export async function validateScoreQrConfirmContextFlow(input: {
     validation.request,
     input.confirmerUserId,
   );
+
+  // For independent matches: persist the confirmer as opponentUser the first time they open
+  // the link, so the requester's active-session poll can resolve the opponent's profile
+  // before the QR is actually confirmed.
+  if (
+    validation.request.flow === "independent" &&
+    validation.request.requestByUserId !== input.confirmerUserId
+  ) {
+    await ScoreValidationRequest.updateOne(
+      {
+        _id: validation.request.id,
+        status: "pending",
+        opponentUser: null,
+      },
+      { $set: { opponentUser: input.confirmerUserId } },
+    ).exec();
+  }
 
   return validation;
 }
@@ -596,6 +614,65 @@ export async function confirmScoreQrFlow(
   }
 }
 
+export async function updateScoreQrSessionScoresFlow(input: {
+  requestId: string;
+  requesterUserId: string;
+  playerOneScores: Array<number | "wo">;
+  playerTwoScores: Array<number | "wo">;
+}): Promise<UpdateScoreQrSessionScoresResult> {
+  const request = await ScoreValidationRequest.findOne({
+    _id: input.requestId,
+    requestByUser: input.requesterUserId,
+    status: "pending",
+  })
+    .select("_id match playerOneScores playerTwoScores status expiresAt")
+    .lean<{
+      _id: Types.ObjectId;
+      match: Types.ObjectId;
+      playerOneScores: Array<number | "wo">;
+      playerTwoScores: Array<number | "wo">;
+      status: string;
+      expiresAt: Date;
+    } | null>()
+    .exec();
+
+  if (!request) {
+    throw new AppError("Active QR session not found or you are not the requester", 404);
+  }
+
+  if (request.expiresAt < new Date()) {
+    throw new AppError("QR session has expired", 410);
+  }
+
+  // Update the request in-place — token/URL stay the same, so B doesn't need to re-scan.
+  await ScoreValidationRequest.updateOne(
+    { _id: request._id, status: "pending" },
+    {
+      $set: {
+        playerOneScores: input.playerOneScores,
+        playerTwoScores: input.playerTwoScores,
+      },
+    },
+  ).exec();
+
+  // Mirror updated scores onto the Game so B's confirm page shows the latest values on refresh.
+  await Game.updateOne(
+    { _id: request.match },
+    {
+      $set: {
+        "score.playerOneScores": input.playerOneScores,
+        "score.playerTwoScores": input.playerTwoScores,
+      },
+    },
+  ).exec();
+
+  return {
+    requestId: request._id.toString(),
+    playerOneScores: input.playerOneScores,
+    playerTwoScores: input.playerTwoScores,
+  };
+}
+
 export async function getActiveScoreQrSessionFlow(input: {
   requesterUserId: string;
   flow?: "tournament" | "independent";
@@ -653,6 +730,27 @@ export async function getActiveScoreQrSessionFlow(input: {
     width: 280,
   });
 
+  let opponentUserProfile: { name: string | null; alias: string | null; profilePictureUrl: string | null } | null = null;
+  if (request.opponentUser) {
+    try {
+      const opponentDoc = await User.findById(request.opponentUser)
+        .select("name alias profilePictureUrl")
+        .lean<{ name?: string | null; alias?: string | null; profilePictureUrl?: string | null } | null>()
+        .exec();
+      if (opponentDoc) {
+        opponentUserProfile = {
+          name: opponentDoc.name ?? null,
+          alias: opponentDoc.alias ?? null,
+          profilePictureUrl: opponentDoc.profilePictureUrl ?? null,
+        };
+      }
+    } catch {
+      // Non-critical: if we can't fetch the opponent profile, A just sees "Opponent"
+    }
+  }
+
+
+
   return {
     requestId: request._id.toString(),
     token: request.token,
@@ -661,6 +759,7 @@ export async function getActiveScoreQrSessionFlow(input: {
     matchId: request.match.toString(),
     requestByUserId: request.requestByUser.toString(),
     opponentUserId: request.opponentUser ? request.opponentUser.toString() : null,
+    opponentUserProfile,
     playerOneScores: request.playerOneScores,
     playerTwoScores: request.playerTwoScores,
     playMode: request.playMode,
@@ -669,4 +768,12 @@ export async function getActiveScoreQrSessionFlow(input: {
     validationUrl,
     qrDataUrl,
   };
+}
+
+export async function cancelActiveScoreQrFlow(userId: string): Promise<void> {
+  await cancelPendingRequests({
+    tournamentId: null,
+    requesterUserId: userId,
+    opponentUserId: null,
+  });
 }

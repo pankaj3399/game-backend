@@ -58,6 +58,17 @@ export interface FetchCompletedTournamentGamesResult {
 	page: number;
 }
 
+export interface FetchStandaloneGamesOptions {
+	userId: string;
+	mode: MyScoreQuery['mode'];
+	range: MyScoreQuery['range'];
+	now?: Date;
+}
+
+export interface StandaloneGameDoc extends MyScoreGameDoc {
+	status: 'pendingScore' | 'finished';
+}
+
 const RANGE_DAYS = 30;
 // Hard cap on docs scanned for estimatedWins to keep work bounded even for users
 // with very long histories. winsTruncated is set when additional rows likely exist.
@@ -239,4 +250,47 @@ export async function fetchUserRatingSnapshot(userId: string): Promise<UserRatin
 		rating,
 		rd,
 	};
+}
+
+export async function fetchStandaloneGamesForUser(
+	options: FetchStandaloneGamesOptions,
+): Promise<StandaloneGameDoc[]> {
+	if (!Types.ObjectId.isValid(options.userId)) {
+		return [];
+	}
+
+	const userObjectId = new Types.ObjectId(options.userId);
+	const userInSide = {
+		$or: [{ 'side1.players': userObjectId }, { 'side2.players': userObjectId }],
+	};
+
+	const filter: Record<string, unknown> = {
+		gameMode: 'standalone',
+		status: { $in: ['pendingScore', 'finished'] },
+	};
+
+	if (options.mode === 'singles' || options.mode === 'doubles') {
+		filter.matchType = options.mode;
+	}
+
+	if (options.range === 'last30Days') {
+		const now = options.now ?? new Date();
+		const cutoff = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+		filter.$and = [userInSide, { createdAt: { $gte: cutoff } }];
+	} else {
+		Object.assign(filter, userInSide);
+	}
+
+	const raw = await Game.find(filter)
+		.select('_id side1 side2 tournament score matchType playMode startTime endTime createdAt playedAt status')
+		.populate('side1.players', 'name alias')
+		.populate('side2.players', 'name alias')
+		.sort({ createdAt: -1 })
+		.lean<(MyScoreGameDoc & { status: string })[]>()
+		.exec();
+
+	return raw
+		.filter((doc): doc is StandaloneGameDoc =>
+			doc.status === 'pendingScore' || doc.status === 'finished',
+		);
 }

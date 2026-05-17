@@ -15,6 +15,8 @@ export interface MyScoreEntry {
 	myScore: number | null;
 	opponentScore: number | null;
 	didWin: boolean | null;
+	/** 'pendingScore' = awaiting opponent QR confirmation; 'finished' = fully confirmed. */
+	status: 'pendingScore' | 'finished';
 }
 
 export interface MyScoreResponse {
