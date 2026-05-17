@@ -738,7 +738,7 @@ export async function updateScoreQrSessionScoresFlow(input: {
     }
 
     const gameUpdateResult = await Game.updateOne(
-      { _id: request.match },
+      { _id: request.match, status: { $nin: ["finished", "cancelled"] } },
       {
         $set: {
           "score.playerOneScores": normalizedInput.playerOneScores,
