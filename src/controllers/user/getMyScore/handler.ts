@@ -12,8 +12,16 @@ import type { MyScoreQuery } from './validation';
 
 export async function getMyScoreFlow(userId: string, query: MyScoreQuery) {
 	const now = new Date();
+	const requestedDepth = query.page * query.limit;
 
-	const mergedSourceLimit = Math.min(query.page * query.limit + 50, MAX_STANDALONE_GAMES_FETCH);
+	if (requestedDepth > MAX_STANDALONE_GAMES_FETCH) {
+		return error(
+			422,
+			`Requested page depth exceeds the ${MAX_STANDALONE_GAMES_FETCH}-row limit supported by page/limit merging across fetchCompletedTournamentGamesForUser and fetchStandaloneGamesForUser. Use cursor pagination for deeper score history.`
+		);
+	}
+
+	const mergedSourceLimit = Math.min(requestedDepth + 50, MAX_STANDALONE_GAMES_FETCH);
 
 	const [gamesPage, standaloneGames, ratingSnapshot] = await Promise.all([
 		fetchCompletedTournamentGamesForUser({

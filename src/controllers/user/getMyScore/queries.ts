@@ -281,7 +281,7 @@ export async function fetchStandaloneGamesForUser(
 	if (options.range === 'last30Days') {
 		const now = options.now ?? new Date();
 		const cutoff = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-		filter.$and = [userInSide, { createdAt: { $gte: cutoff } }];
+		filter.$and = [userInSide, { playedAt: { $gte: cutoff } }];
 	} else {
 		Object.assign(filter, userInSide);
 	}
@@ -290,7 +290,7 @@ export async function fetchStandaloneGamesForUser(
 		.select('_id side1 side2 tournament score matchType playMode startTime endTime createdAt playedAt status')
 		.populate('side1.players', 'name alias')
 		.populate('side2.players', 'name alias')
-		.sort({ createdAt: -1 })
+		.sort({ playedAt: -1, _id: -1 })
 		.limit(Math.min(options.limit ?? MAX_STANDALONE_GAMES_FETCH, MAX_STANDALONE_GAMES_FETCH))
 		.lean<(MyScoreGameDoc & { status: string })[]>()
 		.exec();
