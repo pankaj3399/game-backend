@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import QRCode from "qrcode";
-import { Types } from "mongoose";
+import mongoose, { Types } from "mongoose";
 import Game from "../../../models/Game";
 import ScoreValidationRequest from "../../../models/ScoreValidationRequest";
 import Tournament from "../../../models/Tournament";
@@ -46,6 +46,7 @@ import type {
   GenerateScoreQrResult,
   ActiveScoreQrSessionResult,
   ScoreQrFlowKind,
+  UpdateScoreQrSessionScoresResult,
   ValidateScoreQrTokenResult,
 } from "./types";
 
@@ -82,6 +83,58 @@ function mapRequesterInputToTournamentSides(
   return {
     playerOneScores: [...input.playerTwoScores],
     playerTwoScores: [...input.playerOneScores],
+  };
+}
+
+function cloneScoreInput(input: RecordMatchScoreInput): RecordMatchScoreInput {
+  return {
+    playerOneScores: [...input.playerOneScores],
+    playerTwoScores: [...input.playerTwoScores],
+  };
+}
+
+function scoreInputsEqual(
+  left: RecordMatchScoreInput,
+  right: RecordMatchScoreInput,
+): boolean {
+  return (
+    left.playerOneScores.length === right.playerOneScores.length &&
+    left.playerTwoScores.length === right.playerTwoScores.length &&
+    left.playerOneScores.every((value, index) => value === right.playerOneScores[index]) &&
+    left.playerTwoScores.every((value, index) => value === right.playerTwoScores[index])
+  );
+}
+
+function normalizeScoreQrScoreInput(
+  input: RecordMatchScoreInput,
+  playMode: GamePlayMode,
+): RecordMatchScoreInput {
+  const normalized = cloneScoreInput(input);
+  const maxSets = requiredSetCount(playMode);
+  if (
+    normalized.playerOneScores.length !== normalized.playerTwoScores.length ||
+    normalized.playerOneScores.length > maxSets ||
+    normalized.playerTwoScores.length > maxSets
+  ) {
+    throw new AppError(
+      `Both playerOneScores and playerTwoScores must have the same number of entries and no more than ${maxSets} sets for ${playMode} matches`,
+      400,
+    );
+  }
+
+  return normalized;
+}
+
+async function resolveLatestActiveScoreQrSessionContext(requesterUserId: string) {
+  const request = await findLatestActivePendingRequestByContext({ requesterUserId });
+  if (!request) {
+    return null;
+  }
+
+  return {
+    matchId: request.match.toString(),
+    tournamentId: request.tournament ? request.tournament.toString() : null,
+    opponentUserId: request.opponentUser ? request.opponentUser.toString() : null,
   };
 }
 
@@ -181,21 +234,16 @@ export async function generateScoreQrFlow(
     playMode = game.playMode;
     matchType = game.matchType;
 
-    const maxSets = requiredSetCount(playMode);
-    if (
-      input.input.playerOneScores.length > maxSets ||
-      input.input.playerTwoScores.length > maxSets
-    ) {
-      throw new AppError(`Too many sets for ${playMode}. Maximum is ${maxSets}`, 400);
-    }
-
     flow = "tournament";
     tournamentId = tid;
     matchId = mid;
-    canonicalScoreInput = mapRequesterInputToTournamentSides(
-      input.input,
-      game,
-      input.requesterUserId,
+    canonicalScoreInput = normalizeScoreQrScoreInput(
+      mapRequesterInputToTournamentSides(
+        input.input,
+        game,
+        input.requesterUserId,
+      ),
+      playMode,
     );
     opponentUserId = getOpponentUserIdFromGame(game, input.requesterUserId);
 
@@ -217,16 +265,7 @@ export async function generateScoreQrFlow(
       input.input,
       input.independentPlayMode,
     );
-    const maxSets = requiredSetCount(resolvedPlayMode);
-    if (
-      input.input.playerOneScores.length > maxSets ||
-      input.input.playerTwoScores.length > maxSets
-    ) {
-      throw new AppError(
-        `Too many sets for ${resolvedPlayMode}. Maximum is ${maxSets}`,
-        400,
-      );
-    }
+    canonicalScoreInput = normalizeScoreQrScoreInput(input.input, resolvedPlayMode);
 
     await expireStalePendingRequests({
       tournamentId: null,
@@ -346,7 +385,7 @@ export async function validateScoreQrTokenFlow(
     request.match.toString() !== payload.mid ||
     request.requestByUser.toString() !== payload.rby ||
     (request.tournament ? request.tournament.toString() : null) !== payload.tid ||
-    (request.opponentUser ? request.opponentUser.toString() : null) !== payload.opp
+    (payload.opp !== null && (request.opponentUser ? request.opponentUser.toString() : null) !== payload.opp)
   ) {
     return { valid: false, reason: "request_match_mismatch", request: null };
   }
@@ -395,6 +434,23 @@ export async function validateScoreQrConfirmContextFlow(input: {
     validation.request,
     input.confirmerUserId,
   );
+
+  // For independent matches: persist the confirmer as opponentUser the first time they open
+  // the link, so the requester's active-session poll can resolve the opponent's profile
+  // before the QR is actually confirmed.
+  if (
+    validation.request.flow === "independent" &&
+    validation.request.requestByUserId !== input.confirmerUserId
+  ) {
+    await ScoreValidationRequest.updateOne(
+      {
+        _id: validation.request.id,
+        status: "pending",
+        opponentUser: null,
+      },
+      { $set: { opponentUser: input.confirmerUserId } },
+    ).exec();
+  }
 
   return validation;
 }
@@ -596,6 +652,121 @@ export async function confirmScoreQrFlow(
   }
 }
 
+export async function updateScoreQrSessionScoresFlow(input: {
+  requestId: string;
+  requesterUserId: string;
+  playerOneScores: Array<number | "wo">;
+  playerTwoScores: Array<number | "wo">;
+}): Promise<UpdateScoreQrSessionScoresResult> {
+  const request = await ScoreValidationRequest.findOne({
+    _id: input.requestId,
+    requestByUser: input.requesterUserId,
+    status: "pending",
+  })
+    .select("_id match tournament playMode playerOneScores playerTwoScores status expiresAt")
+    .lean<{
+      _id: Types.ObjectId;
+      match: Types.ObjectId;
+      tournament: Types.ObjectId | null;
+      playMode: GamePlayMode;
+      playerOneScores: Array<number | "wo">;
+      playerTwoScores: Array<number | "wo">;
+      status: string;
+      expiresAt: Date;
+    } | null>()
+    .exec();
+
+  if (!request) {
+    throw new AppError("Active QR session not found or you are not the requester", 404);
+  }
+
+  if (request.expiresAt < new Date()) {
+    throw new AppError("QR session has expired", 410);
+  }
+
+  let normalizedInput = normalizeScoreQrScoreInput(
+    {
+      playerOneScores: input.playerOneScores,
+      playerTwoScores: input.playerTwoScores,
+    },
+    request.playMode,
+  );
+
+  if (request.tournament) {
+    const game = await findTournamentGame({
+      tournamentId: request.tournament.toString(),
+      matchId: request.match.toString(),
+    });
+    if (!game) {
+      throw new AppError("Tournament match not found", 404);
+    }
+
+    normalizedInput = normalizeScoreQrScoreInput(
+      mapRequesterInputToTournamentSides(normalizedInput, game, input.requesterUserId),
+      request.playMode,
+    );
+  }
+
+  // Update the request in-place — token/URL stay the same, so B doesn't need to re-scan.
+  // Mirror onto Game in the same transaction so we never leave diverging state.
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  try {
+    const requestUpdateResult = await ScoreValidationRequest.updateOne(
+      { _id: request._id, status: "pending" },
+      {
+        $set: {
+          playerOneScores: normalizedInput.playerOneScores,
+          playerTwoScores: normalizedInput.playerTwoScores,
+        },
+      },
+      { session },
+    ).exec();
+
+    const requestScoresUnchanged = scoreInputsEqual(
+      {
+        playerOneScores: request.playerOneScores,
+        playerTwoScores: request.playerTwoScores,
+      },
+      normalizedInput,
+    );
+    if (
+      requestUpdateResult.matchedCount === 0 ||
+      (requestUpdateResult.modifiedCount === 0 && !requestScoresUnchanged)
+    ) {
+      throw new AppError("QR session changed before scores could be updated", 409);
+    }
+
+    const gameUpdateResult = await Game.updateOne(
+      { _id: request.match, status: { $nin: ["finished", "cancelled"] } },
+      {
+        $set: {
+          "score.playerOneScores": normalizedInput.playerOneScores,
+          "score.playerTwoScores": normalizedInput.playerTwoScores,
+        },
+      },
+      { session },
+    ).exec();
+
+    if (gameUpdateResult.matchedCount === 0) {
+      throw new AppError("Match changed before scores could be updated", 409);
+    }
+
+    await session.commitTransaction();
+  } catch (err) {
+    await session.abortTransaction();
+    throw err;
+  } finally {
+    await session.endSession().catch(() => {});
+  }
+
+  return {
+    requestId: request._id.toString(),
+    playerOneScores: normalizedInput.playerOneScores,
+    playerTwoScores: normalizedInput.playerTwoScores,
+  };
+}
+
 export async function getActiveScoreQrSessionFlow(input: {
   requesterUserId: string;
   flow?: "tournament" | "independent";
@@ -653,6 +824,27 @@ export async function getActiveScoreQrSessionFlow(input: {
     width: 280,
   });
 
+  let opponentUserProfile: { name: string | null; alias: string | null; profilePictureUrl: string | null } | null = null;
+  if (request.opponentUser) {
+    try {
+      const opponentDoc = await User.findById(request.opponentUser)
+        .select("name alias profilePictureUrl")
+        .lean<{ name?: string | null; alias?: string | null; profilePictureUrl?: string | null } | null>()
+        .exec();
+      if (opponentDoc) {
+        opponentUserProfile = {
+          name: opponentDoc.name ?? null,
+          alias: opponentDoc.alias ?? null,
+          profilePictureUrl: opponentDoc.profilePictureUrl ?? null,
+        };
+      }
+    } catch {
+      // Non-critical: if we can't fetch the opponent profile, A just sees "Opponent"
+    }
+  }
+
+
+
   return {
     requestId: request._id.toString(),
     token: request.token,
@@ -661,6 +853,7 @@ export async function getActiveScoreQrSessionFlow(input: {
     matchId: request.match.toString(),
     requestByUserId: request.requestByUser.toString(),
     opponentUserId: request.opponentUser ? request.opponentUser.toString() : null,
+    opponentUserProfile,
     playerOneScores: request.playerOneScores,
     playerTwoScores: request.playerTwoScores,
     playMode: request.playMode,
@@ -669,4 +862,18 @@ export async function getActiveScoreQrSessionFlow(input: {
     validationUrl,
     qrDataUrl,
   };
+}
+
+export async function cancelActiveScoreQrFlow(userId: string): Promise<void> {
+  const activeRequest = await resolveLatestActiveScoreQrSessionContext(userId);
+  if (!activeRequest) {
+    return;
+  }
+
+  await cancelPendingRequests({
+    tournamentId: activeRequest.tournamentId,
+    matchId: activeRequest.matchId,
+    requesterUserId: userId,
+    opponentUserId: activeRequest.opponentUserId,
+  });
 }

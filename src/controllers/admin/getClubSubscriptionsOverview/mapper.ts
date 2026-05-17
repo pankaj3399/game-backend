@@ -4,6 +4,7 @@ import type { ClubPlan } from "../../../models/Club";
 type ClubSubscriptionStatus =
   | "renewal_needed"
   | "subscribed"
+  | "trial"
   | "requested"
   | "nothing";
 
@@ -21,7 +22,14 @@ function mapSubscriptionStatus(
   renewalRequestedAt: Date | null,
   nowMs: number = Date.now(),
 ): ClubSubscriptionStatus {
+  // A club is on "trial" when:
+  //   - a renewal/upgrade request is pending (invoice not yet confirmed paid), AND
+  //   - the club is currently on premium with a future expiry (i.e. trial access is active).
   if (renewalRequestedAt != null) {
+    if (plan === "premium" && expiresAt != null && expiresAt.getTime() > nowMs) {
+      return "trial";
+    }
+    // Renewal requested but no active premium yet (edge case / legacy).
     return "requested";
   }
 

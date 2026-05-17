@@ -105,8 +105,15 @@ function intersectIds(
       filter.createdBy = ctx.requesterUserId
     }
   
-    // --- CLUB ---
-    if (query.club) {
+    // --- CLUB (favourite clubs = OR across user's favourite club ids) ---
+    if (query.clubScope === "favorites") {
+      const favs = ctx.favoriteClubIds;
+      if (allowedClubIds) {
+        allowedClubIds = intersectIds(allowedClubIds, favs);
+      } else {
+        allowedClubIds = [...favs];
+      }
+    } else if (query.club) {
       if (
         allowedClubIds &&
         !allowedClubIds.includes(query.club)

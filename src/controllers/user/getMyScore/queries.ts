@@ -58,6 +58,27 @@ export interface FetchCompletedTournamentGamesResult {
 	page: number;
 }
 
+/** Upper bound for standalone rows loaded per request (aligned with merged tournament window). */
+export const MAX_STANDALONE_GAMES_FETCH = 500;
+
+export interface FetchStandaloneGamesOptions {
+	userId: string;
+	mode: MyScoreQuery['mode'];
+	range: MyScoreQuery['range'];
+	now?: Date;
+	/** Caps standalone history reads; defaults to {@link MAX_STANDALONE_GAMES_FETCH}. */
+	limit?: number;
+}
+
+export interface StandaloneGameDoc extends MyScoreGameDoc {
+	status: 'pendingScore' | 'finished';
+}
+
+export interface FetchStandaloneGamesResult {
+	entries: StandaloneGameDoc[];
+	totalEntries: number;
+}
+
 const RANGE_DAYS = 30;
 // Hard cap on docs scanned for estimatedWins to keep work bounded even for users
 // with very long histories. winsTruncated is set when additional rows likely exist.
@@ -107,6 +128,36 @@ function withMappableGameShapeConstraints(filter: Record<string, unknown>): Reco
 		{ side2: { $exists: true, $ne: null } },
 		{ 'side1.players': { $elemMatch: { $ne: null } } },
 		{ 'side2.players': { $elemMatch: { $ne: null } } },
+	];
+
+	const modeIsSinglesOrDoubles =
+		filter.matchType === 'singles' || filter.matchType === 'doubles';
+
+	if (!modeIsSinglesOrDoubles) {
+		shapeConstraints.push({ matchType: { $in: ['singles', 'doubles'] } });
+	}
+
+	const existingAnd = filter.$and;
+	if (Array.isArray(existingAnd)) {
+		return { ...filter, $and: [...existingAnd, ...shapeConstraints] };
+	}
+
+	return {
+		...filter,
+		$and: shapeConstraints,
+	};
+}
+
+/**
+ * Standalone rows may legitimately have an empty opponent side while waiting for
+ * confirmation, so only require the shape needed for mapGameToMyScoreEntry.
+ */
+function withStandaloneMappableGameShapeConstraints(
+	filter: Record<string, unknown>
+): Record<string, unknown> {
+	const shapeConstraints: Record<string, unknown>[] = [
+		{ side1: { $exists: true, $ne: null } },
+		{ side2: { $exists: true, $ne: null } },
 	];
 
 	const modeIsSinglesOrDoubles =
@@ -238,5 +289,61 @@ export async function fetchUserRatingSnapshot(userId: string): Promise<UserRatin
 	return {
 		rating,
 		rd,
+	};
+}
+
+export async function fetchStandaloneGamesForUser(
+	options: FetchStandaloneGamesOptions,
+): Promise<FetchStandaloneGamesResult> {
+	if (!Types.ObjectId.isValid(options.userId)) {
+		return {
+			entries: [],
+			totalEntries: 0,
+		};
+	}
+
+	const userObjectId = new Types.ObjectId(options.userId);
+	const userInSide = {
+		$or: [{ 'side1.players': userObjectId }, { 'side2.players': userObjectId }],
+	};
+
+	const filter: Record<string, unknown> = {
+		gameMode: 'standalone',
+		status: { $in: ['pendingScore', 'finished'] },
+	};
+
+	if (options.mode === 'singles' || options.mode === 'doubles') {
+		filter.matchType = options.mode;
+	}
+
+	if (options.range === 'last30Days') {
+		const now = options.now ?? new Date();
+		const cutoff = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+		filter.$and = [userInSide, { playedAt: { $gte: cutoff } }];
+	} else {
+		Object.assign(filter, userInSide);
+	}
+
+	const listFilter = withStandaloneMappableGameShapeConstraints(filter);
+	const totalEntries = Math.min(
+		await Game.countDocuments(listFilter).exec(),
+		MAX_STANDALONE_GAMES_FETCH
+	);
+
+	const raw = await Game.find(listFilter)
+		.select('_id side1 side2 tournament score matchType playMode startTime endTime createdAt playedAt status')
+		.populate('side1.players', 'name alias')
+		.populate('side2.players', 'name alias')
+		.sort({ playedAt: -1, _id: -1 })
+		.limit(Math.min(options.limit ?? MAX_STANDALONE_GAMES_FETCH, MAX_STANDALONE_GAMES_FETCH))
+		.lean<(MyScoreGameDoc & { status: string })[]>()
+		.exec();
+
+	return {
+		entries: raw.filter(
+			(doc): doc is StandaloneGameDoc =>
+				doc.status === 'pendingScore' || doc.status === 'finished',
+		),
+		totalEntries,
 	};
 }

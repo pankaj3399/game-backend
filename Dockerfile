@@ -14,7 +14,9 @@ RUN yarn build
 
 FROM mcr.microsoft.com/devcontainers/javascript-node:1-22-bullseye
 
+ARG COMMIT_SHA=dev
 ENV NODE_ENV=production
+ENV COMMIT_SHA=$COMMIT_SHA
 
 # Create app directory and install deps as root (corepack needs root)
 WORKDIR /usr/src/app

@@ -3,21 +3,41 @@ import { error, ok } from '../../../shared/helpers';
 import { mapGameToMyScoreEntry } from './mapper';
 import {
 	fetchCompletedTournamentGamesForUser,
+	fetchStandaloneGamesForUser,
 	fetchUserRatingSnapshot,
+	MAX_STANDALONE_GAMES_FETCH,
 } from './queries';
 import type { MyScoreEntry, MyScoreResponse } from './types';
 import type { MyScoreQuery } from './validation';
 
 export async function getMyScoreFlow(userId: string, query: MyScoreQuery) {
 	const now = new Date();
+	const requestedDepth = query.page * query.limit;
 
-	const [gamesPage, ratingSnapshot] = await Promise.all([
+	if (requestedDepth > MAX_STANDALONE_GAMES_FETCH) {
+		return error(
+			422,
+			`Requested page depth exceeds the ${MAX_STANDALONE_GAMES_FETCH}-row limit supported by page/limit merging across fetchCompletedTournamentGamesForUser and fetchStandaloneGamesForUser. Use cursor pagination for deeper score history.`
+		);
+	}
+
+	const mergedSourceLimit = Math.min(requestedDepth + 50, MAX_STANDALONE_GAMES_FETCH);
+
+	const [gamesPage, standalonePage, ratingSnapshot] = await Promise.all([
 		fetchCompletedTournamentGamesForUser({
 			userId,
 			mode: query.mode,
 			range: query.range,
-			page: query.page,
-			limit: query.limit,
+			page: 1,
+			// Fetch a generous slice to allow merging with standalone entries before re-paginating.
+			limit: mergedSourceLimit,
+			now,
+		}),
+		fetchStandaloneGamesForUser({
+			userId,
+			mode: query.mode,
+			range: query.range,
+			limit: mergedSourceLimit,
 			now,
 		}),
 		fetchUserRatingSnapshot(userId),
@@ -27,17 +47,19 @@ export async function getMyScoreFlow(userId: string, query: MyScoreQuery) {
 		return error(404, 'User not found');
 	}
 
-	const {
-		entries: rawEntries,
-		totalEntries,
-		estimatedWins,
-		winsTruncated,
-		page,
-	} = gamesPage;
+	// Map standalone games (excluded from summary stats — they don't affect ratings).
+	const standaloneEntries: MyScoreEntry[] = [];
+	for (const game of standalonePage.entries) {
+		const entry = mapGameToMyScoreEntry(game, userId, game.status);
+		if (entry) {
+			standaloneEntries.push(entry);
+		}
+	}
 
-	const mappedEntries: MyScoreEntry[] = [];
-	for (const game of rawEntries) {
-		const entry = mapGameToMyScoreEntry(game, userId);
+	// Map tournament games.
+	const tournamentEntries: MyScoreEntry[] = [];
+	for (const game of gamesPage.entries) {
+		const entry = mapGameToMyScoreEntry(game, userId, 'finished');
 		if (!entry) {
 			logger.error('getMyScore: unmappable game after list filter', {
 				gameId: game._id.toString(),
@@ -45,16 +67,26 @@ export async function getMyScoreFlow(userId: string, query: MyScoreQuery) {
 			});
 			return error(500, 'Unable to load score history');
 		}
-		mappedEntries.push(entry);
+		tournamentEntries.push(entry);
 	}
 
+	// Merge and sort by playedAt descending, then paginate on the materialized merged list.
+	const mergedEntries = [...standaloneEntries, ...tournamentEntries].sort(
+		(a, b) => new Date(b.playedAt).getTime() - new Date(a.playedAt).getTime(),
+	);
+
+	const totalEntries = gamesPage.totalEntries + standalonePage.totalEntries;
 	const totalPages = Math.max(1, Math.ceil(totalEntries / query.limit));
+	const page = Math.min(Math.max(1, query.page), totalPages);
+	const skip = (page - 1) * query.limit;
+	const pagedEntries = mergedEntries.slice(skip, skip + query.limit);
 
 	const response: MyScoreResponse = {
 		summary: {
-			totalMatches: totalEntries,
-			totalWins: estimatedWins,
-			winsTruncated,
+			// Summary counts only tournament (rated) matches.
+			totalMatches: gamesPage.totalEntries,
+			totalWins: gamesPage.estimatedWins,
+			winsTruncated: gamesPage.winsTruncated,
 			glicko2: {
 				rating: Math.round(ratingSnapshot.rating),
 				rd: Math.round(ratingSnapshot.rd),
@@ -70,7 +102,7 @@ export async function getMyScoreFlow(userId: string, query: MyScoreQuery) {
 			total: totalEntries,
 			totalPages,
 		},
-		entries: mappedEntries,
+		entries: pagedEntries,
 	};
 
 	return ok(response, { status: 200, message: 'My score fetched successfully' });

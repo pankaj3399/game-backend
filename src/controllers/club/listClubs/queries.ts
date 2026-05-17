@@ -8,10 +8,15 @@ type ClubsSearchFilter = {
 		$regex: string;
 		$options: 'i';
 	};
+	_id?: { $in: Types.ObjectId[] };
 };
 
-function buildActiveClubsFilter(q?: string): ClubsSearchFilter {
+function buildActiveClubsFilter(q?: string, allowedClubIds?: Types.ObjectId[]): ClubsSearchFilter {
 	const filter: ClubsSearchFilter = { status: 'active' };
+
+	if (allowedClubIds !== undefined) {
+		filter._id = { $in: allowedClubIds };
+	}
 
 	if (q?.trim()) {
 		filter.name = {
@@ -43,9 +48,14 @@ type FacetResult = {
 export async function listActiveClubsPage(
 	skip: number,
 	limit: number,
-	q?: string
+	q?: string,
+	options?: { allowedClubIds?: Types.ObjectId[] }
 ): Promise<{ totalCount: number; clubs: ClubListItem[] }> {
-	const filter = buildActiveClubsFilter(q);
+	if (options?.allowedClubIds !== undefined && options.allowedClubIds.length === 0) {
+		return { totalCount: 0, clubs: [] };
+	}
+
+	const filter = buildActiveClubsFilter(q, options?.allowedClubIds);
 
 	const [result] = await Club.aggregate<FacetResult>([
 		{ $match: filter },

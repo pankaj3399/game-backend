@@ -19,7 +19,10 @@ export const listClubsQuerySchema = z.object({
 		.transform((value) => {
 			const trimmed = value?.trim();
 			return trimmed ? trimmed : undefined;
-		})
+		}),
+	clubScope: z.enum(['all', 'home', 'favorites']).optional().default('all'),
+	/** Same km bands as tournament list (`findClubIdsForDistanceBand`). */
+	distance: z.enum(['all', 'under50', 'between50And80']).optional().default('all')
 });
 
 export type ListClubsQuery = z.infer<typeof listClubsQuerySchema>;

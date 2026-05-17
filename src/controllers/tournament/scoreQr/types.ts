@@ -74,6 +74,13 @@ export interface ConfirmScoreQrResult {
   consumedAt: string;
 }
 
+export interface UpdateScoreQrSessionScoresResult {
+  requestId: string;
+  playerOneScores: Array<number | "wo">;
+  playerTwoScores: Array<number | "wo">;
+}
+
+
 export interface ActiveScoreQrSessionResult {
   requestId: string;
   token: string;
@@ -82,6 +89,11 @@ export interface ActiveScoreQrSessionResult {
   matchId: string;
   requestByUserId: string;
   opponentUserId: string | null;
+  opponentUserProfile: {
+    name: string | null;
+    alias: string | null;
+    profilePictureUrl: string | null;
+  } | null;
   playerOneScores: Array<number | "wo">;
   playerTwoScores: Array<number | "wo">;
   playMode: GamePlayMode;

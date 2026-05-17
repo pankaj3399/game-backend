@@ -19,8 +19,8 @@ export async function listClubs(req: Request, res: Response){
 			return;
 		}
 
-		const result = await listClubsFlow(parsed.data);
-		if (result.status !== 200) {
+		const result = await listClubsFlow(parsed.data, session._id.toString());
+		if (!result.ok) {
 			res.status(result.status).json(buildErrorPayload(result.message));
 			return;
 		}

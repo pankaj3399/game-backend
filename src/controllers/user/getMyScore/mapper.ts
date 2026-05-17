@@ -75,6 +75,11 @@ function resolveTournamentName(game: MyScoreGameDoc): string {
 		}
 	}
 
+	// No tournament reference = standalone/independent match
+	if (!game.tournament) {
+		return 'Independent match';
+	}
+
 	return 'Tournament match';
 }
 
@@ -222,7 +227,11 @@ function resolveTeamName(players: MyScorePlayer[], isDoubles: boolean, fallback:
 	return `${names[0]} & ${names[1]}`;
 }
 
-export function mapGameToMyScoreEntry(game: MyScoreGameDoc, userId: string): MyScoreEntry | null {
+export function mapGameToMyScoreEntry(
+	game: MyScoreGameDoc,
+	userId: string,
+	statusOverride?: 'pendingScore' | 'finished',
+): MyScoreEntry | null {
 	if (!game.side1 || !game.side2) {
 		return null;
 	}
@@ -234,15 +243,12 @@ export function mapGameToMyScoreEntry(game: MyScoreGameDoc, userId: string): MyS
 	const isDoubles = resolvedMode === 'doubles';
 	const teamOnePlayers = Array.isArray(game.side1?.players) ? game.side1.players : [];
 	const teamTwoPlayers = Array.isArray(game.side2?.players) ? game.side2.players : [];
-	if (teamOnePlayers.length === 0 || teamTwoPlayers.length === 0) {
+	if (teamOnePlayers.length === 0 && teamTwoPlayers.length === 0) {
 		return null;
 	}
 
 	const teamOneIds = getTeamIds(teamOnePlayers);
 	const teamTwoIds = getTeamIds(teamTwoPlayers);
-	if (teamOneIds.length === 0 || teamTwoIds.length === 0) {
-		return null;
-	}
 
 	const userInTeamOne = teamOneIds.includes(userId);
 	const userInTeamTwo = teamTwoIds.includes(userId);
@@ -251,17 +257,24 @@ export function mapGameToMyScoreEntry(game: MyScoreGameDoc, userId: string): MyS
 		return null;
 	}
 
-	const opponentName = userInTeamOne
-		? resolveTeamName(teamTwoPlayers, isDoubles, 'Unknown opponent')
-		: resolveTeamName(teamOnePlayers, isDoubles, 'Unknown opponent');
+	// For standalone pendingScore games the opponent side may be empty (not yet confirmed).
+	const isOpponentSideEmpty = userInTeamOne ? teamTwoPlayers.length === 0 : teamOnePlayers.length === 0;
 
-	const opponentId = userInTeamOne
-		? isDoubles
-			? toCanonicalTeamId(teamTwoIds)
-			: teamTwoIds[0]
-		: isDoubles
-			? toCanonicalTeamId(teamOneIds)
-			: teamOneIds[0];
+	const opponentName = isOpponentSideEmpty
+		? 'Awaiting opponent'
+		: userInTeamOne
+			? resolveTeamName(teamTwoPlayers, isDoubles, 'Unknown opponent')
+			: resolveTeamName(teamOnePlayers, isDoubles, 'Unknown opponent');
+
+	const opponentId = isOpponentSideEmpty
+		? ''
+		: userInTeamOne
+			? isDoubles
+				? toCanonicalTeamId(teamTwoIds)
+				: teamTwoIds[0]
+			: isDoubles
+				? toCanonicalTeamId(teamOneIds)
+				: teamOneIds[0];
 
 	const playerOneScores = toScoreBreakdown(game.score?.playerOneScores);
 	const playerTwoScores = toScoreBreakdown(game.score?.playerTwoScores);
@@ -285,6 +298,7 @@ export function mapGameToMyScoreEntry(game: MyScoreGameDoc, userId: string): MyS
 		myScore: myScore.total,
 		opponentScore: opponentScore.total,
 		didWin: resolveDidWin(myScore, opponentScore, mySetScores, oppSetScores),
+		status: statusOverride ?? 'finished',
 	};
 }
 

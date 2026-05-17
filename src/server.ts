@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { execSync } from 'child_process';
 import express from 'express';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
@@ -17,6 +18,7 @@ import scheduleRoutes from './routes/schedule.routes';
 const PORT = process.env.PORT || 4000;
 const REQUEST_ORIGIN = process.env.REQUEST_ORIGIN?.trim();
 const CORS_ORIGIN = process.env.CORS_ORIGIN?.trim();
+const COMMIT_SHA = process.env.COMMIT_SHA ?? (() => { try { return execSync('git rev-parse --short HEAD', { encoding: 'utf8' }).trim() } catch { return 'dev' } })()
 
 const app = express();
 app.set('trust proxy', 1);
@@ -55,6 +57,10 @@ app.use(cookieParser());
 
 app.get('/', (req, res) => {
 	res.send('Hello World');
+});
+
+app.get('/api/version', (req, res) => {
+	res.json({ sha: COMMIT_SHA });
 });
 
 async function start() {

@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { logger } from "../../../lib/logger";
+import User from "../../../models/User";
 import type { AuthenticatedRequest } from "../../../shared/authContext";
 import { AppError, buildErrorPayload, buildZodErrorPayload } from "../../../shared/errors";
 import { parseRouteObjectId, readRouteParam } from "../../../shared/validation";
@@ -9,8 +10,10 @@ import {
   confirmScoreQrFlow,
   getActiveScoreQrSessionFlow,
   generateScoreQrFlow,
+  updateScoreQrSessionScoresFlow,
   validateScoreQrConfirmContextFlow,
   validateScoreQrTokenFlow,
+  cancelActiveScoreQrFlow,
 } from "./handler";
 import type { ValidateScoreQrTokenResult } from "./types";
 import {
@@ -19,7 +22,31 @@ import {
   generateIndependentScoreQrBodySchema,
   generateScoreQrBodySchema,
   scoreQrTokenParamsSchema,
+  updateScoreQrScoresBodySchema,
 } from "./validation";
+
+type RequesterProfile = {
+  name: string | null;
+  alias: string | null;
+  profilePictureUrl: string | null;
+};
+
+async function fetchRequesterProfile(userId: string): Promise<RequesterProfile | null> {
+  try {
+    const user = await User.findById(userId)
+      .select("name alias profilePictureUrl")
+      .lean<{ name?: string | null; alias?: string | null; profilePictureUrl?: string | null } | null>()
+      .exec();
+    if (!user) return null;
+    return {
+      name: user.name ?? null,
+      alias: user.alias ?? null,
+      profilePictureUrl: user.profilePictureUrl ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
 
 function validationFailurePayload(validation: ValidateScoreQrTokenResult) {
   const statusByReason: Record<string, number> = {
@@ -56,7 +83,10 @@ function validationFailurePayload(validation: ValidateScoreQrTokenResult) {
   };
 }
 
-function safeValidationRequest(validation: ValidateScoreQrTokenResult) {
+function safeValidationRequest(
+  validation: ValidateScoreQrTokenResult,
+  requesterProfile: RequesterProfile | null = null,
+) {
   const r = validation.request;
   if (!validation.valid || !r) return null;
 
@@ -72,6 +102,7 @@ function safeValidationRequest(validation: ValidateScoreQrTokenResult) {
     playMode: r.playMode,
     matchType: r.matchType,
     expiresAt: r.expiresAt,
+    requestByUserProfile: requesterProfile,
   };
 }
 
@@ -238,7 +269,11 @@ export async function validateScoreQr(req: Request, res: Response) {
     const { token } = paramsResult.data;
     const validation = await validateScoreQrTokenFlow(token);
 
-    const safeRequest = safeValidationRequest(validation);
+    const requesterProfile = validation.valid && validation.request
+      ? await fetchRequesterProfile(validation.request.requestByUserId)
+      : null;
+
+    const safeRequest = safeValidationRequest(validation, requesterProfile);
     if (!safeRequest) {
       const failure = validationFailurePayload(validation);
       res.status(failure.status).json(failure.body);
@@ -287,7 +322,11 @@ export async function validateScoreQrConfirmContext(
       confirmerUserId: req.user._id.toString(),
     });
 
-    const safeRequest = safeValidationRequest(validation);
+    const requesterProfile = validation.valid && validation.request
+      ? await fetchRequesterProfile(validation.request.requestByUserId)
+      : null;
+
+    const safeRequest = safeValidationRequest(validation, requesterProfile);
     if (!safeRequest) {
       const failure = validationFailurePayload(validation);
       res.status(failure.status).json(failure.body);
@@ -412,3 +451,78 @@ export async function getActiveScoreQr(req: AuthenticatedRequest, res: Response)
       .json(buildErrorPayload("Failed to fetch active score QR session"));
   }
 }
+
+/**
+ * PATCH /api/tournaments/score-qr/:requestId/scores
+ * Updates the scores on an existing pending QR session in-place.
+ * The QR token/URL stays unchanged so the opponent doesn't need to re-scan.
+ */
+export async function updateScoreQrScores(
+  req: AuthenticatedRequest,
+  res: Response,
+): Promise<void> {
+  try {
+    const requestIdResult = parseRouteObjectId(req.params.requestId, "request ID");
+    if (requestIdResult.status !== 200) {
+      res.status(requestIdResult.status).json(buildErrorPayload(requestIdResult.message));
+      return;
+    }
+
+    const parsedBody = updateScoreQrScoresBodySchema.safeParse(req.body);
+    if (!parsedBody.success) {
+      res.status(400).json(buildZodErrorPayload(parsedBody.error));
+      return;
+    }
+
+    const result = await updateScoreQrSessionScoresFlow({
+      requestId: requestIdResult.data,
+      requesterUserId: req.user._id.toString(),
+      playerOneScores: parsedBody.data.playerOneScores,
+      playerTwoScores: parsedBody.data.playerTwoScores,
+    });
+
+    res.status(200).json({
+      message: "QR session scores updated",
+      requestId: result.requestId,
+      playerOneScores: result.playerOneScores,
+      playerTwoScores: result.playerTwoScores,
+    });
+  } catch (err) {
+    if (err instanceof AppError) {
+      if (err.statusCode >= 500) {
+        logger.error("Error updating score QR scores", { err });
+        res.status(500).json(buildErrorPayload("Internal server error"));
+        return;
+      }
+      res.status(err.statusCode).json(buildErrorPayload(err.message));
+      return;
+    }
+
+    logger.error("Error updating score QR scores", { err });
+    res.status(500).json(buildErrorPayload("Failed to update score QR scores"));
+  }
+}
+
+export const cancelActiveScoreQr = async (
+  req: Request,
+  res: Response,
+) => {
+  try {
+    const authedReq = req as AuthenticatedRequest;
+    await cancelActiveScoreQrFlow(authedReq.user!._id.toString());
+    res.status(200).json({ success: true });
+  } catch (err) {
+    if (err instanceof AppError) {
+      if (err.statusCode >= 500) {
+        logger.error("Error cancelling active score QR session", { err });
+        res.status(500).json(buildErrorPayload("Internal server error"));
+        return;
+      }
+      res.status(err.statusCode).json(buildErrorPayload(err.message));
+      return;
+    }
+
+    logger.error("Error cancelling active score QR session", { err });
+    res.status(500).json(buildErrorPayload("Failed to cancel active score QR session"));
+  }
+};
