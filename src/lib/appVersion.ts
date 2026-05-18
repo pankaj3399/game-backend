@@ -6,8 +6,9 @@ type PackageJson = {
 };
 
 export function resolveAppVersion(): string {
-	const fromEnv = process.env.APP_VERSION ?? process.env.npm_package_version;
-	if (fromEnv?.trim()) return fromEnv.trim();
+	const fromEnv =
+		process.env.APP_VERSION?.trim() || process.env.npm_package_version?.trim();
+	if (fromEnv) return fromEnv;
 
 	try {
 		const packageJson = JSON.parse(

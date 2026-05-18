@@ -216,12 +216,12 @@ export function buildStandaloneMyScoreListFilter(
 	return withStandaloneMappableGameShapeConstraints(filter);
 }
 
-/** Both roster sides have at least one player (post-lookup field paths). */
+/** Both roster sides have at least one non-null player ref (size alone counts [null]). */
 function standaloneMyScoreBothSidesPopulatedMatch(): Record<string, unknown> {
 	return {
 		$and: [
-			{ $expr: { $gt: [{ $size: { $ifNull: ['$side1.players', []] } }, 0] } },
-			{ $expr: { $gt: [{ $size: { $ifNull: ['$side2.players', []] } }, 0] } },
+			{ 'side1.players': { $elemMatch: { $ne: null } } },
+			{ 'side2.players': { $elemMatch: { $ne: null } } },
 		],
 	};
 }
