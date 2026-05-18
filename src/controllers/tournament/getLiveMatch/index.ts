@@ -3,7 +3,11 @@ import { logger } from "../../../lib/logger";
 import { buildErrorPayload } from "../../../shared/errors";
 import type { AuthenticatedRequest } from "../../../shared/authContext";
 import { mapLiveMatchItem } from "./mapper";
-import { applyResolvedTimedStatuses, fetchLiveMatchGames } from "./queries";
+import {
+  applyResolvedTimedStatuses,
+  fetchEligibleTournamentsWithoutUserMatches,
+  fetchLiveMatchGames,
+} from "./queries";
 import { selectLiveGame, selectNextScheduledGame } from "./selection";
 
 /**
@@ -17,17 +21,10 @@ export async function getTournamentLiveMatch(req: AuthenticatedRequest, res: Res
 
     const games = await fetchLiveMatchGames(req.user._id);
 
-    if (games.length === 0) {
-      res.status(200).json({
-        liveMatch: null,
-        nextMatch: null,
-        matches: [],
-      });
-      return;
-    }
-
     const now = new Date();
-    await applyResolvedTimedStatuses(games, now);
+    if (games.length > 0) {
+      await applyResolvedTimedStatuses(games, now);
+    }
 
     const liveGame = selectLiveGame(games);
     const nextGame = selectNextScheduledGame(games, now);
@@ -36,10 +33,28 @@ export async function getTournamentLiveMatch(req: AuthenticatedRequest, res: Res
     const nextMatch = nextGame ? mapLiveMatchItem(nextGame, userId) : null;
     const matches = games.map((game) => mapLiveMatchItem(game, userId));
 
+    const tournamentIdsWithMatches = new Set(
+      games
+        .map((game) => game.tournament?._id?.toString())
+        .filter((id): id is string => Boolean(id)),
+    );
+    const eligibleTournamentsWithoutMatches =
+      await fetchEligibleTournamentsWithoutUserMatches(
+        req.user._id,
+        tournamentIdsWithMatches,
+      );
+
     res.status(200).json({
       liveMatch,
       nextMatch,
       matches,
+      eligibleTournaments: eligibleTournamentsWithoutMatches.map((tournament) => ({
+        id: tournament._id.toString(),
+        name: tournament.name.trim() || "Tournament",
+        date: tournament.date ? tournament.date.toISOString() : null,
+        playMode: tournament.playMode,
+        tournamentMode: tournament.tournamentMode,
+      })),
     });
   } catch (err) {
     logger.error("Error getting tournament live match", { err });

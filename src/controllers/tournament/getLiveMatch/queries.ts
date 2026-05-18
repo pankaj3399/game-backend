@@ -1,12 +1,22 @@
-import type { Types } from "mongoose";
+import { Types } from "mongoose";
 import Game from "../../../models/Game";
+import Tournament from "../../../models/Tournament";
 import type { GameStatus } from "../../../types/domain/game";
+import type { TournamentPlayMode, TournamentMode } from "../../../types/domain/tournament";
 import { resolveTimedGameStatus } from "../../../shared/matchTiming";
 import { updateGameStatuses } from "../getTournamentMatches/queries";
 import type { LiveMatchGameDoc } from "./types";
 
-/** Recent in-flight / upcoming matches only — avoids scanning a full year of games. */
-const LIVE_MATCH_LOOKBACK_MS = 30 * 24 * 60 * 60 * 1000;
+/** Lower bound for dated matches — keeps the query bounded without hiding future fixtures. */
+const LIVE_MATCH_LOOKBACK_MS = 180 * 24 * 60 * 60 * 1000;
+
+export type EligibleTournamentWithoutMatchesDoc = {
+  _id: Types.ObjectId;
+  name: string;
+  date?: Date | null;
+  playMode: TournamentPlayMode;
+  tournamentMode: TournamentMode;
+};
 
 export async function fetchLiveMatchGames(userId: Types.ObjectId) {
   const startTimeLowerBound = new Date(Date.now() - LIVE_MATCH_LOOKBACK_MS);
@@ -14,9 +24,13 @@ export async function fetchLiveMatchGames(userId: Types.ObjectId) {
   return Game.find({
     gameMode: "tournament",
     status: { $nin: ["finished", "cancelled"] },
-    startTime: { $ne: null, $gte: startTimeLowerBound },
     isHistorical: { $ne: true },
-    $or: [{ "side1.players": userId }, { "side2.players": userId }],
+    $and: [
+      { $or: [{ "side1.players": userId }, { "side2.players": userId }] },
+      {
+        $or: [{ startTime: null }, { startTime: { $gte: startTimeLowerBound } }],
+      },
+    ],
   })
     .select(
       "_id status startTime matchType playMode side1 side2 tournament schedule court detachedFromRound",
@@ -27,8 +41,31 @@ export async function fetchLiveMatchGames(userId: Types.ObjectId) {
     // `rounds` are embedded on Schedule; project only fields used by resolveMatchRound (mapper).
     .populate("schedule", "matchDurationMinutes rounds.game rounds.round rounds.slot")
     .populate("court", "name")
-    .sort({ startTime: 1 })
+    .sort({ startTime: 1, _id: 1 })
     .lean<LiveMatchGameDoc[]>()
+    .exec();
+}
+
+/** Active tournaments the user joined that have no in-flight match in {@link fetchLiveMatchGames}. */
+export async function fetchEligibleTournamentsWithoutUserMatches(
+  userId: Types.ObjectId,
+  tournamentIdsWithMatches: Set<string>,
+) {
+  const filter: Record<string, unknown> = {
+    status: "active",
+    participants: userId,
+  };
+
+  if (tournamentIdsWithMatches.size > 0) {
+    filter._id = {
+      $nin: Array.from(tournamentIdsWithMatches).map((id) => new Types.ObjectId(id)),
+    };
+  }
+
+  return Tournament.find(filter)
+    .select("name date playMode tournamentMode")
+    .sort({ date: 1, name: 1 })
+    .lean<EligibleTournamentWithoutMatchesDoc[]>()
     .exec();
 }
 

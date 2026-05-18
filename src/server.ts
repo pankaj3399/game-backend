@@ -1,5 +1,4 @@
 import 'dotenv/config';
-import { execSync } from 'child_process';
 import express from 'express';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
@@ -14,11 +13,12 @@ import clubRoutes from './routes/club.routes';
 import tournamentRoutes from './routes/tournament.routes';
 import sponsorRoutes from './routes/sponsor.routes';
 import scheduleRoutes from './routes/schedule.routes';
+import { resolveCommitSha } from './lib/commitSha';
 
 const PORT = process.env.PORT || 4000;
 const REQUEST_ORIGIN = process.env.REQUEST_ORIGIN?.trim();
 const CORS_ORIGIN = process.env.CORS_ORIGIN?.trim();
-const COMMIT_SHA = process.env.COMMIT_SHA ?? (() => { try { return execSync('git rev-parse --short HEAD', { encoding: 'utf8' }).trim() } catch { return 'dev' } })()
+const COMMIT_SHA = resolveCommitSha();
 
 const app = express();
 app.set('trust proxy', 1);
