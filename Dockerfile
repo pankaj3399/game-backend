@@ -1,5 +1,8 @@
 FROM mcr.microsoft.com/devcontainers/javascript-node:1-22-bullseye AS builder
 
+ARG COMMIT_SHA=dev
+ENV COMMIT_SHA=$COMMIT_SHA
+
 # Create app directory
 WORKDIR /usr/src/app
 
