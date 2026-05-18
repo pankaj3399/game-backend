@@ -37,9 +37,10 @@ export interface MyScoreGameDoc {
 	playedAt?: Date | null;
 }
 
-interface UserRatingSnapshot {
+export interface UserRatingSnapshot {
 	rating: number;
 	rd: number;
+	displayName: string;
 }
 
 export interface FetchCompletedTournamentGamesOptions {
@@ -410,8 +411,12 @@ export async function countStandaloneWinsForUser(
 
 export async function fetchUserRatingSnapshot(userId: string): Promise<UserRatingSnapshot | null> {
 	const user = await User.findById(userId)
-		.select('elo.rating elo.rd')
-		.lean<{ elo?: { rating?: number | null; rd?: number | null } }>()
+		.select('name alias elo.rating elo.rd')
+		.lean<{
+			name?: string | null;
+			alias?: string | null;
+			elo?: { rating?: number | null; rd?: number | null };
+		}>()
 		.exec();
 
 	if (!user) {
@@ -420,10 +425,12 @@ export async function fetchUserRatingSnapshot(userId: string): Promise<UserRatin
 
 	const rating = typeof user.elo?.rating === 'number' ? user.elo.rating : 1500;
 	const rd = typeof user.elo?.rd === 'number' ? user.elo.rd : 200;
+	const displayName = user.alias?.trim() || user.name?.trim() || 'Player';
 
 	return {
 		rating,
 		rd,
+		displayName,
 	};
 }
 

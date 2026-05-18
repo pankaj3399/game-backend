@@ -20,6 +20,10 @@ export interface MyScoreEntry {
 }
 
 export interface MyScoreResponse {
+	player: {
+		id: string;
+		displayName: string;
+	};
 	summary: {
 		totalMatches: number;
 		totalWins: number;

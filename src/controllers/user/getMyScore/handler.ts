@@ -98,6 +98,10 @@ export async function getMyScoreFlow(userId: string, query: MyScoreQuery) {
 	const pagedEntries = mergedEntries.slice(skip, skip + query.limit);
 
 	const response: MyScoreResponse = {
+		player: {
+			id: userId,
+			displayName: ratingSnapshot.displayName,
+		},
 		summary: {
 			totalMatches: gamesPage.totalEntries + standalonePage.totalEntries,
 			totalWins: gamesPage.estimatedWins + standaloneWinsAgg.estimatedWins,

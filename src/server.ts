@@ -13,6 +13,7 @@ import clubRoutes from './routes/club.routes';
 import tournamentRoutes from './routes/tournament.routes';
 import sponsorRoutes from './routes/sponsor.routes';
 import scheduleRoutes from './routes/schedule.routes';
+import playersRoutes from './routes/players.routes';
 import { resolveCommitSha } from './lib/commitSha';
 
 const PORT = process.env.PORT || 4000;
@@ -76,6 +77,7 @@ async function start() {
 		app.use('/api/tournaments', tournamentRoutes);
 		app.use('/api/schedule', scheduleRoutes);
 		app.use('/api/sponsors', sponsorRoutes);
+		app.use('/api/players', playersRoutes);
 
 		app.listen(PORT, () => {
 			logger.info(`Server is running on port ${PORT}`);
