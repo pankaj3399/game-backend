@@ -62,9 +62,14 @@ export async function getMyScoreFlow(userId: string, query: MyScoreQuery) {
 	const standaloneEntries: MyScoreEntry[] = [];
 	for (const game of standalonePage.entries) {
 		const entry = mapGameToMyScoreEntry(game, userId, game.status);
-		if (entry) {
-			standaloneEntries.push(entry);
+		if (!entry) {
+			logger.error('getMyScore: unmappable standalone game after list filter', {
+				gameId: game._id.toString(),
+				userId,
+			});
+			return error(500, 'Unable to load score history');
 		}
+		standaloneEntries.push(entry);
 	}
 
 	// Map tournament games.

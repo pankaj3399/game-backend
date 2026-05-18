@@ -363,12 +363,14 @@ export async function countStandaloneWinsForUser(
 	const lightweight = await Game.aggregate<LightweightGameDoc>([
 		{ $match: finishedFilter },
 		{ $sort: { playedAt: -1, _id: -1 } },
-		{ $limit: TOTALS_SCAN_CAP + 1 },
+		{ $limit: MAX_STANDALONE_GAMES_FETCH + 1 },
 		{ $project: { side1: 1, side2: 1, score: 1 } },
 	]).exec();
 
-	const winsTruncated = lightweight.length > TOTALS_SCAN_CAP;
-	const gamesToScore = winsTruncated ? lightweight.slice(0, TOTALS_SCAN_CAP) : lightweight;
+	const winsTruncated = lightweight.length > MAX_STANDALONE_GAMES_FETCH;
+	const gamesToScore = winsTruncated
+		? lightweight.slice(0, MAX_STANDALONE_GAMES_FETCH)
+		: lightweight;
 
 	let wins = 0;
 	for (const game of gamesToScore) {
