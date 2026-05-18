@@ -1,7 +1,10 @@
+import { Types } from 'mongoose';
 import { logger } from '../../../lib/logger';
 import { error, ok } from '../../../shared/helpers';
 import { mapGameToMyScoreEntry } from './mapper';
 import {
+	buildStandaloneMyScoreListFilter,
+	countStandaloneWinsForUser,
 	fetchCompletedTournamentGamesForUser,
 	fetchStandaloneGamesForUser,
 	fetchUserRatingSnapshot,
@@ -23,7 +26,18 @@ export async function getMyScoreFlow(userId: string, query: MyScoreQuery) {
 
 	const mergedSourceLimit = Math.min(requestedDepth + 50, MAX_STANDALONE_GAMES_FETCH);
 
-	const [gamesPage, standalonePage, ratingSnapshot] = await Promise.all([
+	if (!Types.ObjectId.isValid(userId)) {
+		return error(404, 'User not found');
+	}
+
+	const userObjectId = new Types.ObjectId(userId);
+	const standaloneListFilter = buildStandaloneMyScoreListFilter(userObjectId, {
+		mode: query.mode,
+		range: query.range,
+		now,
+	});
+
+	const [gamesPage, standalonePage, standaloneWinsAgg, ratingSnapshot] = await Promise.all([
 		fetchCompletedTournamentGamesForUser({
 			userId,
 			mode: query.mode,
@@ -40,6 +54,7 @@ export async function getMyScoreFlow(userId: string, query: MyScoreQuery) {
 			limit: mergedSourceLimit,
 			now,
 		}),
+		countStandaloneWinsForUser(userObjectId, standaloneListFilter, now),
 		fetchUserRatingSnapshot(userId),
 	]);
 
@@ -47,13 +62,18 @@ export async function getMyScoreFlow(userId: string, query: MyScoreQuery) {
 		return error(404, 'User not found');
 	}
 
-	// Map standalone games (excluded from summary stats — they don't affect ratings).
+	// Map standalone / independent QR matches (Glicko still reflects tournament play only).
 	const standaloneEntries: MyScoreEntry[] = [];
 	for (const game of standalonePage.entries) {
 		const entry = mapGameToMyScoreEntry(game, userId, game.status);
-		if (entry) {
-			standaloneEntries.push(entry);
+		if (!entry) {
+			logger.error('getMyScore: unmappable standalone game after list filter', {
+				gameId: game._id.toString(),
+				userId,
+			});
+			return error(500, 'Unable to load score history');
 		}
+		standaloneEntries.push(entry);
 	}
 
 	// Map tournament games.
@@ -75,18 +95,27 @@ export async function getMyScoreFlow(userId: string, query: MyScoreQuery) {
 		(a, b) => new Date(b.playedAt).getTime() - new Date(a.playedAt).getTime(),
 	);
 
-	const totalEntries = gamesPage.totalEntries + standalonePage.totalEntries;
-	const totalPages = Math.max(1, Math.ceil(totalEntries / query.limit));
+	const rawTotalEntries = gamesPage.totalEntries + standalonePage.totalEntries;
+	const totalEntries = Math.min(rawTotalEntries, MAX_STANDALONE_GAMES_FETCH);
+	// Align with requestedDepth guard (page * limit <= MAX): ceil(total/limit) can exceed floor(MAX/limit).
+	const maxPageByDepth = Math.floor(MAX_STANDALONE_GAMES_FETCH / query.limit);
+	const totalPages = Math.min(
+		Math.max(1, Math.ceil(totalEntries / query.limit)),
+		Math.max(1, maxPageByDepth),
+	);
 	const page = Math.min(Math.max(1, query.page), totalPages);
 	const skip = (page - 1) * query.limit;
 	const pagedEntries = mergedEntries.slice(skip, skip + query.limit);
 
 	const response: MyScoreResponse = {
+		player: {
+			id: userId,
+			displayName: ratingSnapshot.displayName,
+		},
 		summary: {
-			// Summary counts only tournament (rated) matches.
-			totalMatches: gamesPage.totalEntries,
-			totalWins: gamesPage.estimatedWins,
-			winsTruncated: gamesPage.winsTruncated,
+			totalMatches: gamesPage.totalEntries + standalonePage.totalEntries,
+			totalWins: gamesPage.estimatedWins + standaloneWinsAgg.estimatedWins,
+			winsTruncated: gamesPage.winsTruncated || standaloneWinsAgg.winsTruncated,
 			glicko2: {
 				rating: Math.round(ratingSnapshot.rating),
 				rd: Math.round(ratingSnapshot.rd),
