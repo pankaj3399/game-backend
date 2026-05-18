@@ -26,6 +26,10 @@ export async function getMyScoreFlow(userId: string, query: MyScoreQuery) {
 
 	const mergedSourceLimit = Math.min(requestedDepth + 50, MAX_STANDALONE_GAMES_FETCH);
 
+	if (!Types.ObjectId.isValid(userId)) {
+		return error(404, 'User not found');
+	}
+
 	const userObjectId = new Types.ObjectId(userId);
 	const standaloneListFilter = buildStandaloneMyScoreListFilter(userObjectId, {
 		mode: query.mode,
@@ -91,8 +95,14 @@ export async function getMyScoreFlow(userId: string, query: MyScoreQuery) {
 		(a, b) => new Date(b.playedAt).getTime() - new Date(a.playedAt).getTime(),
 	);
 
-	const totalEntries = gamesPage.totalEntries + standalonePage.totalEntries;
-	const totalPages = Math.max(1, Math.ceil(totalEntries / query.limit));
+	const rawTotalEntries = gamesPage.totalEntries + standalonePage.totalEntries;
+	const totalEntries = Math.min(rawTotalEntries, MAX_STANDALONE_GAMES_FETCH);
+	// Align with requestedDepth guard (page * limit <= MAX): ceil(total/limit) can exceed floor(MAX/limit).
+	const maxPageByDepth = Math.floor(MAX_STANDALONE_GAMES_FETCH / query.limit);
+	const totalPages = Math.min(
+		Math.max(1, Math.ceil(totalEntries / query.limit)),
+		Math.max(1, maxPageByDepth),
+	);
 	const page = Math.min(Math.max(1, query.page), totalPages);
 	const skip = (page - 1) * query.limit;
 	const pagedEntries = mergedEntries.slice(skip, skip + query.limit);
