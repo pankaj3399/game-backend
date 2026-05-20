@@ -33,6 +33,16 @@ const baseTournament = z.object({
     sponsorId: objectId.nullable().optional(),
   
     name: z.string().min(1),
+    logoUrl: z
+      .string()
+      .trim()
+      .optional()
+      .nullable()
+      .transform((v) => {
+        if (v === undefined) return undefined;
+        if (v === null || v === "") return null;
+        return v;
+      }),
 
     playMode: playModeEnum,
   

@@ -28,6 +28,7 @@ export interface PopulatedClub {
 	_id: mongoose.Types.ObjectId;
 	name: string;
   address?: string | null;
+  logoUrl?: string | null;
   courts?: PopulatedCourt[];
 }
 
@@ -41,6 +42,7 @@ export interface PopulatedSponsor {
 export interface TournamentListDoc {
 	_id: mongoose.Types.ObjectId;
 	name: string;
+	logoUrl?: string | null;
 	club: PopulatedClub | null;
 	date?: Date;
 	timezone?: string | null;
@@ -81,6 +83,7 @@ export type TournamentPopulated = Omit<
     _id: mongoose.Types.ObjectId;
     name?: string;
     address?: string | null;
+    logoUrl?: string | null;
     courts?: PopulatedCourt[];
   } | null;
 	sponsor?: {

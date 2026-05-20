@@ -34,6 +34,16 @@ const draftFields = {
 	status: z.enum(TOURNAMENT_STATUSES).optional(),
 	sponsor: objectId.nullable().optional(),
 	name: z.string().trim().min(1, 'Tournament name is required').optional(),
+	logoUrl: z
+		.string()
+		.trim()
+		.optional()
+		.nullable()
+		.transform((v) => {
+			if (v === undefined) return undefined;
+			if (v === null || v === '') return null;
+			return v;
+		}),
 	date: z.coerce.date().optional().nullable(),
 	startTime: z.union([z.string().trim().regex(timeRegex, 'Invalid start time (expected HH:mm)'), z.null()]).optional(),
 	endTime: z.union([z.string().trim().regex(timeRegex, 'Invalid end time (expected HH:mm)'), z.null()]).optional(),

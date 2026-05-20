@@ -30,7 +30,7 @@ export async function fetchTournamentById(
   const tournament = await Tournament.findById(id)
     .populate({
       path: "club",
-      select: "name address",
+      select: "name address logoUrl",
       populate: {
         path: "courts",
         select: "name type placement",

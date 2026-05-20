@@ -19,6 +19,7 @@ export interface ClubInfo {
   id: string;
   name: string;
   address: string | null;
+  logoUrl: string | null;
 }
 
 export interface SponsorInfo {
@@ -70,6 +71,7 @@ export interface PermissionsInfo {
 export interface TournamentDetailResponse {
   id: string;
   name: string;
+  logoUrl: string | null;
   club: ClubInfo | null;
   sponsor: SponsorInfo | null;
   clubSponsors: ClubSponsorInfo[];
@@ -244,6 +246,7 @@ export function mapTournamentDetail(
           id,
           name: tournament.club.name ?? "",
           address: tournament.club.address ?? null,
+          logoUrl: tournament.club.logoUrl ?? null,
         };
       })()
     : null;
@@ -304,6 +307,7 @@ export function mapTournamentDetail(
   return {
     id: tournamentId,
     name: tournament.name,
+    logoUrl: tournament.logoUrl ?? null,
     club,
     sponsor,
     clubSponsors,
