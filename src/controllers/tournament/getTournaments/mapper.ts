@@ -7,7 +7,8 @@ import {
 export interface TournamentListItem {
   id: unknown;
   name: string;
-  club: { id: unknown; name: string } | null;
+  logoUrl: string | null;
+  club: { id: unknown; name: string; logoUrl: string | null } | null;
   date: string | null;
   status: string;
   sponsor: {
@@ -41,7 +42,14 @@ export function mapTournamentListItems(tournaments: TournamentListDoc[]) {
   return tournaments.map((t) => ({
     id: t._id,
     name: t.name,
-    club: t.club ? { id: t.club._id, name: t.club.name } : null,
+    logoUrl: t.logoUrl ?? null,
+    club: t.club
+      ? {
+          id: t.club._id,
+          name: t.club.name,
+          logoUrl: t.club.logoUrl ?? null,
+        }
+      : null,
     date: t.date ? formatDateOnlyUtc(t.date, t.timezone) : null,
     status: t.status,
     sponsor: t.sponsor

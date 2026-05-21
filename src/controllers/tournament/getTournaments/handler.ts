@@ -50,7 +50,7 @@ export async function getTournamentsFlow(
 
   const [tournaments, total] = await Promise.all([
     Tournament.find(filter)
-      .populate("club", "name address")
+      .populate("club", "name logoUrl")
       .populate("sponsor", "name logoUrl link")
       .sort({ date: -1, createdAt: -1 })
       .skip(skip)

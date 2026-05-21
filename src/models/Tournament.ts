@@ -18,6 +18,7 @@ export interface ITournament extends Document {
 	schedule?: mongoose.Types.ObjectId;
 	sponsor?: mongoose.Types.ObjectId;
 	name: string;
+	logoUrl?: string | null;
 	date?: Date;
 	startTime?: string;
 	endTime?: string;
@@ -68,6 +69,10 @@ const tournamentSchema = new mongoose.Schema<ITournament>(
 		name: {
 			type: String,
 			required: true
+		},
+		logoUrl: {
+			type: String,
+			default: null
 		},
 		date: {
 			type: Date
