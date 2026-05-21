@@ -1,6 +1,8 @@
 import { Types } from "mongoose";
+import Game from "../../../models/Game";
 import Schedule from "../../../models/Schedule";
 import Tournament from "../../../models/Tournament";
+import type { ScheduleGameTiming } from "./resolveDefaultScheduleStartTime";
 import type { DbIdLike } from "../../../types/domain/common";
 import { parseTournamentScheduleContext, parseTournamentScheduleDocument } from "./scheduleContext.schema";
 import type { TournamentScheduleContext, TournamentScheduleContextRaw } from "./types";
@@ -155,4 +157,39 @@ export async function fetchScheduleForTournament(scheduleId: DbIdLike | null) {
   }
 
   return parseTournamentScheduleDocument(doc);
+}
+
+type ScheduleRoundEntry = {
+  game: Types.ObjectId;
+  round: number;
+};
+
+export async function fetchScheduleGameTimings(
+  scheduleId: Types.ObjectId,
+  rounds: ScheduleRoundEntry[]
+): Promise<ScheduleGameTiming[]> {
+  const gameIds = rounds.map((entry) => entry.game);
+  if (gameIds.length === 0) {
+    return [];
+  }
+
+  const roundByGameId = new Map(
+    rounds.map((entry) => [entry.game.toString(), Math.trunc(entry.round)])
+  );
+
+  const games = await Game.find({
+    schedule: scheduleId,
+    _id: { $in: gameIds },
+    isHistorical: { $ne: true },
+  })
+    .select("_id startTime endTime detachedFromRound")
+    .lean<Array<{ _id: Types.ObjectId; startTime?: Date | null; endTime?: Date | null; detachedFromRound?: number | null }>>()
+    .exec();
+
+  return games.map((game) => ({
+    round: roundByGameId.get(game._id.toString()) ?? 1,
+    startTime: game.startTime ?? null,
+    endTime: game.endTime ?? null,
+    detachedFromRound: game.detachedFromRound ?? null,
+  }));
 }

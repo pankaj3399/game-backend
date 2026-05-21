@@ -36,7 +36,7 @@ function selectExtraRecipients(participantIds: string[], extrasNeeded: number, r
     item.rotated = (item.index - seed + participantIds.length) % participantIds.length;
   }
 
-  indexed.sort((left, right) => left.rotated - right.rotated || left.id.localeCompare(right.id));
+  indexed.sort((left, right) => left.rotated - right.rotated || left.index - right.index);
 
   return indexed.slice(0, Math.min(extrasNeeded, indexed.length)).map((item) => item.id);
 }
@@ -96,6 +96,7 @@ function nextHighestDemand(
       }
     }
 
+    // Lower list index (organiser drag-and-drop rank) is preferred when demand is tied.
     const leftIndex = participantIndex.get(left.id) ?? Number.MAX_SAFE_INTEGER;
     const rightIndex = participantIndex.get(right.id) ?? Number.MAX_SAFE_INTEGER;
     if (leftIndex !== rightIndex) {

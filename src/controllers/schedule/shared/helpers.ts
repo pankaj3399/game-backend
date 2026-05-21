@@ -12,7 +12,7 @@ import {
 
 export function getDefaultScheduleInput(
   tournament: TournamentScheduleContext,
-  options?: { matchesPerPlayer?: number | null }
+  options?: { matchesPerPlayer?: number | null; startTime?: string | null }
 ) {
   const courts = tournament.club?.courts ?? [];
   const selectedDefault = new Set(courts.slice(0, Math.min(2, courts.length)).map((court) => court._id.toString()));
@@ -20,9 +20,12 @@ export function getDefaultScheduleInput(
   const resolvedMatchesPerPlayer =
     options?.matchesPerPlayer ?? DEFAULT_MATCHES_PER_PLAYER;
 
+  const resolvedStartTime =
+    options?.startTime ?? tournament.startTime ?? DEFAULT_SCHEDULE_START_TIME;
+
   const base = {
     matchesPerPlayer: resolvedMatchesPerPlayer,
-    startTime: tournament.startTime ?? DEFAULT_SCHEDULE_START_TIME,
+    startTime: resolvedStartTime,
     mode: "singles" as const,
     availableCourts: courts.map((court) => ({
       id: court._id.toString(),
@@ -84,6 +87,33 @@ export function getParticipantOrder(
   for (const participant of participants) {
     const id = participant._id.toString();
     if (seen.has(id)) {
+      continue;
+    }
+    ordered.push(participant);
+    seen.add(id);
+  }
+
+  return ordered;
+}
+
+/**
+ * Resolves the participant list for schedule generation.
+ * Order matches `participantOrder` (organiser list rank / drag-and-drop); omitted ids are excluded.
+ */
+export function resolveParticipantsForScheduleGeneration(
+  participantOrder: string[],
+  participants: ScheduleParticipantInfo[]
+): ScheduleParticipantInfo[] {
+  const byId = new Map(participants.map((participant) => [participant._id.toString(), participant]));
+  const ordered: ScheduleParticipantInfo[] = [];
+  const seen = new Set<string>();
+
+  for (const id of participantOrder) {
+    if (seen.has(id)) {
+      continue;
+    }
+    const participant = byId.get(id);
+    if (!participant) {
       continue;
     }
     ordered.push(participant);

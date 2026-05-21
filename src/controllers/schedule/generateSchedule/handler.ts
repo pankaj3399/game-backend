@@ -13,7 +13,7 @@ import {
 } from "./pairingFromDemand";
 import {
   computeMatchStartTime,
-  getParticipantOrder,
+  resolveParticipantsForScheduleGeneration,
 } from "../shared/helpers";
 import { parseDurationMinutes } from "../../../shared/matchTiming";
 import { isValidIanaTimeZone, resolveTournamentTimeZone } from "../../../shared/timezone";
@@ -42,14 +42,21 @@ type ReplaceableGame = {
   side2?: { playerSnapshots?: Array<{ player: mongoose.Types.ObjectId; rating: number; rd: number; vol?: number; tau?: number }> } | null;
 };
 
+function hasRecordedMatchScore(game: ReplaceableGame): boolean {
+  const playerOneScores = game.score?.playerOneScores ?? [];
+  const playerTwoScores = game.score?.playerTwoScores ?? [];
+  const hasScoreValues = playerOneScores.length > 0 || playerTwoScores.length > 0;
+  return hasScoreValues || game.status === "finished";
+}
+
 function hasScoresOrRelevantStatus(
   game: ReplaceableGame,
   includeActiveStatus: boolean
 ): boolean {
-  const playerOneScores = game.score?.playerOneScores ?? [];
-  const playerTwoScores = game.score?.playerTwoScores ?? [];
-  const hasScoreValues = playerOneScores.length > 0 || playerTwoScores.length > 0;
-  if (hasScoreValues || game.status === "pendingScore" || game.status === "finished") {
+  if (hasRecordedMatchScore(game)) {
+    return true;
+  }
+  if (game.status === "pendingScore") {
     return true;
   }
   return includeActiveStatus && game.status === "active";
@@ -189,13 +196,13 @@ export async function persistScheduleRound(
           .exec();
 
         const gamesWithRecordedScores = gamesToReplace.filter((game) =>
-          hasScoresOrRelevantStatus(game, false)
+          hasRecordedMatchScore(game)
         );
 
         const hasScoredGames = gamesWithRecordedScores.length > 0;
         if (hasScoredGames && body.allowRescheduleWithScores !== true) {
           throw new Error(
-            `${RESCHEDULE_WITH_SCORES_CONFIRMATION_PREFIX} Round ${targetRound} has ${gamesWithRecordedScores.length} scored match(es). Confirm reschedule to preserve historical scores while replacing the active round schedule.`
+            `${RESCHEDULE_WITH_SCORES_CONFIRMATION_PREFIX} Round ${targetRound} has ${gamesWithRecordedScores.length} scored match(es). Confirm reschedule to preserve recorded results in player history while generating a new round schedule.`
           );
         }
 
@@ -306,7 +313,7 @@ export async function persistScheduleRound(
         .session(session)
         .lean<ScheduleParticipantInfo[]>()
         .exec();
-      const selectedParticipants = getParticipantOrder(
+      const selectedParticipants = resolveParticipantsForScheduleGeneration(
         body.participantOrder,
         latestParticipants
       );
