@@ -17,6 +17,10 @@ import {
 } from "./handler";
 import type { ValidateScoreQrTokenResult } from "./types";
 import {
+  publishScoreQrRequestEvent,
+  subscribeScoreQrRequestEvents,
+} from "./events";
+import {
   activeScoreQrQuerySchema,
   confirmScoreQrBodySchema,
   generateIndependentScoreQrBodySchema,
@@ -481,6 +485,8 @@ export async function updateScoreQrScores(
       playerTwoScores: parsedBody.data.playerTwoScores,
     });
 
+    publishScoreQrRequestEvent(result.requestId, "scores-updated");
+
     res.status(200).json({
       message: "QR session scores updated",
       requestId: result.requestId,
@@ -500,6 +506,59 @@ export async function updateScoreQrScores(
 
     logger.error("Error updating score QR scores", { err });
     res.status(500).json(buildErrorPayload("Failed to update score QR scores"));
+  }
+}
+
+export async function streamScoreQrEvents(
+  req: AuthenticatedRequest,
+  res: Response,
+): Promise<void> {
+  try {
+    const parsedParams = scoreQrTokenParamsSchema.safeParse(req.params);
+    if (!parsedParams.success) {
+      res.status(400).json(buildZodErrorPayload(parsedParams.error));
+      return;
+    }
+
+    const validation = await validateScoreQrConfirmContextFlow({
+      token: parsedParams.data.token,
+      confirmerUserId: req.user._id.toString(),
+    });
+
+    if (!validation.valid || !validation.request) {
+      const failure = validationFailurePayload(validation);
+      res.status(failure.status).json(failure.body);
+      return;
+    }
+
+    res.status(200);
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache, no-transform");
+    res.setHeader("Connection", "keep-alive");
+    res.flushHeaders?.();
+
+    subscribeScoreQrRequestEvents({
+      requestId: validation.request.id,
+      response: res,
+      onClose: () => {
+        // Connection lifecycle is fully owned by the SSE registry.
+      },
+    });
+  } catch (err) {
+    if (!res.headersSent) {
+      if (err instanceof AppError) {
+        if (err.statusCode >= 500) {
+          logger.error("Error opening score QR event stream", { err });
+          res.status(500).json(buildErrorPayload("Internal server error"));
+          return;
+        }
+        res.status(err.statusCode).json(buildErrorPayload(err.message));
+        return;
+      }
+
+      logger.error("Error opening score QR event stream", { err });
+      res.status(500).json(buildErrorPayload("Failed to open score QR event stream"));
+    }
   }
 }
 

@@ -49,6 +49,7 @@ import type {
   UpdateScoreQrSessionScoresResult,
   ValidateScoreQrTokenResult,
 } from "./types";
+import { publishScoreQrRequestEvent } from "./events";
 
 type ValidScoreQrRequest = NonNullable<ValidateScoreQrTokenResult["request"]>;
 
@@ -586,6 +587,8 @@ export async function confirmScoreQrFlow(
         },
       );
 
+      publishScoreQrRequestEvent(request.id, "request-consumed");
+
       return {
         ...saveResult,
         requestId: request.id,
@@ -622,6 +625,8 @@ export async function confirmScoreQrFlow(
     standalone.endTime = winner ? now : undefined;
 
     await standalone.save();
+
+    publishScoreQrRequestEvent(request.id, "request-consumed");
 
     return {
       matchId: standalone._id.toString(),

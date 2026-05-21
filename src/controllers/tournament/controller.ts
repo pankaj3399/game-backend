@@ -18,4 +18,5 @@ export {
   confirmScoreQr,
   updateScoreQrScores,
   cancelActiveScoreQr,
+  streamScoreQrEvents,
 } from './scoreQr/index';

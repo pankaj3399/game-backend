@@ -5,10 +5,15 @@ import { buildErrorPayload } from "../../../shared/errors";
 import { guardIdParam } from "../../../shared/guards";
 import { mapScheduleViewResponse } from "./mapper";
 import { authorizeScheduleAccess } from "../shared/authorize";
+import { DEFAULT_MATCH_DURATION_MINUTES } from "../shared/constants";
+import { resolveDefaultScheduleStartTime } from "../shared/resolveDefaultScheduleStartTime";
 import {
   fetchScheduleForTournament,
+  fetchScheduleGameTimings,
   fetchTournamentScheduleContext,
 } from "../shared/queries";
+import { parseDurationMinutes } from "../../../shared/matchTiming";
+import { resolveTournamentTimeZone } from "../../../shared/timezone";
 
 /**
  * GET /api/schedule/:id
@@ -46,11 +51,39 @@ export async function getSchedule(req: AuthenticatedRequest, res: Response) {
           }
         : tournament;
 
+    const roundParam = req.query.round;
+    const parsedRound =
+      typeof roundParam === "string" && roundParam.trim() !== ""
+        ? Number.parseInt(roundParam, 10)
+        : Number.NaN;
+    const targetRound =
+      Number.isFinite(parsedRound) && parsedRound >= 1
+        ? Math.trunc(parsedRound)
+        : Math.max(1, schedule?.currentRound ?? 1);
+
+    const matchDurationMinutes = parseDurationMinutes(
+      responseContext.duration ?? null,
+      DEFAULT_MATCH_DURATION_MINUTES
+    );
+
+    let defaultStartTime: string | null = null;
+    if (targetRound > 1 && schedule?._id) {
+      const gameTimings = await fetchScheduleGameTimings(schedule._id, schedule.rounds);
+      defaultStartTime = resolveDefaultScheduleStartTime({
+        targetRound,
+        tournamentStartTime: responseContext.startTime,
+        matchDurationMinutes,
+        games: gameTimings,
+        timeZone: resolveTournamentTimeZone(responseContext.timezone),
+      });
+    }
+
     const payload = mapScheduleViewResponse(responseContext, {
       currentRound: schedule?.currentRound ?? 0,
       totalRounds,
     }, {
       matchesPerPlayer: schedule?.matchesPerPlayer ?? null,
+      startTime: defaultStartTime,
     });
 
     res.status(200).json(payload);
