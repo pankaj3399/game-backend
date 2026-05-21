@@ -67,7 +67,7 @@ export async function getSchedule(req: AuthenticatedRequest, res: Response) {
     );
 
     let defaultStartTime: string | null = null;
-    if (targetRound > 1 && schedule?._id && schedule.rounds.length > 0) {
+    if (targetRound > 1 && schedule?._id) {
       const gameTimings = await fetchScheduleGameTimings(schedule._id, schedule.rounds);
       defaultStartTime = resolveDefaultScheduleStartTime({
         targetRound,
