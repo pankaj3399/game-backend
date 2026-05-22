@@ -53,8 +53,8 @@ export function getSignupRedirect(pendingToken: string): string {
 export async function loginAndRedirect(req: Request, res: Response, user: Express.User): Promise<void> {
 	try {
 		const token = await createAuthToken(user);
-		setAuthCookie(res, token);
 		const handoffCode = await createHandoffCode(token);
+		setAuthCookie(res, token);
 		res.redirect(getSuccessRedirect(handoffCode));
 	} catch (err) {
 		logger.error('Error in loginAndRedirect', { err });
