@@ -54,7 +54,7 @@ export async function loginAndRedirect(req: Request, res: Response, user: Expres
 	try {
 		const token = await createAuthToken(user);
 		setAuthCookie(res, token);
-		const handoffCode = createHandoffCode(token);
+		const handoffCode = await createHandoffCode(token);
 		res.redirect(getSuccessRedirect(handoffCode));
 	} catch (err) {
 		logger.error('Error in loginAndRedirect', { err });

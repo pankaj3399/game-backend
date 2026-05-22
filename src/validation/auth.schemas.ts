@@ -34,8 +34,8 @@ export type CompleteSignupInput = z.infer<typeof completeSignupSchema>;
 /** Schema for POST /api/auth/exchange-handoff. */
 export const exchangeHandoffSchema = z.object({
 	handoff: z
-		.string()
-		.min(16, { error: 'Handoff code is required' })
+		.string({ error: 'Handoff code is required' })
+		.min(16, { error: 'Handoff code must be at least 16 characters' })
 		.max(128)
 		.regex(/^[A-Za-z0-9_-]+$/, { error: 'Invalid handoff code format' }),
 });

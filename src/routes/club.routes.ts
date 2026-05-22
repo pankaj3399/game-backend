@@ -21,6 +21,7 @@ import {
 } from '../controllers/sponsor/controller';
 import { validateBody } from '../lib/validation';
 import { createSponsorSchema, updateSponsorSchema } from '../validation/sponsor.schemas';
+import optionalAuthenticate from '../middlewares/optionalAuthenticate';
 import { createAuthedRouter } from './authedRouter';
 
 const router = Router();
@@ -29,11 +30,11 @@ const authed = createAuthedRouter(router);
 // Search clubs - requires auth so users can add to favorites
 authed.get('/', searchClubs);
 
-// List all clubs (for All Clubs page)
-authed.get('/list', listClubs);
+// List all clubs (guests: all clubs only; signed-in: home/favorites/distance filters)
+router.get('/list', optionalAuthenticate, listClubs);
 
 // Public club details (for club detail page)
-authed.get('/public/:clubId', getClubPublic);
+router.get('/public/:clubId', getClubPublic);
 
 // Create club - any authenticated user can create a club
 authed.post(

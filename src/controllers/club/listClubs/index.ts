@@ -1,17 +1,14 @@
 import type { Request, Response } from 'express';
 import { logger } from '../../../lib/logger';
 import { buildErrorPayload } from '../../../shared/errors';
+import type { AuthenticatedSession } from '../../../shared/authContext';
 import { parseQueryWithSchema } from '../../../shared/validation';
 import { listClubsQuerySchema } from './validation';
 import { listClubsFlow } from './handler';
 
-export async function listClubs(req: Request, res: Response){
+export async function listClubs(req: Request, res: Response) {
 	try {
-		const session = req.user;
-		if (!session?._id) {
-			res.status(401).json(buildErrorPayload('Not authenticated'));
-			return;
-		}
+		const session = req.user as AuthenticatedSession | undefined;
 
 		const parsed = parseQueryWithSchema(listClubsQuerySchema, req.query);
 		if (parsed.status !== 200) {
@@ -19,7 +16,8 @@ export async function listClubs(req: Request, res: Response){
 			return;
 		}
 
-		const result = await listClubsFlow(parsed.data, session._id.toString());
+		const userId = session?._id?.toString() ?? null;
+		const result = await listClubsFlow(parsed.data, userId);
 		if (!result.ok) {
 			res.status(result.status).json(buildErrorPayload(result.message));
 			return;

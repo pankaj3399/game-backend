@@ -12,13 +12,15 @@ import type { ExchangeHandoffInput } from '../../validation/auth.schemas';
 export async function exchangeAuthHandoff(req: Request, res: Response): Promise<void> {
 	try {
 		const { handoff } = req.body as ExchangeHandoffInput;
-		const token = consumeHandoffCode(handoff);
+		const token = await consumeHandoffCode(handoff);
 		if (!token) {
 			res.status(401).json(buildErrorPayload('Invalid or expired handoff code'));
 			return;
 		}
 
 		setAuthCookie(res, token);
+		res.setHeader('Cache-Control', 'no-store');
+		res.setHeader('Pragma', 'no-cache');
 		res.status(200).json({
 			message: 'Handoff exchanged successfully',
 			token,

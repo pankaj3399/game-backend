@@ -4,12 +4,20 @@ import { listActiveClubsPage } from './queries';
 import { logger } from '../../../lib/logger';
 import { resolveAllowedClubIdsForList } from './resolveAllowedClubIds';
 
-export async function listClubsFlow(query: ListClubsQuery, userId: string) {
+export async function listClubsFlow(query: ListClubsQuery, userId: string | null) {
 	try{
 		const { page, limit, q, clubScope, distance } = query;
 		const skip = (page - 1) * limit;
 
-		const resolved = await resolveAllowedClubIdsForList(userId, { clubScope, distance });
+		if (!userId) {
+			if (clubScope !== 'all' || distance !== 'all') {
+				return error(401, 'Authorization required');
+			}
+		}
+
+		const resolved = userId
+			? await resolveAllowedClubIdsForList(userId, { clubScope, distance })
+			: { ok: true as const, allowedClubIds: undefined };
 		if (!resolved.ok) {
 			return error(resolved.status, resolved.message);
 		}
