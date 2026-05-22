@@ -8,6 +8,7 @@ import {
   extractAuthToken,
   hashSessionToken,
 } from "../lib/jwtAuth";
+import { logger } from "../lib/logger";
 
 /**
  * Attaches req.user when a valid session token is present; otherwise continues as a guest.
@@ -53,7 +54,18 @@ const optionalAuthenticate = async (
 
     req.user = user;
     next();
-  } catch {
+  } catch (e) {
+    const err = e instanceof Error ? e : new Error(String(e));
+    const authHeader = req.headers.authorization;
+    const hasAuthHeader = typeof authHeader === "string" && authHeader.length > 0;
+    logger.warn("optionalAuthenticate: invalid session, treating as guest", {
+      method: req.method,
+      path: req.originalUrl,
+      ip: req.ip,
+      hasAuthHeader,
+      message: err.message,
+      stack: err.stack,
+    });
     next();
   }
 };

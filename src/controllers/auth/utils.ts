@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express';
 import { logger } from '../../lib/logger';
+import { createHandoffCode } from '../../lib/authHandoff';
 import { createAuthToken, setAuthCookie } from '../../lib/jwtAuth';
 
 export const AUTH_CALLBACK_PATH = '/auth/callback';
@@ -29,12 +30,11 @@ export function getErrorRedirect(kind?: string, options?: ErrorRedirectOptions):
 
 /**
  * Builds redirect URL to frontend auth callback with success.
- * Includes a short-lived authToken query param so installed PWAs (e.g. iOS) can
- * persist the session via Bearer auth — third-party cookies often never reach
- * the standalone app after OAuth.
+ * Uses a one-time handoff code (not the session JWT) so the client can exchange
+ * it server-side for cookie + Bearer token (needed when PWA cannot keep API cookies).
  */
-export function getSuccessRedirect(authToken: string): string {
-	const params = new URLSearchParams({ success: 'true', authToken });
+export function getSuccessRedirect(handoffCode: string): string {
+	const params = new URLSearchParams({ success: 'true', handoff: handoffCode });
 	return `${process.env.REQUEST_ORIGIN}${AUTH_CALLBACK_PATH}?${params.toString()}`;
 }
 
@@ -54,7 +54,8 @@ export async function loginAndRedirect(req: Request, res: Response, user: Expres
 	try {
 		const token = await createAuthToken(user);
 		setAuthCookie(res, token);
-		res.redirect(getSuccessRedirect(token));
+		const handoffCode = createHandoffCode(token);
+		res.redirect(getSuccessRedirect(handoffCode));
 	} catch (err) {
 		logger.error('Error in loginAndRedirect', { err });
 		res.redirect(getErrorRedirect('session', { errorMessage: 'Failed to create an authenticated session' }));

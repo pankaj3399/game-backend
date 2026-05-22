@@ -4,6 +4,7 @@ import {
 	appleAuthCallback,
 	appleFormPostFix,
 	completeSignUp,
+	exchangeAuthHandoff,
 	getMe,
 	googleAuth,
 	googleAuthCallback,
@@ -11,7 +12,7 @@ import {
 } from '../controllers/auth/controller';
 import authenticate from '../middlewares/auth';
 import { validateBody } from '../lib/validation';
-import { completeSignupSchema } from '../validation/auth.schemas';
+import { completeSignupSchema, exchangeHandoffSchema } from '../validation/auth.schemas';
 
 const router = express.Router();
 
@@ -21,6 +22,7 @@ router.get('/google/callback', googleAuthCallback);
 router.get('/apple', appleAuth);
 router.route('/apple/callback').get(appleAuthCallback).post(appleFormPostFix, appleAuthCallback);
 router.post('/complete-signup', validateBody(completeSignupSchema), completeSignUp);
+router.post('/exchange-handoff', validateBody(exchangeHandoffSchema), exchangeAuthHandoff);
 router.post('/logout', logout);
 
 // Protected routes (require authenticated session)
