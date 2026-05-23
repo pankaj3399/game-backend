@@ -29,8 +29,8 @@ export interface IGame extends Document {
 	tournament?: mongoose.Types.ObjectId;
 	schedule?: mongoose.Types.ObjectId;
 	score: {
-		playerOneScores: (number | 'wo')[];
-		playerTwoScores: (number | 'wo')[];
+		playerOneScores: (number | 'wo' | null)[];
+		playerTwoScores: (number | 'wo' | null)[];
 	};
 	startTime?: Date;
 	endTime?: Date;
@@ -114,8 +114,14 @@ const gameSchema = new mongoose.Schema<IGame>(
 				default: [],
 				validate: {
 					validator: (v: unknown[]) =>
-						Array.isArray(v) && v.every((el) => el === 'wo' || (typeof el === 'number' && Number.isFinite(el))),
-					message: 'Each score must be a finite number or "wo"'
+						Array.isArray(v) &&
+						v.every(
+							(el) =>
+								el === 'wo' ||
+								el === null ||
+								(typeof el === 'number' && Number.isFinite(el)),
+						),
+					message: 'Each score must be a finite number, "wo", or null'
 				}
 			},
 			playerTwoScores: {
@@ -123,8 +129,14 @@ const gameSchema = new mongoose.Schema<IGame>(
 				default: [],
 				validate: {
 					validator: (v: unknown[]) =>
-						Array.isArray(v) && v.every((el) => el === 'wo' || (typeof el === 'number' && Number.isFinite(el))),
-					message: 'Each score must be a finite number or "wo"'
+						Array.isArray(v) &&
+						v.every(
+							(el) =>
+								el === 'wo' ||
+								el === null ||
+								(typeof el === 'number' && Number.isFinite(el)),
+						),
+					message: 'Each score must be a finite number, "wo", or null'
 				}
 			}
 		},

@@ -51,8 +51,8 @@ export interface GameForMatchesDoc {
   };
   court?: PopulatedMatchCourtDoc | null;
   score?: {
-    playerOneScores?: Array<number | "wo">;
-    playerTwoScores?: Array<number | "wo">;
+    playerOneScores?: Array<number | "wo" | null>;
+    playerTwoScores?: Array<number | "wo" | null>;
   };
   status: GameStatus;
   matchType: MatchType;
@@ -63,7 +63,7 @@ export interface GameForMatchesDoc {
   detachedFromSlot?: number | null;
 }
 
-export type MatchScoreValueResponse = number | "wo";
+export type MatchScoreValueResponse = number | "wo" | null;
 
 export interface MatchScoreResponse {
   playerOneScores: MatchScoreValueResponse[];

@@ -1,7 +1,7 @@
 import { AppError } from "../../../shared/errors";
 import type { GamePlayMode } from "../../../types/domain/game";
 
-export type SetScoreValue = number | "wo";
+export type SetScoreValue = number | "wo" | null;
 
 function getSetFormat(
   playMode: GamePlayMode,
@@ -38,7 +38,12 @@ export function compareSetScore(
     return 1;
   }
 
-  if (typeof playerOneScore !== "number" || typeof playerTwoScore !== "number") {
+  if (
+    playerOneScore === null ||
+    playerTwoScore === null ||
+    typeof playerOneScore !== "number" ||
+    typeof playerTwoScore !== "number"
+  ) {
     return 0;
   }
 

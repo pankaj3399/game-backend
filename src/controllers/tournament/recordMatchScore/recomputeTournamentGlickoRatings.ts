@@ -4,7 +4,7 @@ import Schedule from "../../../models/Schedule";
 import User from "../../../models/User";
 import { rateGlicko2Player, type Glicko2MatchResult, type Glicko2Player } from "../../../lib/glicko2";
 
-type ScoreValue = number | "wo";
+type ScoreValue = number | "wo" | null;
 
 type RatingResult = {
   userId: string;
@@ -26,6 +26,15 @@ function scoreToOutcomes(playerOneScore: ScoreValue, playerTwoScore: ScoreValue)
   }
   if (playerTwoScore === "wo") {
     return [1];
+  }
+
+  if (
+    playerOneScore === null ||
+    playerTwoScore === null ||
+    typeof playerOneScore !== "number" ||
+    typeof playerTwoScore !== "number"
+  ) {
+    return [0.5];
   }
 
   const total = playerOneScore + playerTwoScore;

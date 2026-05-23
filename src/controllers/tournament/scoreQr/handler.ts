@@ -676,8 +676,8 @@ export async function confirmScoreQrFlow(
 export async function updateScoreQrSessionScoresFlow(input: {
   requestId: string;
   requesterUserId: string;
-  playerOneScores: Array<number | "wo">;
-  playerTwoScores: Array<number | "wo">;
+  playerOneScores: Array<number | "wo" | null>;
+  playerTwoScores: Array<number | "wo" | null>;
 }): Promise<UpdateScoreQrSessionScoresResult> {
   const request = await ScoreValidationRequest.findOne({
     _id: input.requestId,
@@ -690,8 +690,8 @@ export async function updateScoreQrSessionScoresFlow(input: {
       match: Types.ObjectId;
       tournament: Types.ObjectId | null;
       playMode: GamePlayMode;
-      playerOneScores: Array<number | "wo">;
-      playerTwoScores: Array<number | "wo">;
+      playerOneScores: Array<number | "wo" | null>;
+      playerTwoScores: Array<number | "wo" | null>;
       status: string;
       expiresAt: Date;
     } | null>()

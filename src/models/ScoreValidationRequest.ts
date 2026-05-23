@@ -14,8 +14,8 @@ export interface IScoreValidationRequest extends mongoose.Document {
   opponentUser?: mongoose.Types.ObjectId | null;
   tournament?: mongoose.Types.ObjectId | null;
   match: mongoose.Types.ObjectId;
-  playerOneScores: Array<number | "wo">;
-  playerTwoScores: Array<number | "wo">;
+  playerOneScores: Array<number | "wo" | null>;
+  playerTwoScores: Array<number | "wo" | null>;
   playMode: GamePlayMode;
   matchType: MatchType;
   status: ScoreValidationRequestStatus;
@@ -37,6 +37,7 @@ const scoreValueArrayField = {
         values.every(
           (value) =>
             value === "wo" ||
+            value === null ||
             (typeof value === "number" &&
               Number.isFinite(value) &&
               Number.isInteger(value) &&
@@ -44,7 +45,7 @@ const scoreValueArrayField = {
         )
       );
     },
-    message: 'Each score entry must be a non-negative integer or "wo"',
+    message: 'Each score entry must be a non-negative integer, "wo", or null',
   },
 };
 

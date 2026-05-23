@@ -20,7 +20,7 @@ export type RecordTournamentMatchScoreOptions = {
   tournamentCompleted: boolean;
 };
 
-type ScoreValue = number | "wo";
+type ScoreValue = number | "wo" | null;
 
 function isObjectId(value: unknown): value is Types.ObjectId {
   return value instanceof Types.ObjectId;
@@ -121,6 +121,15 @@ function scoreToOutcomes(playerOneScore: ScoreValue, playerTwoScore: ScoreValue)
     return [1];
   }
 
+  if (
+    playerOneScore === null ||
+    playerTwoScore === null ||
+    typeof playerOneScore !== "number" ||
+    typeof playerTwoScore !== "number"
+  ) {
+    return [0.5];
+  }
+
   const total = playerOneScore + playerTwoScore;
   if (total <= 0) {
     return [0.5];
@@ -190,6 +199,10 @@ function decisiveSetsLength(playMode: GamePlayMode, input: RecordMatchScoreInput
       playerOneSetWins += 1;
     } else if (setResult < 0) {
       playerTwoSetWins += 1;
+    }
+
+    if (playerOneScore === "wo" || playerTwoScore === "wo") {
+      return index + 1;
     }
 
     if (playerOneSetWins >= majority || playerTwoSetWins >= majority) {
