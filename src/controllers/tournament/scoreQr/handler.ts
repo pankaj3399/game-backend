@@ -403,13 +403,25 @@ export async function validateScoreQrTokenFlow(
     return { valid: false, reason: "request_not_pending", request: null };
   }
 
+  const tournamentId = request.tournament ? request.tournament.toString() : null;
+  let tournamentName: string | null = null;
+  if (tournamentId) {
+    const tournamentDoc = await Tournament.findById(tournamentId)
+      .select("name")
+      .lean<{ name?: string | null } | null>()
+      .exec();
+    const trimmed = tournamentDoc?.name?.trim() ?? "";
+    tournamentName = trimmed.length > 0 ? trimmed : null;
+  }
+
   return {
     valid: true,
     reason: "ok",
     request: {
       id: request._id.toString(),
       flow: payload.flow,
-      tournamentId: request.tournament ? request.tournament.toString() : null,
+      tournamentId,
+      tournamentName,
       matchId: request.match.toString(),
       requestByUserId: request.requestByUser.toString(),
       opponentUserId: request.opponentUser ? request.opponentUser.toString() : null,

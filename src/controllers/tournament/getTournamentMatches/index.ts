@@ -1,7 +1,7 @@
-import type { Response } from "express";
+import type { Request, Response } from "express";
 import { logger } from "../../../lib/logger";
 import { buildErrorPayload } from "../../../shared/errors";
-import type { AuthenticatedRequest } from "../../../shared/authContext";
+import type { AuthenticatedSession } from "../../../shared/authContext";
 import { guardIdParam } from "../../../shared/guards";
 import { authorizeGetById } from "../shared/authorizeGetById";
 import { fetchTournamentById } from "../shared/fetchTournamentById";
@@ -21,10 +21,10 @@ const STATUS_UPDATE_CHUNK_SIZE = 100;
  * GET /api/tournaments/:id/matches
  * Returns matches linked by the tournament schedule with round and slot metadata.
  */
-export async function getTournamentMatches(req: AuthenticatedRequest, res: Response) {
+export async function getTournamentMatches(req: Request, res: Response) {
   try {
+    const session = req.user as AuthenticatedSession | undefined;
 
-    
     const idResult = guardIdParam(req.params, "tournament ID");
     if (!idResult.ok) {
       res.status(idResult.status).json(buildErrorPayload(idResult.message));
@@ -37,7 +37,7 @@ export async function getTournamentMatches(req: AuthenticatedRequest, res: Respo
       return;
     }
 
-    const authResult = await authorizeGetById(tournament, req.user);
+    const authResult = await authorizeGetById(tournament, session);
     if (!authResult.ok) {
       res.status(authResult.status).json(buildErrorPayload(authResult.message));
       return;

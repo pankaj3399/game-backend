@@ -13,8 +13,8 @@ export interface DetailViewContext {
 
 /**
  * Verifies the user can view the tournament.
- * Aligns with GET /tournaments list rules: any authenticated user may open
- * published (non-draft) tournaments; drafts are limited to super admins,
+ * Aligns with GET /tournaments list rules: guests and any authenticated user
+ * may open published (non-draft) tournaments; drafts are limited to super admins,
  * the creator, or club managers.
  */
 export async function authorizeGetById(

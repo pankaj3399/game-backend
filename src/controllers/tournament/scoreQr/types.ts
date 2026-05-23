@@ -51,6 +51,7 @@ export interface ValidateScoreQrTokenResult {
     playMode: GamePlayMode;
     matchType: MatchType;
     expiresAt: string;
+    tournamentName: string | null;
   };
 }
 

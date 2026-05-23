@@ -106,6 +106,7 @@ function safeValidationRequest(
     playMode: r.playMode,
     matchType: r.matchType,
     expiresAt: r.expiresAt,
+    tournamentName: r.tournamentName,
     requestByUserProfile: requesterProfile,
   };
 }
