@@ -3,8 +3,7 @@ import Game, { type IGame } from "../../../models/Game";
 import Schedule from "../../../models/Schedule";
 import User from "../../../models/User";
 import { rateGlicko2Player, type Glicko2MatchResult, type Glicko2Player } from "../../../lib/glicko2";
-
-type ScoreValue = number | "wo" | null;
+import { scoreToOutcomes } from "../shared/scoreOutcomes";
 
 type RatingResult = {
   userId: string;
@@ -16,47 +15,6 @@ type RatingResult = {
 
 type GameDocument = HydratedDocument<IGame>;
 type RatingMap = Map<string, Glicko2Player>;
-
-function scoreToOutcomes(playerOneScore: ScoreValue, playerTwoScore: ScoreValue) {
-  if (playerOneScore === "wo" && playerTwoScore === "wo") {
-    return [0.5];
-  }
-  if (playerOneScore === "wo") {
-    return [0];
-  }
-  if (playerTwoScore === "wo") {
-    return [1];
-  }
-
-  if (
-    playerOneScore === null ||
-    playerTwoScore === null ||
-    typeof playerOneScore !== "number" ||
-    typeof playerTwoScore !== "number"
-  ) {
-    return [0.5];
-  }
-
-  const total = playerOneScore + playerTwoScore;
-  if (total <= 0) {
-    return [0.5];
-  }
-
-  let winsAssigned = 0;
-  const outcomes: number[] = [];
-
-  for (let step = 1; step <= total; step += 1) {
-    const shouldHaveWins = Math.round((step * playerOneScore) / total);
-    if (shouldHaveWins > winsAssigned) {
-      outcomes.push(1);
-      winsAssigned += 1;
-      continue;
-    }
-    outcomes.push(0);
-  }
-
-  return outcomes;
-}
 
 function averagePlayers(players: Glicko2Player[]): Glicko2Player {
   const count = Math.max(1, players.length);

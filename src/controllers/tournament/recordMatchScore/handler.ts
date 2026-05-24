@@ -7,6 +7,7 @@ import { DEFAULT_ELO } from "../../../lib/config";
 import { AppError } from "../../../shared/errors";
 import type { GamePlayMode } from "../../../types/domain/game";
 import { compareSetScore } from "../shared/compareSetScore";
+import { scoreToOutcomes } from "../shared/scoreOutcomes";
 import { recomputeTournamentGlickoRatingsThroughRound } from "./recomputeTournamentGlickoRatings";
 import type { RecordMatchScoreInput } from "./validation";
 
@@ -19,8 +20,6 @@ export type RecordTournamentMatchScoreOptions = {
   /** When true, participant score edits are closed because the tournament is complete. */
   tournamentCompleted: boolean;
 };
-
-type ScoreValue = number | "wo" | null;
 
 function isObjectId(value: unknown): value is Types.ObjectId {
   return value instanceof Types.ObjectId;
@@ -108,47 +107,6 @@ async function ensurePlayerSnapshots(
     game.set(`${sideKey}.playerSnapshots`, repairedSnapshots);
     game.markModified(`${sideKey}.playerSnapshots`);
   }
-}
-
-function scoreToOutcomes(playerOneScore: ScoreValue, playerTwoScore: ScoreValue) {
-  if (playerOneScore === "wo" && playerTwoScore === "wo") {
-    return [0.5];
-  }
-  if (playerOneScore === "wo") {
-    return [0];
-  }
-  if (playerTwoScore === "wo") {
-    return [1];
-  }
-
-  if (
-    playerOneScore === null ||
-    playerTwoScore === null ||
-    typeof playerOneScore !== "number" ||
-    typeof playerTwoScore !== "number"
-  ) {
-    return [0.5];
-  }
-
-  const total = playerOneScore + playerTwoScore;
-  if (total <= 0) {
-    return [0.5];
-  }
-
-  let winsAssigned = 0;
-  const outcomes: number[] = [];
-
-  for (let step = 1; step <= total; step += 1) {
-    const shouldHaveWins = Math.round((step * playerOneScore) / total);
-    if (shouldHaveWins > winsAssigned) {
-      outcomes.push(1);
-      winsAssigned += 1;
-      continue;
-    }
-    outcomes.push(0);
-  }
-
-  return outcomes;
 }
 
 function flattenOutcomeSegments(input: RecordMatchScoreInput) {

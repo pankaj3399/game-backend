@@ -119,9 +119,9 @@ const gameSchema = new mongoose.Schema<IGame>(
 							(el) =>
 								el === 'wo' ||
 								el === null ||
-								(typeof el === 'number' && Number.isFinite(el)),
+								(typeof el === 'number' && Number.isInteger(el) && el >= 0),
 						),
-					message: 'Each score must be a finite number, "wo", or null'
+					message: 'Each score must be a non-negative integer, "wo", or null'
 				}
 			},
 			playerTwoScores: {
@@ -134,9 +134,9 @@ const gameSchema = new mongoose.Schema<IGame>(
 							(el) =>
 								el === 'wo' ||
 								el === null ||
-								(typeof el === 'number' && Number.isFinite(el)),
+								(typeof el === 'number' && Number.isInteger(el) && el >= 0),
 						),
-					message: 'Each score must be a finite number, "wo", or null'
+					message: 'Each score must be a non-negative integer, "wo", or null'
 				}
 			}
 		},
