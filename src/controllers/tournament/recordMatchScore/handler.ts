@@ -159,7 +159,10 @@ function decisiveSetsLength(playMode: GamePlayMode, input: RecordMatchScoreInput
       playerTwoSetWins += 1;
     }
 
-    if (playerOneScore === "wo" || playerTwoScore === "wo") {
+    const isSingleSideWalkover =
+      (playerOneScore === "wo" && playerTwoScore !== "wo") ||
+      (playerTwoScore === "wo" && playerOneScore !== "wo");
+    if (isSingleSideWalkover) {
       return index + 1;
     }
 
