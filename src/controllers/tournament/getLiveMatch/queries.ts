@@ -7,7 +7,7 @@ import { resolveTimedGameStatus } from "../../../shared/matchTiming";
 import { updateGameStatuses } from "../getTournamentMatches/queries";
 import type { LiveMatchGameDoc } from "./types";
 
-/** Lower bound for dated matches — keeps the query bounded without hiding future fixtures. */
+/** Lower bound for dated matches — keeps the query bounded without hiding future matches. */
 const LIVE_MATCH_LOOKBACK_MS = 180 * 24 * 60 * 60 * 1000;
 
 export type EligibleTournamentWithoutMatchesDoc = {
