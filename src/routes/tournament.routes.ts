@@ -31,7 +31,7 @@ const authed = createAuthedRouter(router);
 router.get('/', optionalAuthenticate, getTournaments);
 authed.get('/live-match', requirePlayerOrAbove, getTournamentLiveMatch);
 authed.get('/:id/doubles-pairs', requirePlayerOrAbove, getDoublesPairs);
-authed.get('/:id/matches', requirePlayerOrAbove, getTournamentMatches);
+router.get('/:id/matches', optionalAuthenticate, getTournamentMatches);
 authed.patch('/:id/matches/:matchId/score', requirePlayerOrAbove, recordMatchScore);
 
 authed.post('/:id/matches/:matchId/score/qr', requirePlayerOrAbove, generateScoreQr);

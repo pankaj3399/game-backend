@@ -46,11 +46,12 @@ export interface ValidateScoreQrTokenResult {
     matchId: string;
     requestByUserId: string;
     opponentUserId: string | null;
-    playerOneScores: Array<number | "wo">;
-    playerTwoScores: Array<number | "wo">;
+    playerOneScores: Array<number | "wo" | null>;
+    playerTwoScores: Array<number | "wo" | null>;
     playMode: GamePlayMode;
     matchType: MatchType;
     expiresAt: string;
+    tournamentName: string | null;
   };
 }
 
@@ -76,8 +77,8 @@ export interface ConfirmScoreQrResult {
 
 export interface UpdateScoreQrSessionScoresResult {
   requestId: string;
-  playerOneScores: Array<number | "wo">;
-  playerTwoScores: Array<number | "wo">;
+  playerOneScores: Array<number | "wo" | null>;
+  playerTwoScores: Array<number | "wo" | null>;
 }
 
 
@@ -94,8 +95,8 @@ export interface ActiveScoreQrSessionResult {
     alias: string | null;
     profilePictureUrl: string | null;
   } | null;
-  playerOneScores: Array<number | "wo">;
-  playerTwoScores: Array<number | "wo">;
+  playerOneScores: Array<number | "wo" | null>;
+  playerTwoScores: Array<number | "wo" | null>;
   playMode: GamePlayMode;
   matchType: MatchType;
   expiresAt: string;
@@ -123,8 +124,8 @@ export type ScoreValidationRequestLean = {
   match: Types.ObjectId;
   requestByUser: Types.ObjectId;
   opponentUser: Types.ObjectId | null;
-  playerOneScores: Array<number | "wo">;
-  playerTwoScores: Array<number | "wo">;
+  playerOneScores: Array<number | "wo" | null>;
+  playerTwoScores: Array<number | "wo" | null>;
   playMode: GamePlayMode;
   matchType: MatchType;
 };

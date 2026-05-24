@@ -75,7 +75,7 @@ function dateToIso(value: unknown): string | null {
   return null;
 }
 
-function normalizeScores(values: Array<number | "wo"> | undefined) {
+function normalizeScores(values: Array<number | "wo" | null> | undefined) {
   if (values == null) {
     return [];
   }
@@ -84,6 +84,10 @@ function normalizeScores(values: Array<number | "wo"> | undefined) {
   for (const v of values) {
     if (v === "wo") {
       out.push("wo");
+      continue;
+    }
+    if (v === null) {
+      out.push(null);
       continue;
     }
     if (typeof v === "number" && Number.isFinite(v)) {

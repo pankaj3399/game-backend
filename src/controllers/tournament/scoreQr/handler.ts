@@ -403,13 +403,29 @@ export async function validateScoreQrTokenFlow(
     return { valid: false, reason: "request_not_pending", request: null };
   }
 
+  const tournamentId = request.tournament ? request.tournament.toString() : null;
+  let tournamentName: string | null = null;
+  if (tournamentId) {
+    try {
+      const tournamentDoc = await Tournament.findById(tournamentId)
+        .select("name")
+        .lean<{ name?: string | null } | null>()
+        .exec();
+      const trimmed = tournamentDoc?.name?.trim() ?? "";
+      tournamentName = trimmed.length > 0 ? trimmed : null;
+    } catch {
+      // Display-only metadata: do not fail token validation on name lookup errors.
+    }
+  }
+
   return {
     valid: true,
     reason: "ok",
     request: {
       id: request._id.toString(),
       flow: payload.flow,
-      tournamentId: request.tournament ? request.tournament.toString() : null,
+      tournamentId,
+      tournamentName,
       matchId: request.match.toString(),
       requestByUserId: request.requestByUser.toString(),
       opponentUserId: request.opponentUser ? request.opponentUser.toString() : null,
@@ -660,8 +676,8 @@ export async function confirmScoreQrFlow(
 export async function updateScoreQrSessionScoresFlow(input: {
   requestId: string;
   requesterUserId: string;
-  playerOneScores: Array<number | "wo">;
-  playerTwoScores: Array<number | "wo">;
+  playerOneScores: Array<number | "wo" | null>;
+  playerTwoScores: Array<number | "wo" | null>;
 }): Promise<UpdateScoreQrSessionScoresResult> {
   const request = await ScoreValidationRequest.findOne({
     _id: input.requestId,
@@ -674,8 +690,8 @@ export async function updateScoreQrSessionScoresFlow(input: {
       match: Types.ObjectId;
       tournament: Types.ObjectId | null;
       playMode: GamePlayMode;
-      playerOneScores: Array<number | "wo">;
-      playerTwoScores: Array<number | "wo">;
+      playerOneScores: Array<number | "wo" | null>;
+      playerTwoScores: Array<number | "wo" | null>;
       status: string;
       expiresAt: Date;
     } | null>()

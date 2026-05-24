@@ -1,5 +1,9 @@
 import type { Types } from "mongoose";
 import type { ScheduleParticipantInfo, ScheduleMode } from "../shared/types";
+import {
+  computeVirtualSchedulingRatings,
+  virtualRatingForParticipant,
+} from "../shared/virtualSchedulingRatings";
 
 interface SinglesMatchPair {
   kind: "singles";
@@ -72,7 +76,7 @@ function getDemandForRound(
 
 function nextHighestDemand(
   demandById: Map<string, number>,
-  participantIndex: Map<string, number>,
+  virtualRatings: Map<string, number>,
   excluded: Set<string>,
   preferredPairKey?: string,
   pairCounts?: Map<string, number>
@@ -80,6 +84,10 @@ function nextHighestDemand(
   const candidates = [...demandById.entries()]
     .filter(([id, demand]) => demand > 0 && !excluded.has(id))
     .map(([id, demand]) => ({ id, demand }));
+
+  const preferredRating = preferredPairKey
+    ? virtualRatingForParticipant(preferredPairKey, virtualRatings)
+    : null;
 
   candidates.sort((left, right) => {
     if (left.demand !== right.demand) {
@@ -96,11 +104,17 @@ function nextHighestDemand(
       }
     }
 
-    // Lower list index (organiser drag-and-drop rank) is preferred when demand is tied.
-    const leftIndex = participantIndex.get(left.id) ?? Number.MAX_SAFE_INTEGER;
-    const rightIndex = participantIndex.get(right.id) ?? Number.MAX_SAFE_INTEGER;
-    if (leftIndex !== rightIndex) {
-      return leftIndex - rightIndex;
+    const leftRating = virtualRatingForParticipant(left.id, virtualRatings);
+    const rightRating = virtualRatingForParticipant(right.id, virtualRatings);
+
+    if (preferredRating != null) {
+      const leftDistance = Math.abs(leftRating - preferredRating);
+      const rightDistance = Math.abs(rightRating - preferredRating);
+      if (leftDistance !== rightDistance) {
+        return leftDistance - rightDistance;
+      }
+    } else if (leftRating !== rightRating) {
+      return rightRating - leftRating;
     }
 
     return left.id.localeCompare(right.id);
@@ -118,21 +132,24 @@ function decrementDemand(demandById: Map<string, number>, playerId: string) {
   demandById.set(playerId, next);
 }
 
-function pairSinglesFromDemand(participants: ScheduleParticipantInfo[], demandById: Map<string, number>) {
+function pairSinglesFromDemand(
+  participants: ScheduleParticipantInfo[],
+  demandById: Map<string, number>,
+  virtualRatings: Map<string, number>
+) {
   const byId = new Map(participants.map((participant) => [participant._id.toString(), participant]));
-  const participantIndex = new Map(participants.map((participant, index) => [participant._id.toString(), index]));
   const pairCounts = new Map<string, number>();
   const pairs: SinglesMatchPair[] = [];
 
   while (demandById.size > 0) {
-    const playerOneId = nextHighestDemand(demandById, participantIndex, new Set<string>());
+    const playerOneId = nextHighestDemand(demandById, virtualRatings, new Set<string>());
     if (!playerOneId) {
       break;
     }
 
     const playerTwoId = nextHighestDemand(
       demandById,
-      participantIndex,
+      virtualRatings,
       new Set([playerOneId]),
       playerOneId,
       pairCounts
@@ -168,11 +185,23 @@ function buddyKey(a: string, b: string): string {
   return a < b ? `${a}:${b}` : `${b}:${a}`;
 }
 
+function teamVirtualRatingSum(
+  team: [Types.ObjectId, Types.ObjectId],
+  virtualRatings: Map<string, number>
+): number {
+  const s = (id: Types.ObjectId) => id.toString();
+  return (
+    virtualRatingForParticipant(s(team[0]), virtualRatings) +
+    virtualRatingForParticipant(s(team[1]), virtualRatings)
+  );
+}
+
 function scoreDoublesCandidate(
   teamOne: [Types.ObjectId, Types.ObjectId],
   teamTwo: [Types.ObjectId, Types.ObjectId],
   teammateHist: Map<string, number>,
-  opponentHist: Map<string, number>
+  opponentHist: Map<string, number>,
+  virtualRatings: Map<string, number>
 ): number {
   const s = (id: Types.ObjectId) => id.toString();
   const t1a = s(teamOne[0]);
@@ -188,6 +217,11 @@ function scoreDoublesCandidate(
       score += opponentHist.get(buddyKey(x, y)) ?? 0;
     }
   }
+
+  const teamOneStrength = teamVirtualRatingSum(teamOne, virtualRatings);
+  const teamTwoStrength = teamVirtualRatingSum(teamTwo, virtualRatings);
+  score += Math.abs(teamOneStrength - teamTwoStrength) / 100;
+
   return score;
 }
 
@@ -216,9 +250,12 @@ function recordDoublesCandidate(
   }
 }
 
-function pairDoublesFromDemand(participants: ScheduleParticipantInfo[], demandById: Map<string, number>) {
+function pairDoublesFromDemand(
+  participants: ScheduleParticipantInfo[],
+  demandById: Map<string, number>,
+  virtualRatings: Map<string, number>
+) {
   const byId = new Map(participants.map((participant) => [participant._id.toString(), participant]));
-  const participantIndex = new Map(participants.map((participant, index) => [participant._id.toString(), index]));
   const pairs: DoublesMatchPair[] = [];
   const teammateHist = new Map<string, number>();
   const opponentHist = new Map<string, number>();
@@ -226,7 +263,7 @@ function pairDoublesFromDemand(participants: ScheduleParticipantInfo[], demandBy
   while (demandById.size > 0) {
     const selected: string[] = [];
     for (let i = 0; i < 4; i += 1) {
-      const next = nextHighestDemand(demandById, participantIndex, new Set(selected));
+      const next = nextHighestDemand(demandById, virtualRatings, new Set(selected));
       if (!next) {
         throw new Error("Unable to complete doubles pairing with current constraints");
       }
@@ -267,7 +304,8 @@ function pairDoublesFromDemand(participants: ScheduleParticipantInfo[], demandBy
         candidate.teamOne,
         candidate.teamTwo,
         teammateHist,
-        opponentHist
+        opponentHist,
+        virtualRatings
       );
       if (sc < bestScore) {
         bestScore = sc;
@@ -291,7 +329,8 @@ export function buildRoundPairs(
   participants: ScheduleParticipantInfo[],
   mode: ScheduleMode,
   matchesPerPlayer: number,
-  round: number
+  round: number,
+  virtualRatings: Map<string, number> = computeVirtualSchedulingRatings(participants)
 ) {
   const { demandById, totalAppearances } = getDemandForRound(participants, mode, matchesPerPlayer, round);
 
@@ -315,8 +354,8 @@ export function buildRoundPairs(
 
   const pairs =
     mode === "singles"
-      ? pairSinglesFromDemand(participants, demandById)
-      : pairDoublesFromDemand(participants, demandById);
+      ? pairSinglesFromDemand(participants, demandById, virtualRatings)
+      : pairDoublesFromDemand(participants, demandById, virtualRatings);
 
-  return { pairs };
+  return { pairs, virtualRatings };
 }

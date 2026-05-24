@@ -2,7 +2,7 @@ import { z } from "zod";
 
 const MAX_SCORE_ROWS = 5;
 const numericScore = z.number().int().min(0);
-const scoreValue = z.union([numericScore, z.literal("wo")]);
+const scoreValue = z.union([numericScore, z.literal("wo"), z.null()]);
 
 const scoreArraysSchema = z
   .object({
@@ -27,6 +27,22 @@ const scoreArraysSchema = z
           code: z.ZodIssueCode.custom,
           message: 'Both sides cannot be "wo" in the same set',
           path: ["playerTwoScores", index],
+        });
+      }
+
+      if (one === "wo" && two !== null && two !== "wo") {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Walkover opponent score must be empty; use null instead of a numeric placeholder',
+          path: ["playerTwoScores", index],
+        });
+      }
+
+      if (two === "wo" && one !== null && one !== "wo") {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Walkover opponent score must be empty; use null instead of a numeric placeholder',
+          path: ["playerOneScores", index],
         });
       }
     }

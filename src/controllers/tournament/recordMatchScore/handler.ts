@@ -7,6 +7,7 @@ import { DEFAULT_ELO } from "../../../lib/config";
 import { AppError } from "../../../shared/errors";
 import type { GamePlayMode } from "../../../types/domain/game";
 import { compareSetScore } from "../shared/compareSetScore";
+import { scoreToOutcomes } from "../shared/scoreOutcomes";
 import { recomputeTournamentGlickoRatingsThroughRound } from "./recomputeTournamentGlickoRatings";
 import type { RecordMatchScoreInput } from "./validation";
 
@@ -19,8 +20,6 @@ export type RecordTournamentMatchScoreOptions = {
   /** When true, participant score edits are closed because the tournament is complete. */
   tournamentCompleted: boolean;
 };
-
-type ScoreValue = number | "wo";
 
 function isObjectId(value: unknown): value is Types.ObjectId {
   return value instanceof Types.ObjectId;
@@ -110,38 +109,6 @@ async function ensurePlayerSnapshots(
   }
 }
 
-function scoreToOutcomes(playerOneScore: ScoreValue, playerTwoScore: ScoreValue) {
-  if (playerOneScore === "wo" && playerTwoScore === "wo") {
-    return [0.5];
-  }
-  if (playerOneScore === "wo") {
-    return [0];
-  }
-  if (playerTwoScore === "wo") {
-    return [1];
-  }
-
-  const total = playerOneScore + playerTwoScore;
-  if (total <= 0) {
-    return [0.5];
-  }
-
-  let winsAssigned = 0;
-  const outcomes: number[] = [];
-
-  for (let step = 1; step <= total; step += 1) {
-    const shouldHaveWins = Math.round((step * playerOneScore) / total);
-    if (shouldHaveWins > winsAssigned) {
-      outcomes.push(1);
-      winsAssigned += 1;
-      continue;
-    }
-    outcomes.push(0);
-  }
-
-  return outcomes;
-}
-
 function flattenOutcomeSegments(input: RecordMatchScoreInput) {
   const outcomes: number[] = [];
 
@@ -190,6 +157,13 @@ function decisiveSetsLength(playMode: GamePlayMode, input: RecordMatchScoreInput
       playerOneSetWins += 1;
     } else if (setResult < 0) {
       playerTwoSetWins += 1;
+    }
+
+    const isSingleSideWalkover =
+      (playerOneScore === "wo" && playerTwoScore !== "wo") ||
+      (playerTwoScore === "wo" && playerOneScore !== "wo");
+    if (isSingleSideWalkover) {
+      return index + 1;
     }
 
     if (playerOneSetWins >= majority || playerTwoSetWins >= majority) {

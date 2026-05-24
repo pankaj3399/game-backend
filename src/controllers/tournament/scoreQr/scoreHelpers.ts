@@ -9,10 +9,10 @@ export function requiredSetCount(playMode: GamePlayMode): number {
 }
 
 function looksLike10PointSuperTieBreak(
-  one: number | "wo",
-  two: number | "wo",
+  one: number | "wo" | null,
+  two: number | "wo" | null,
 ): boolean {
-  if (one === "wo" || two === "wo") return false;
+  if (one === "wo" || two === "wo" || one === null || two === null) return false;
   const hi = Math.max(one, two);
   const lo = Math.min(one, two);
   return hi >= 10 && hi - lo >= 2;
@@ -69,6 +69,11 @@ export function resolveWinnerBySets(
     const result = compareSetScore(one, two, playMode, i);
     if (result > 0) oneWins += 1;
     if (result < 0) twoWins += 1;
+
+    if (one === "wo" || two === "wo") {
+      if (result > 0) return "side1";
+      if (result < 0) return "side2";
+    }
 
     if (oneWins >= majority) return "side1";
     if (twoWins >= majority) return "side2";
