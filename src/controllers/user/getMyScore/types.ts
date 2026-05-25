@@ -1,7 +1,7 @@
 export type MyScoreMatchMode = 'singles' | 'doubles';
 
-/** Aggregate score for a match row: numeric total, walkover loss (WO), or walkover win (W). */
-export type MyScoreAggregateDisplay = number | 'WO' | 'W';
+/** Aggregate score for a match row: numeric total or walkover loss (WO). Walkover wins use null (-). */
+export type MyScoreAggregateDisplay = number | 'WO';
 
 export interface MyScoreEntry {
 	id: string;

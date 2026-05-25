@@ -129,7 +129,7 @@ function toAggregateDisplayScore(
 		return 'WO';
 	}
 	if (theirs.hasWalkover) {
-		return 'W';
+		return null;
 	}
 	return mine.total;
 }
