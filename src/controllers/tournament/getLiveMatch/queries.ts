@@ -33,7 +33,7 @@ export async function fetchLiveMatchGames(userId: Types.ObjectId) {
     ],
   })
     .select(
-      "_id status startTime matchType playMode side1 side2 tournament schedule court detachedFromRound",
+      "_id status startTime matchType playMode side1 side2 score tournament schedule court detachedFromRound",
     )
     .populate("side1.players", "name alias profilePictureUrl")
     .populate("side2.players", "name alias profilePictureUrl")

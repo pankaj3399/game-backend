@@ -1,6 +1,6 @@
 import { Types } from 'mongoose';
 import { logger } from '../../../lib/logger';
-import type { MyScoreEntry, MyScoreMatchMode } from './types';
+import type { MyScoreAggregateDisplay, MyScoreEntry, MyScoreMatchMode } from './types';
 import type { MyScoreGameDoc } from './queries';
 
 interface ScoreBreakdown {
@@ -119,6 +119,19 @@ export function determineDidWinFromSetScores(
 	const myBreakdown = toScoreBreakdown(mySetScores);
 	const opponentBreakdown = toScoreBreakdown(opponentSetScores);
 	return resolveDidWin(myBreakdown, opponentBreakdown, mySetScores, opponentSetScores);
+}
+
+function toAggregateDisplayScore(
+	mine: ScoreBreakdown,
+	theirs: ScoreBreakdown,
+): MyScoreAggregateDisplay | null {
+	if (mine.hasWalkover) {
+		return 'WO';
+	}
+	if (theirs.hasWalkover) {
+		return 'W';
+	}
+	return mine.total;
 }
 
 function toScoreBreakdown(scoreValues: unknown[] | undefined): ScoreBreakdown {
@@ -295,8 +308,8 @@ export function mapGameToMyScoreEntry(
 			name: opponentName,
 		},
 		mode: resolvedMode,
-		myScore: myScore.total,
-		opponentScore: opponentScore.total,
+		myScore: toAggregateDisplayScore(myScore, opponentScore),
+		opponentScore: toAggregateDisplayScore(opponentScore, myScore),
 		didWin: resolveDidWin(myScore, opponentScore, mySetScores, oppSetScores),
 		status: statusOverride ?? 'finished',
 	};

@@ -8,6 +8,29 @@ import type {
   MatchStatusResponse,
   PopulatedPlayer,
 } from "./types";
+import type { MatchScoreValueResponse } from "../getTournamentMatches/types";
+
+function normalizeScores(values: Array<number | "wo" | null> | undefined): MatchScoreValueResponse[] {
+  if (values == null) {
+    return [];
+  }
+
+  const out: MatchScoreValueResponse[] = [];
+  for (const value of values) {
+    if (value === "wo") {
+      out.push("wo");
+      continue;
+    }
+    if (value === null) {
+      out.push(null);
+      continue;
+    }
+    if (typeof value === "number" && Number.isFinite(value)) {
+      out.push(value);
+    }
+  }
+  return out;
+}
 
 export function toResponseStatus(status: GameStatus): MatchStatusResponse {
   if (status === "finished") {
@@ -163,5 +186,9 @@ export function mapLiveMatchItem(
     },
     myTeam: teams.myTeam,
     opponentTeam: teams.opponentTeam,
+    score: {
+      playerOneScores: normalizeScores(game.score?.playerOneScores),
+      playerTwoScores: normalizeScores(game.score?.playerTwoScores),
+    },
   };
 }

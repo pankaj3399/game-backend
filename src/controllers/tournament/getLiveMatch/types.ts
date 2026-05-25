@@ -4,10 +4,11 @@ import type {
   GameStatus,
   MatchType,
 } from "../../../types/domain/game";
+import type { MatchStatusResponse } from "../../../types/domain/match";
 import type {
   MatchPlayerResponse,
-  MatchStatusResponse,
-} from "../../../types/domain/match";
+  MatchScoreValueResponse,
+} from "../getTournamentMatches/types";
 
 export type { MatchPlayerResponse, MatchStatusResponse };
 
@@ -29,6 +30,10 @@ export interface LiveMatchResponseItem {
   };
   myTeam: MatchPlayerResponse[];
   opponentTeam: MatchPlayerResponse[];
+  score: {
+    playerOneScores: MatchScoreValueResponse[];
+    playerTwoScores: MatchScoreValueResponse[];
+  };
 }
 
 export interface PopulatedPlayer {
@@ -68,5 +73,9 @@ export interface LiveMatchGameDoc {
   court?: {
     _id: Types.ObjectId;
     name?: string | null;
+  } | null;
+  score?: {
+    playerOneScores?: Array<number | "wo" | null>;
+    playerTwoScores?: Array<number | "wo" | null>;
   } | null;
 }
