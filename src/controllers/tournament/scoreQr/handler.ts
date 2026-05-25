@@ -731,8 +731,13 @@ export async function updateScoreQrSessionScoresFlow(input: {
   // Update the pending QR request only — token/URL stay the same so B does not re-scan.
   // Game.score is written when the opponent confirms (recordTournamentMatchScoreFlow), not here,
   // so draft QR edits do not mark the match as "already scored" in live/enter-score UIs.
+  const now = new Date();
   const requestUpdateResult = await ScoreValidationRequest.updateOne(
-    { _id: request._id, status: "pending" },
+    {
+      _id: request._id,
+      status: "pending",
+      expiresAt: { $gt: now },
+    },
     {
       $set: {
         playerOneScores: normalizedInput.playerOneScores,
@@ -748,10 +753,13 @@ export async function updateScoreQrSessionScoresFlow(input: {
     },
     normalizedInput,
   );
-  if (
-    requestUpdateResult.matchedCount === 0 ||
-    (requestUpdateResult.modifiedCount === 0 && !requestScoresUnchanged)
-  ) {
+  if (requestUpdateResult.matchedCount === 0) {
+    if (request.expiresAt <= now) {
+      throw new AppError("QR session has expired", 410);
+    }
+    throw new AppError("QR session changed before scores could be updated", 409);
+  }
+  if (requestUpdateResult.modifiedCount === 0 && !requestScoresUnchanged) {
     throw new AppError("QR session changed before scores could be updated", 409);
   }
 
