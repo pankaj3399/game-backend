@@ -1,5 +1,8 @@
 export type MyScoreMatchMode = 'singles' | 'doubles';
 
+/** Aggregate score for a match row: numeric total or walkover loss (WO). Walkover wins use null (-). */
+export type MyScoreAggregateDisplay = number | 'WO';
+
 export interface MyScoreEntry {
 	id: string;
 	playedAt: string;
@@ -12,8 +15,8 @@ export interface MyScoreEntry {
 		name: string;
 	};
 	mode: MyScoreMatchMode;
-	myScore: number | null;
-	opponentScore: number | null;
+	myScore: MyScoreAggregateDisplay | null;
+	opponentScore: MyScoreAggregateDisplay | null;
 	didWin: boolean | null;
 	/** 'pendingScore' = awaiting opponent QR confirmation; 'finished' = fully confirmed. */
 	status: 'pendingScore' | 'finished';

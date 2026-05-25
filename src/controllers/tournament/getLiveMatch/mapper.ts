@@ -8,6 +8,7 @@ import type {
   MatchStatusResponse,
   PopulatedPlayer,
 } from "./types";
+import { normalizeScores } from "../shared/normalizeScores";
 
 export function toResponseStatus(status: GameStatus): MatchStatusResponse {
   if (status === "finished") {
@@ -163,5 +164,9 @@ export function mapLiveMatchItem(
     },
     myTeam: teams.myTeam,
     opponentTeam: teams.opponentTeam,
+    score: {
+      playerOneScores: normalizeScores(game.score?.playerOneScores),
+      playerTwoScores: normalizeScores(game.score?.playerTwoScores),
+    },
   };
 }

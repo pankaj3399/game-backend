@@ -728,57 +728,39 @@ export async function updateScoreQrSessionScoresFlow(input: {
     );
   }
 
-  // Update the request in-place — token/URL stay the same, so B doesn't need to re-scan.
-  // Mirror onto Game in the same transaction so we never leave diverging state.
-  const session = await mongoose.startSession();
-  session.startTransaction();
-  try {
-    const requestUpdateResult = await ScoreValidationRequest.updateOne(
-      { _id: request._id, status: "pending" },
-      {
-        $set: {
-          playerOneScores: normalizedInput.playerOneScores,
-          playerTwoScores: normalizedInput.playerTwoScores,
-        },
+  // Update the pending QR request only — token/URL stay the same so B does not re-scan.
+  // Game.score is written when the opponent confirms (recordTournamentMatchScoreFlow), not here,
+  // so draft QR edits do not mark the match as "already scored" in live/enter-score UIs.
+  const now = new Date();
+  const requestUpdateResult = await ScoreValidationRequest.updateOne(
+    {
+      _id: request._id,
+      status: "pending",
+      expiresAt: { $gt: now },
+    },
+    {
+      $set: {
+        playerOneScores: normalizedInput.playerOneScores,
+        playerTwoScores: normalizedInput.playerTwoScores,
       },
-      { session },
-    ).exec();
+    },
+  ).exec();
 
-    const requestScoresUnchanged = scoreInputsEqual(
-      {
-        playerOneScores: request.playerOneScores,
-        playerTwoScores: request.playerTwoScores,
-      },
-      normalizedInput,
-    );
-    if (
-      requestUpdateResult.matchedCount === 0 ||
-      (requestUpdateResult.modifiedCount === 0 && !requestScoresUnchanged)
-    ) {
-      throw new AppError("QR session changed before scores could be updated", 409);
+  const requestScoresUnchanged = scoreInputsEqual(
+    {
+      playerOneScores: request.playerOneScores,
+      playerTwoScores: request.playerTwoScores,
+    },
+    normalizedInput,
+  );
+  if (requestUpdateResult.matchedCount === 0) {
+    if (request.expiresAt <= now) {
+      throw new AppError("QR session has expired", 410);
     }
-
-    const gameUpdateResult = await Game.updateOne(
-      { _id: request.match, status: { $nin: ["finished", "cancelled"] } },
-      {
-        $set: {
-          "score.playerOneScores": normalizedInput.playerOneScores,
-          "score.playerTwoScores": normalizedInput.playerTwoScores,
-        },
-      },
-      { session },
-    ).exec();
-
-    if (gameUpdateResult.matchedCount === 0) {
-      throw new AppError("Match changed before scores could be updated", 409);
-    }
-
-    await session.commitTransaction();
-  } catch (err) {
-    await session.abortTransaction();
-    throw err;
-  } finally {
-    await session.endSession().catch(() => {});
+    throw new AppError("QR session changed before scores could be updated", 409);
+  }
+  if (requestUpdateResult.modifiedCount === 0 && !requestScoresUnchanged) {
+    throw new AppError("QR session changed before scores could be updated", 409);
   }
 
   return {

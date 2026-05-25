@@ -486,7 +486,10 @@ export async function updateScoreQrScores(
       playerTwoScores: parsedBody.data.playerTwoScores,
     });
 
-    publishScoreQrRequestEvent(result.requestId, "scores-updated");
+    publishScoreQrRequestEvent(result.requestId, "scores-updated", {
+      playerOneScores: result.playerOneScores,
+      playerTwoScores: result.playerTwoScores,
+    });
 
     res.status(200).json({
       message: "QR session scores updated",

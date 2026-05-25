@@ -1,9 +1,9 @@
 import type { GamePlayMode, GameStatus, MatchType } from "../../../types/domain/game";
+import { normalizeScores } from "../shared/normalizeScores";
 import type {
   GameForMatchesDoc,
   GameMatchPlayerSlot,
   MatchPlayerResponse,
-  MatchScoreValueResponse,
   MatchStatusResponse,
   ScheduleForMatchesDoc,
   ScheduleRoundDoc,
@@ -73,28 +73,6 @@ function dateToIso(value: unknown): string | null {
   }
 
   return null;
-}
-
-function normalizeScores(values: Array<number | "wo" | null> | undefined) {
-  if (values == null) {
-    return [];
-  }
-
-  const out: MatchScoreValueResponse[] = [];
-  for (const v of values) {
-    if (v === "wo") {
-      out.push("wo");
-      continue;
-    }
-    if (v === null) {
-      out.push(null);
-      continue;
-    }
-    if (typeof v === "number" && Number.isFinite(v)) {
-      out.push(v);
-    }
-  }
-  return out;
 }
 
 function mapPlayer(player: GameMatchPlayerSlot, snapshot: { rating: number; rd: number } | null) {
