@@ -13,6 +13,8 @@ export const getTournamentQuerySchema = z
     club: z.string().regex(/^[0-9a-fA-F]{24}$/).optional(),
     /** Restrict to tournaments at any of the requester's favourite clubs (OR). Mutually exclusive with `club`. */
     clubScope: z.enum(["favorites"]).optional(),
+    /** Filter by the requester's participation status. Requires authentication; silently ignored for guests. */
+    participation: z.enum(["joined", "notJoined"]).optional(),
     timezone: z
       .string()
       .trim()
