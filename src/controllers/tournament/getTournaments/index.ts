@@ -12,7 +12,7 @@ import { mapTournamentListItems } from "./mapper";
  * - Guests: list active published tournaments only.
  * - Players: list active tournaments only (published, joinable).
  * - Organisers+: list tournaments for clubs they manage; supports view=published|drafts.
- * Query: page, limit, when (future|past; unscheduled tournaments are always included), distance, club, clubScope (favorites), q (search), view (published|drafts, organiser only)
+ * Query: page, limit, when (future|past; unscheduled tournaments are always included), distance, club, clubScope (favorites), participation (joined|notJoined), q (search), view (published|drafts, organiser only)
  */
 export const getTournaments = async (req: Request, res: Response) => {
   try {
@@ -31,13 +31,13 @@ export const getTournaments = async (req: Request, res: Response) => {
     }
 
     const authResult = await authorizeList(session);
-    if (authResult.status !== 200) {
+    if (!authResult.ok) {
       res.status(authResult.status).json(buildErrorPayload(authResult.message));
       return;
     }
 
     const result = await getTournamentsFlow(parsed.data, authResult.data.filterContext);
-    if (result.status !== 200) {
+    if (!result.ok) {
       res.status(result.status).json(buildErrorPayload(result.message));
       return;
     }

@@ -26,8 +26,12 @@ export async function getTournamentLiveMatch(req: AuthenticatedRequest, res: Res
       await applyResolvedTimedStatuses(games, now);
     }
 
-    const liveGame = selectLiveGame(games);
-    const nextGame = selectNextScheduledGame(games, now);
+    const liveGame = selectLiveGame(games, now);
+    const nextGame = selectNextScheduledGame(
+      games,
+      now,
+      liveGame?._id.toString() ?? null,
+    );
 
     const liveMatch = liveGame ? mapLiveMatchItem(liveGame, userId) : null;
     const nextMatch = nextGame ? mapLiveMatchItem(nextGame, userId) : null;
