@@ -1,0 +1,69 @@
+import type { NextFunction, Request, Response } from 'express';
+import type { Role } from '../constants/roles';
+
+export type TestRequestOptions = {
+	user?: Express.User;
+	headers?: Request['headers'];
+	cookies?: Request['cookies'];
+	method?: Request['method'];
+	originalUrl?: Request['originalUrl'];
+	ip?: Request['ip'];
+};
+
+export type TestResponse = Response & {
+	statusCode: number | null;
+	body: unknown;
+};
+
+export function makeUser(role: Role): Express.User {
+	return {
+		role,
+		adminOf: [],
+		organizerOf: [],
+		favoriteClubs: [],
+		homeClub: null,
+		email: 'player@example.com',
+		status: 'active',
+		gender: null,
+		elo: { rating: 1500, tau: 0.5, rd: 200, vol: 0.06 },
+		createdAt: new Date('2024-01-01T00:00:00.000Z'),
+		updatedAt: new Date('2024-01-01T00:00:00.000Z'),
+	} as unknown as Express.User;
+}
+
+export function makeReq(options: TestRequestOptions = {}): Request {
+	const req: Partial<Request> = {
+		headers: options.headers ?? {},
+		cookies: options.cookies ?? {},
+		method: options.method ?? 'GET',
+		originalUrl: options.originalUrl ?? '/test',
+		ip: options.ip ?? '127.0.0.1',
+	};
+
+	if (options.user) {
+		req.user = options.user;
+	}
+
+	return req as Request;
+}
+
+export function makeRes(): TestResponse {
+	const res = {
+		statusCode: null,
+		body: undefined,
+		status: jest.fn((code: number) => {
+			res.statusCode = code;
+			return res;
+		}),
+		json: jest.fn((body: unknown) => {
+			res.body = body;
+			return res;
+		}),
+	} as unknown as TestResponse;
+
+	return res;
+}
+
+export function makeNext(): jest.MockedFunction<NextFunction> {
+	return jest.fn();
+}

@@ -8,9 +8,12 @@
     "start": "node dist/server.js",
     "dev": "tsx watch src/server.ts",
     "build": "tsc && node scripts/write-commit-sha.mjs",
-    "test": "jest --passWithNoTests",
+    "typecheck": "tsc --noEmit",
+    "test": "jest --config jest.unit.config.ts --coverage && jest --config jest.integration.config.ts --coverage",
     "test:watch": "jest --watchAll",
-    "test:coverage": "jest --coverage"
+    "test:coverage": "jest --config jest.unit.config.ts --coverage && jest --config jest.integration.config.ts --coverage",
+    "test:unit": "jest --config jest.unit.config.ts --coverage",
+    "test:integration": "jest --config jest.integration.config.ts --coverage"
   },
   "repository": {
     "type": "git",
