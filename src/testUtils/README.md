@@ -10,5 +10,3 @@
 Never mock modules under `src/models/` in integration tests. Seed with helpers from `src/testUtils/db`, then assert persisted state with Mongoose reads or HTTP plus DB proof.
 
 Run unit tests: `npx yarn@1.22.22 test:unit`. Run integration (routes + MongoDB): `npx yarn@1.22.22 test:integration`. Run both: `npx yarn@1.22.22 test`.
-
-See `docs/TESTING.md` for the full backend testing contract.
