@@ -98,7 +98,7 @@ describe('generateScoreQrFlow', () => {
 		const requestId = new Types.ObjectId();
 		(ScoreValidationRequest.create as jest.Mock).mockResolvedValue({
 			_id: requestId,
-			expiresAt: new Date('2026-12-31'),
+			expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
 		});
 
 		const result = await generateScoreQrFlow({

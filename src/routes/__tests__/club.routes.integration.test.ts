@@ -236,7 +236,7 @@ describe('club routes integration', () => {
 	// ─── addClubStaff ──────────────────────────────────────────────────────────
 
 	describe('POST /clubs/:clubId/staff', () => {
-		it('adds an organiser to a premium club and updates user.organizerOf', async () => {
+		it('adds an organiser to a premium club and updates club.organiserIds', async () => {
 			const { user: admin, club } = await seedClubAdmin({ plan: 'premium' });
 			const { authorization } = await createSession(admin);
 			const newOrganiser = await createUser();

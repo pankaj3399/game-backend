@@ -61,10 +61,25 @@ async function generateTournamentQr(app: ReturnType<typeof buildApp>, input: {
 
 describe('score QR integration', () => {
 	const app = buildApp();
+	const originalJwtSecret = process.env.JWT_SECRET;
+	const originalWebAppUrl = process.env.WEB_APP_URL;
 
 	beforeEach(() => {
 		process.env.JWT_SECRET ??= 'test-jwt-secret';
 		process.env.WEB_APP_URL = 'https://app.example.test';
+	});
+
+	afterEach(() => {
+		if (originalJwtSecret === undefined) {
+			delete process.env.JWT_SECRET;
+		} else {
+			process.env.JWT_SECRET = originalJwtSecret;
+		}
+		if (originalWebAppUrl === undefined) {
+			delete process.env.WEB_APP_URL;
+		} else {
+			process.env.WEB_APP_URL = originalWebAppUrl;
+		}
 	});
 
 	it('generates, validates, and confirms a tournament score QR with persisted request and match state', async () => {

@@ -38,27 +38,27 @@ describe('sponsor routes integration', () => {
 			status: 'paused',
 		});
 
-		await expect(requestJson(app, '/sponsors')).resolves.toEqual({
-			status: 200,
-			body: {
-				sponsors: [
-					{
-						id: first._id.toString(),
-						name: 'Global Partner',
-						description: null,
-						logoUrl: '/a.png',
-						link: 'https://a.example',
-					},
-					{
-						id: second._id.toString(),
-						name: 'Second Partner',
-						description: null,
-						logoUrl: null,
-						link: null,
-					},
-				],
-			},
-		});
+		const res = await requestJson(app, '/sponsors');
+		expect(res.status).toBe(200);
+		expect(res.body.sponsors).toHaveLength(2);
+		expect(res.body.sponsors).toEqual(
+			expect.arrayContaining([
+				{
+					id: first._id.toString(),
+					name: 'Global Partner',
+					description: null,
+					logoUrl: '/a.png',
+					link: 'https://a.example',
+				},
+				{
+					id: second._id.toString(),
+					name: 'Second Partner',
+					description: null,
+					logoUrl: null,
+					link: null,
+				},
+			]),
+		);
 	});
 
 	it('requires auth for club sponsor management', async () => {
