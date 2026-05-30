@@ -4,7 +4,7 @@ import type { Server } from 'http';
 
 export type HttpResult<T = unknown> = {
 	status: number;
-	body: T;
+	body: T | null;
 };
 
 export function controllerMarker(name: string): RequestHandler {

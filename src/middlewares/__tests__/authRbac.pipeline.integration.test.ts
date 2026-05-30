@@ -51,7 +51,7 @@ type SelectQuery<T> = ExecQuery<T> & {
 
 type HttpResult = {
 	status: number;
-	body: unknown;
+	body: unknown | null;
 };
 
 const mockVerify = jest.mocked(jwt.verify);
