@@ -12,7 +12,7 @@ import { mapTournamentListItems } from "./mapper";
  * - Guests: list active published tournaments only.
  * - Players: list active tournaments only (published, joinable).
  * - Organisers+: list tournaments for clubs they manage; supports view=published|drafts.
- * Query: page, limit, when (future|past; unscheduled tournaments are always included), distance, club, clubScope (favorites), participation (joined|notJoined), q (search), view (published|drafts, organiser only)
+ * Query: page, limit, when (future|past; unscheduled tournaments are always included), distance, club, clubScope (favorites), participation (joined|notJoined|organisedByMe), q (search), view (published|drafts, organiser only)
  */
 export const getTournaments = async (req: Request, res: Response) => {
   try {
