@@ -1,7 +1,6 @@
 import type { Request, Response } from "express";
 import { logger } from "../../../lib/logger";
 import { buildErrorPayload } from "../../../shared/errors";
-import type { AuthenticatedSession } from "../../../shared/authContext";
 import { guardIdParam } from "../../../shared/guards";
 import { authorizeGetById } from "../shared/authorizeGetById";
 import { fetchTournamentById } from "../shared/fetchTournamentById";
@@ -23,7 +22,7 @@ const STATUS_UPDATE_CHUNK_SIZE = 100;
  */
 export async function getTournamentMatches(req: Request, res: Response) {
   try {
-    const session = req.user as AuthenticatedSession | undefined;
+    const session = req.user;
 
     const idResult = guardIdParam(req.params, "tournament ID");
     if (!idResult.ok) {

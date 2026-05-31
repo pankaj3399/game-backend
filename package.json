@@ -8,9 +8,15 @@
     "start": "node dist/server.js",
     "dev": "tsx watch src/server.ts",
     "build": "tsc && node scripts/write-commit-sha.mjs",
-    "test": "jest --passWithNoTests",
-    "test:watch": "jest --watchAll",
-    "test:coverage": "jest --coverage"
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.jest.json",
+    "test": "jest --config jest.all.config.ts --coverage",
+    "test:watch": "jest --config jest.unit.config.ts --watch",
+    "test:watch:unit": "jest --config jest.unit.config.ts --watch",
+    "test:watch:integration": "jest --config jest.integration.config.ts --watch",
+    "test:coverage": "yarn test",
+    "test:all": "jest --config jest.all.config.ts --coverage",
+    "test:unit": "jest --config jest.unit.config.ts --coverage",
+    "test:integration": "jest --config jest.integration.config.ts --coverage"
   },
   "repository": {
     "type": "git",
@@ -50,6 +56,7 @@
     "@types/qrcode": "^1",
     "@types/tz-lookup": "^6.1.2",
     "jest": "^30.2.0",
+    "mongodb-memory-server": "^11.2.0",
     "ts-jest": "^29.4.6",
     "tsx": "^4.19.2",
     "typescript": "^5.9.3"

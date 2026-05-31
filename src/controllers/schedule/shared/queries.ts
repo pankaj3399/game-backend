@@ -4,6 +4,7 @@ import Schedule from "../../../models/Schedule";
 import Tournament from "../../../models/Tournament";
 import type { ScheduleGameTiming } from "./resolveDefaultScheduleStartTime";
 import type { DbIdLike } from "../../../types/domain/common";
+import { resolveDbIdRef } from "../../../shared/typeUtils";
 import { parseTournamentScheduleContext, parseTournamentScheduleDocument } from "./scheduleContext.schema";
 import type { TournamentScheduleContext, TournamentScheduleContextRaw } from "./types";
 
@@ -35,11 +36,7 @@ function buildNormalizedScheduleContext(raw: TournamentScheduleContextRaw) {
   }
 
   const rawSchedule = raw.schedule;
-  const scheduleFieldForId =
-    rawSchedule != null && typeof rawSchedule === "object" && "_id" in rawSchedule
-      ? (rawSchedule as { _id: DbIdLike })._id
-      : (rawSchedule as DbIdLike | null | undefined);
-  const scheduleId = toObjectId(scheduleFieldForId);
+  const scheduleId = toObjectId(resolveDbIdRef(rawSchedule));
 
   const courts: Array<{ _id: Types.ObjectId; name: string }> = [];
   const rawCourts = raw.club?.courts ?? [];

@@ -21,6 +21,22 @@ export type RecordTournamentMatchScoreOptions = {
   tournamentCompleted: boolean;
 };
 
+type UpdatedPlayerRating = {
+  userId: string;
+  rating: number;
+  rd: number;
+  vol: number;
+};
+
+export type RecordTournamentMatchScoreResult = {
+  matchId: string;
+  tournamentId: string;
+  matchStatus: "pendingScore" | "completed";
+  tournamentCompleted: boolean;
+  updatedRatings: UpdatedPlayerRating[];
+  ratingsRecomputed: boolean;
+};
+
 function isObjectId(value: unknown): value is Types.ObjectId {
   return value instanceof Types.ObjectId;
 }
@@ -179,7 +195,7 @@ export async function recordTournamentMatchScoreFlow(
   matchId: string,
   input: RecordMatchScoreInput,
   options: RecordTournamentMatchScoreOptions
-) {
+): Promise<RecordTournamentMatchScoreResult> {
   const session = await mongoose.startSession();
 
   try {
@@ -263,7 +279,7 @@ export async function recordTournamentMatchScoreFlow(
           tournamentId,
           matchStatus: "pendingScore" as const,
           tournamentCompleted: false,
-          updatedRatings: [] as Array<{ userId: string; rating: number; rd: number; vol: number }>,
+          updatedRatings: [],
           ratingsRecomputed: false,
         };
       }
@@ -303,7 +319,7 @@ export async function recordTournamentMatchScoreFlow(
         throw new AppError("Match is missing participants", 400);
       }
 
-      const updatedRatings: Array<{ userId: string; rating: number; rd: number; vol: number }> = [];
+      const updatedRatings: UpdatedPlayerRating[] = [];
 
       let tournamentCompleted = false;
       const tournament = await Tournament.findById(tournamentId)

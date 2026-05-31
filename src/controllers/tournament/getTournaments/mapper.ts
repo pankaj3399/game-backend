@@ -5,10 +5,10 @@ import {
 } from "../../../shared/timezone";
 
 export interface TournamentListItem {
-  id: unknown;
+  id: string;
   name: string;
   logoUrl: string | null;
-  club: { id: unknown; name: string; logoUrl: string | null } | null;
+  club: { id: string; name: string; logoUrl: string | null } | null;
   date: string | null;
   status: string;
   sponsor: {
@@ -38,14 +38,16 @@ function formatDateOnlyUtc(
   return `${year}-${month}-${day}`;
 }
 
-export function mapTournamentListItems(tournaments: TournamentListDoc[]) {
+export function mapTournamentListItems(
+  tournaments: TournamentListDoc[],
+): TournamentListItem[] {
   return tournaments.map((t) => ({
-    id: t._id,
+    id: t._id.toString(),
     name: t.name,
     logoUrl: t.logoUrl ?? null,
     club: t.club
       ? {
-          id: t.club._id,
+          id: t.club._id.toString(),
           name: t.club.name,
           logoUrl: t.club.logoUrl ?? null,
         }

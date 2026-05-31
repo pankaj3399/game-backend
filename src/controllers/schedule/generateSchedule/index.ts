@@ -40,6 +40,9 @@ function isClientScheduleGenerationError(message: string) {
   if (message.startsWith("Cannot regenerate this round:")) {
     return true;
   }
+  if (message.startsWith("Invalid courtIds provided:")) {
+    return true;
+  }
   if (message.startsWith("Missing game data for game")) {
     return true;
   }

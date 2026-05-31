@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 import Game, { computeGamePlayedAt } from "../../../models/Game";
-import Schedule from "../../../models/Schedule.js";
+import Schedule from "../../../models/Schedule";
 import Tournament from "../../../models/Tournament";
 import User from "../../../models/User";
 import { DEFAULT_ELO } from "../../../lib/config";
@@ -348,14 +348,17 @@ export async function persistScheduleRound(
       }
 
       const matchesPerWave = Math.max(1, uniqueCourtIds.length);
-      if (isScheduledTournament && !isValidIanaTimeZone(freshTournament.timezone)) {
-        throw new Error(
-          "Tournament timezone is missing or invalid. Update tournament settings before scheduling."
-        );
+      let tournamentTimezone: string;
+      if (isScheduledTournament) {
+        if (!isValidIanaTimeZone(freshTournament.timezone)) {
+          throw new Error(
+            "Tournament timezone is missing or invalid. Update tournament settings before scheduling."
+          );
+        }
+        tournamentTimezone = freshTournament.timezone;
+      } else {
+        tournamentTimezone = resolveTournamentTimeZone(freshTournament.timezone);
       }
-      const tournamentTimezone = isScheduledTournament
-        ? (freshTournament.timezone as string)
-        : resolveTournamentTimeZone(freshTournament.timezone);
       const participantsById = new Map(
         latestParticipants.map((participant) => [participant._id.toString(), participant])
       );

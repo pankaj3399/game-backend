@@ -1,7 +1,6 @@
 import type { Request, Response } from "express";
 import { logger } from "../../../lib/logger";
 import { buildErrorPayload } from "../../../shared/errors";
-import type { AuthenticatedSession } from "../../../shared/authContext";
 import { getTournamentQuerySchema } from "./validation";
 import { authorizeList } from "./authorize";
 import { getTournamentsFlow } from "./handler";
@@ -16,7 +15,7 @@ import { mapTournamentListItems } from "./mapper";
  */
 export const getTournaments = async (req: Request, res: Response) => {
   try {
-    const session = req.user as AuthenticatedSession | undefined;
+    const session = req.user;
 
     const parsed = getTournamentQuerySchema.safeParse(req.query);
     if (!parsed.success) {

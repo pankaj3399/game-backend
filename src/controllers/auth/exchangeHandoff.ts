@@ -3,7 +3,7 @@ import { buildErrorPayload } from '../../shared/errors';
 import { setAuthCookie } from '../../lib/jwtAuth';
 import { consumeHandoffCode } from '../../lib/authHandoff';
 import { logger } from '../../lib/logger';
-import type { ExchangeHandoffInput } from '../../validation/auth.schemas';
+import { exchangeHandoffSchema } from '../../validation/auth.schemas';
 
 /**
  * POST /api/auth/exchange-handoff
@@ -11,7 +11,12 @@ import type { ExchangeHandoffInput } from '../../validation/auth.schemas';
  */
 export async function exchangeAuthHandoff(req: Request, res: Response): Promise<void> {
 	try {
-		const { handoff } = req.body as ExchangeHandoffInput;
+		const parsed = exchangeHandoffSchema.safeParse(req.body);
+		if (!parsed.success) {
+			res.status(400).json(buildErrorPayload('Invalid handoff payload'));
+			return;
+		}
+		const { handoff } = parsed.data;
 		const token = await consumeHandoffCode(handoff);
 		if (!token) {
 			res.status(401).json(buildErrorPayload('Invalid or expired handoff code'));

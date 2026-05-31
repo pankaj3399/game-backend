@@ -1,14 +1,13 @@
 import type { Request, Response } from 'express';
 import { logger } from '../../../lib/logger';
 import { buildErrorPayload } from '../../../shared/errors';
-import type { AuthenticatedSession } from '../../../shared/authContext';
 import { parseQueryWithSchema } from '../../../shared/validation';
 import { listClubsQuerySchema } from './validation';
 import { listClubsFlow } from './handler';
 
 export async function listClubs(req: Request, res: Response) {
 	try {
-		const session = req.user as AuthenticatedSession | undefined;
+		const session = req.user;
 
 		const parsed = parseQueryWithSchema(listClubsQuerySchema, req.query);
 		if (parsed.status !== 200) {

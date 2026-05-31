@@ -59,9 +59,9 @@ export async function fetchGamesForScheduleRounds(
 export async function updateGameStatuses(
   updates: { id: Types.ObjectId; status: GameStatus; expectedStatus: GameStatus }[],
   session?: ClientSession
-) {
+): Promise<Array<{ id: Types.ObjectId; status: GameStatus }>> {
   if (updates.length === 0) {
-    return [] as Array<{ id: Types.ObjectId; status: GameStatus }>;
+    return [];
   }
 
   const result = await Game.bulkWrite(

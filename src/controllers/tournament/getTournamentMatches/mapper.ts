@@ -183,11 +183,11 @@ export function mapTournamentMatchesResponse(
     const id = g._id.toString();
     // Skip if already represented by schedule entries
     if (matches.some((m) => m.id === id)) continue;
-    const syntheticEntry = {
+    const syntheticEntry: ScheduleRoundDoc = {
       game: g._id,
       round: positiveInteger(g.detachedFromRound, 1),
       slot: positiveInteger(g.detachedFromSlot, 1),
-    } as ScheduleRoundDoc;
+    };
     const mapped = mapGameToMatch(g, syntheticEntry);
     if (mapped != null) {
       // mark as historical is added inside mapGameToMatch

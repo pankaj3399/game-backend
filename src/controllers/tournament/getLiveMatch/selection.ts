@@ -167,6 +167,9 @@ export function selectNextScheduledGame(
       current.startTime instanceof Date
         ? current.startTime.getTime()
         : Number.POSITIVE_INFINITY;
-    return currentTs < earliestTs ? current : earliest;
+    if (currentTs !== earliestTs) {
+      return currentTs < earliestTs ? current : earliest;
+    }
+    return current._id.toString() < earliest._id.toString() ? current : earliest;
   }, candidates[0]);
 }

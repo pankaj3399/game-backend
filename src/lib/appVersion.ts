@@ -1,9 +1,10 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { z } from 'zod';
 
-type PackageJson = {
-	version?: string;
-};
+const packageJsonSchema = z.object({
+	version: z.string().optional(),
+});
 
 export function resolveAppVersion(): string {
 	const fromEnv =
@@ -11,10 +12,13 @@ export function resolveAppVersion(): string {
 	if (fromEnv) return fromEnv;
 
 	try {
-		const packageJson = JSON.parse(
-			readFileSync(join(process.cwd(), 'package.json'), 'utf8')
-		) as PackageJson;
-		return packageJson.version?.trim() || 'dev';
+		const parsed = packageJsonSchema.safeParse(
+			JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf8'))
+		);
+		if (parsed.success) {
+			return parsed.data.version?.trim() || 'dev';
+		}
+		return 'dev';
 	} catch {
 		return 'dev';
 	}

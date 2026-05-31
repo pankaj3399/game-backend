@@ -1,6 +1,9 @@
 import type { Request, Response, NextFunction } from 'express';
 import type { z } from 'zod';
 
+/** Request whose body was validated by {@link validateBody}. */
+export type BodyValidatedRequest<TBody> = Omit<Request, 'body'> & { body: TBody };
+
 /**
  * Express middleware that validates req.body against a Zod schema.
  * On success: assigns parsed data to req.body and calls next().

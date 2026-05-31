@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import { logger } from "../../../lib/logger";
 import User from "../../../models/User";
-import type { AuthenticatedRequest } from "../../../shared/authContext";
+import { withAuthenticated, type AuthenticatedRequest } from "../../../shared/authContext";
 import { AppError, buildErrorPayload, buildZodErrorPayload } from "../../../shared/errors";
 import { parseRouteObjectId, readRouteParam } from "../../../shared/validation";
 import { authorizeScheduleOrMatchParticipant } from "../../schedule/shared/authorize";
@@ -566,13 +566,9 @@ export async function streamScoreQrEvents(
   }
 }
 
-export const cancelActiveScoreQr = async (
-  req: Request,
-  res: Response,
-) => {
+export const cancelActiveScoreQr = withAuthenticated(async (req, res) => {
   try {
-    const authedReq = req as AuthenticatedRequest;
-    await cancelActiveScoreQrFlow(authedReq.user!._id.toString());
+    await cancelActiveScoreQrFlow(req.user._id.toString());
     res.status(200).json({ success: true });
   } catch (err) {
     if (err instanceof AppError) {
@@ -588,4 +584,4 @@ export const cancelActiveScoreQr = async (
     logger.error("Error cancelling active score QR session", { err });
     res.status(500).json(buildErrorPayload("Failed to cancel active score QR session"));
   }
-};
+});

@@ -1,11 +1,11 @@
 import type { ScheduleParticipantInfo } from "./types";
+import { finiteNumberOr } from "../../../shared/typeUtils";
 
 export const DEFAULT_SCHEDULING_RATING = 1500;
 const MIN_RATING_STEP = 8;
 
 export function participantRealRating(participant: ScheduleParticipantInfo): number {
-  const rating = participant.elo?.rating;
-  return Number.isFinite(rating) ? (rating as number) : DEFAULT_SCHEDULING_RATING;
+  return finiteNumberOr(participant.elo?.rating, DEFAULT_SCHEDULING_RATING);
 }
 
 /** 0 = strongest by real rating, higher = weaker. */

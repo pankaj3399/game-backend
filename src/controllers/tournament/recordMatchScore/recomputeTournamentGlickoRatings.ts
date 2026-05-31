@@ -102,7 +102,11 @@ async function loadScheduledGamesThroughRound(
   scheduleId: Types.ObjectId,
   round: number,
   session: ClientSession
-) {
+): Promise<{
+  gamesByRound: Map<number, GameDocument[]>;
+  games: GameDocument[];
+  resetDefaultsByUserId: Map<string, Glicko2Player>;
+}> {
   const schedule = await Schedule.findById(scheduleId)
     .select("rounds tournament")
     .session(session)
@@ -114,7 +118,11 @@ async function loadScheduledGamesThroughRound(
   const roundGameIds = roundEntries.map((entry) => entry.game);
 
   if (roundGameIds.length === 0) {
-    return { gamesByRound: new Map<number, GameDocument[]>(), games: [] as GameDocument[], resetDefaultsByUserId: new Map<string, Glicko2Player>() };
+    return {
+      gamesByRound: new Map<number, GameDocument[]>(),
+      games: [],
+      resetDefaultsByUserId: new Map<string, Glicko2Player>(),
+    };
   }
 
   const roundGames = await Game.find({

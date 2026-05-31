@@ -1,17 +1,15 @@
 export type DoublesPairsById = Record<string, string>;
 
-function readRawMap(
-  value: unknown
-): Record<string, unknown> {
-  if (!value || typeof value !== "object") {
-    return {};
-  }
-
+function readRawMap(value: unknown): Record<string, unknown> {
   if (value instanceof Map) {
     return Object.fromEntries(value.entries());
   }
 
-  return value as Record<string, unknown>;
+  if (value !== null && typeof value === "object" && !Array.isArray(value)) {
+    return { ...value };
+  }
+
+  return {};
 }
 
 /**
@@ -51,5 +49,14 @@ export function sanitizeDoublesPairs(
 
 
 export function toDoublesPairsObject(value: unknown): DoublesPairsById {
-  return readRawMap(value) as DoublesPairsById;
+  const raw = readRawMap(value);
+  const next: DoublesPairsById = {};
+
+  for (const [key, partnerRaw] of Object.entries(raw)) {
+    if (typeof partnerRaw === "string") {
+      next[key] = partnerRaw;
+    }
+  }
+
+  return next;
 }

@@ -61,9 +61,9 @@ function mapPlayer(
 
 function mapTeamPlayers(team: {
   players: Array<PopulatedPlayer | Types.ObjectId | null> | undefined;
-}) {
+}): MatchPlayerResponse[] {
   if (!team || !Array.isArray(team.players)) {
-    return [] as MatchPlayerResponse[];
+    return [];
   }
 
   return team.players

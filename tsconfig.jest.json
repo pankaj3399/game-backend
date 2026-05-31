@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "target": "es2021",
+    "module": "Node16",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "moduleResolution": "node16",
+    "allowImportingTsExtensions": true,
+    "noEmit": true
+  },
+  "include": ["jest*.ts"]
+}

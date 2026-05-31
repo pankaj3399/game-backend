@@ -182,10 +182,10 @@ function intersectIds(
     // Only apply when the requester is authenticated (requesterUserId will be empty string for guests)
     if (query.participation && ctx.requesterUserId) {
       if (query.participation === "joined") {
-        filter.participants = { $elemMatch: { $eq: ctx.requesterUserId } } as TournamentFilter["participants"];
+        filter.participants = { $elemMatch: { $eq: ctx.requesterUserId } };
       } else if (query.participation === "notJoined") {
-        filter.participants = { $not: { $elemMatch: { $eq: ctx.requesterUserId } } } as TournamentFilter["participants"];
-      } else if (query.participation === "organisedByMe") {
+        filter.participants = { $not: { $elemMatch: { $eq: ctx.requesterUserId } } };
+      } else if (query.participation === "organisedByMe" && query.view !== "drafts") {
         filter.createdBy = ctx.requesterUserId;
       }
     }

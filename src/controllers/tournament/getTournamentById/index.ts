@@ -1,6 +1,5 @@
 import type { Request, Response } from "express";
 import { logger } from "../../../lib/logger";
-import type { AuthenticatedSession } from "../../../shared/authContext";
 import { guardIdParam } from "../../../shared/guards";
 import { buildErrorPayload } from "../../../shared/errors";
 import { authorizeGetById } from "../shared/authorizeGetById";
@@ -14,7 +13,7 @@ import { mapTournamentDetail } from "./mapper";
  */
 export async function getTournamentById(req: Request, res: Response) {
   try {
-    const session = req.user as AuthenticatedSession | undefined;
+    const session = req.user;
     const idResult = guardIdParam(req.params, "tournament ID");
     if (!idResult.ok) {
       res.status(idResult.status).json(buildErrorPayload(idResult.message));

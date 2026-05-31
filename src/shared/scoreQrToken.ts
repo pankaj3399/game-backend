@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import { AppError } from "./errors";
+import { isPlainObject } from "./typeUtils";
 
 export const SCORE_QR_AUDIENCE = "score-validation";
 export const SCORE_QR_ISSUER = "tb10";
@@ -134,32 +135,54 @@ export function verifyAndDecodeScoreQrToken(token: string): ScoreQrTokenPayload 
     throw new AppError("Malformed token payload", 400);
   }
 
-  if (!payload || typeof payload !== "object") {
+  if (!isPlainObject(payload)) {
     throw new AppError("Malformed token payload", 400);
   }
 
-  const p = payload as Partial<ScoreQrTokenPayload>;
+  const aud = payload.aud;
+  const iss = payload.iss;
+  const iat = payload.iat;
+  const exp = payload.exp;
+  const jti = payload.jti;
+  const sid = payload.sid;
+  const flow = payload.flow;
+  const tid = payload.tid;
+  const mid = payload.mid;
+  const rby = payload.rby;
+  const opp = payload.opp;
 
   if (
-    p.aud !== SCORE_QR_AUDIENCE ||
-    p.iss !== SCORE_QR_ISSUER ||
-    typeof p.iat !== "number" ||
-    typeof p.exp !== "number" ||
-    typeof p.jti !== "string" ||
-    typeof p.sid !== "string" ||
-    (p.flow !== "tournament" && p.flow !== "independent") ||
-    !(typeof p.tid === "string" || p.tid === null) ||
-    typeof p.mid !== "string" ||
-    typeof p.rby !== "string" ||
-    !(typeof p.opp === "string" || p.opp === null)
+    aud !== SCORE_QR_AUDIENCE ||
+    iss !== SCORE_QR_ISSUER ||
+    typeof iat !== "number" ||
+    typeof exp !== "number" ||
+    typeof jti !== "string" ||
+    typeof sid !== "string" ||
+    (flow !== "tournament" && flow !== "independent") ||
+    !(typeof tid === "string" || tid === null) ||
+    typeof mid !== "string" ||
+    typeof rby !== "string" ||
+    !(typeof opp === "string" || opp === null)
   ) {
     throw new AppError("Malformed token payload", 400);
   }
 
   const now = Math.floor(Date.now() / 1000);
-  if (p.exp <= now) {
+  if (exp <= now) {
     throw new AppError("Token expired", 410);
   }
 
-  return p as ScoreQrTokenPayload;
+  return {
+    aud: SCORE_QR_AUDIENCE,
+    iss: SCORE_QR_ISSUER,
+    iat,
+    exp,
+    jti,
+    sid,
+    flow,
+    tid,
+    mid,
+    rby,
+    opp,
+  };
 }

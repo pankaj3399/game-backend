@@ -350,12 +350,12 @@ export async function validateScoreQrTokenFlow(
   let payload: ScoreQrTokenPayload;
   try {
     payload = verifyAndDecodeScoreQrToken(token);
-  } catch (error) {
-    const err = error as Error;
-    if (err.message.toLowerCase().includes("expired")) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.toLowerCase().includes("expired")) {
       return { valid: false, reason: "expired", request: null };
     }
-    if (err.message.toLowerCase().includes("signature")) {
+    if (message.toLowerCase().includes("signature")) {
       return { valid: false, reason: "invalid_signature", request: null };
     }
     return { valid: false, reason: "malformed", request: null };

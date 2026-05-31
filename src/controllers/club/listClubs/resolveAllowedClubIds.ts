@@ -24,11 +24,17 @@ function intersectIds(a: Types.ObjectId[], b: Types.ObjectId[]): Types.ObjectId[
 	return a.filter((id) => bSet.has(id.toString()));
 }
 
+function isLeanHomeClub(
+	home: LeanHomeClub | Types.ObjectId
+): home is LeanHomeClub {
+	return !(home instanceof mongoose.Types.ObjectId);
+}
+
 function getHomeClubObjectId(user: LeanUserForClubsList): Types.ObjectId | null {
 	const home = user.homeClub;
 	if (!home) return null;
-	if (typeof home === "object" && "_id" in home && (home as LeanHomeClub)._id) {
-		return (home as LeanHomeClub)._id;
+	if (isLeanHomeClub(home) && home._id) {
+		return home._id;
 	}
 	if (home instanceof mongoose.Types.ObjectId) {
 		return home;
@@ -38,8 +44,8 @@ function getHomeClubObjectId(user: LeanUserForClubsList): Types.ObjectId | null 
 
 async function getHomeClubCoordinates(user: LeanUserForClubsList): Promise<[number, number] | null> {
 	const home = user.homeClub;
-	if (home && typeof home === "object" && "coordinates" in home) {
-		const coords = (home as LeanHomeClub).coordinates?.coordinates;
+	if (home && isLeanHomeClub(home)) {
+		const coords = home.coordinates?.coordinates;
 		if (coords && coords.length === 2) {
 			return [coords[0], coords[1]];
 		}
